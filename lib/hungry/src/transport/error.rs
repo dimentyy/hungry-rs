@@ -1,32 +1,32 @@
 use std::fmt;
 
-macro_rules! unpack_err {
+macro_rules! err {
     ($kind:ident $( $args:tt )*) => {
-        return Err(UnpackError {
-            kind: UnpackErrorKind::$kind $( $args )*,
+        return Err(Error {
+            kind: ErrorKind::$kind $( $args )*,
         })
     };
 }
 
-pub(super) use unpack_err;
+pub(super) use err;
 
 #[derive(Clone, Debug)]
-pub struct UnpackError {
-    pub kind: UnpackErrorKind,
+pub struct Error {
+    pub kind: ErrorKind,
 }
 
-impl fmt::Display for UnpackError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("transport unpack error: ")?;
+        f.write_str("transport error: ")?;
 
         self.kind.fmt(f)
     }
 }
 
-impl std::error::Error for UnpackError {}
+impl std::error::Error for Error {}
 
 #[derive(Clone, Debug)]
-pub enum UnpackErrorKind {
+pub enum ErrorKind {
     QuickAck,
     Status(i32),
     BadLen(i32),
@@ -34,9 +34,9 @@ pub enum UnpackErrorKind {
     BadSeq { received: i32, expected: i32 },
 }
 
-impl fmt::Display for UnpackErrorKind {
+impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use UnpackErrorKind::*;
+        use ErrorKind::*;
 
         match self {
             QuickAck => write!(f, "quick ack is not supported"),

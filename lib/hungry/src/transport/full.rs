@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::crypto::crc32;
 use crate::transport::{
-    unpack_err, Transport, TransportRead, TransportWrite, Unpack, UnpackError, UnpackErrorKind,
+    err, Error, ErrorKind, Packet, Transport, TransportRead, TransportWrite, Unpack,
 };
 use crate::utils::SliceExt;
 use crate::{Envelope, EnvelopeSize};
@@ -45,10 +45,10 @@ impl TransportRead for FullRead {
         }
     }
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, UnpackError> {
+    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error> {
         let len = match i32::from_le_bytes(*buffer[0..4].arr()) {
-            len @ ..0 => unpack_err!(Status(-len)),
-            len @ 0..12 => unpack_err!(BadLen(len)),
+            len @ ..0 => err!(Status(-len)),
+            len @ 0..12 => err!(BadLen(len)),
             len => len as usize,
         };
 
@@ -57,7 +57,7 @@ impl TransportRead for FullRead {
         let seq = i32::from_le_bytes(*buffer[4..8].arr());
 
         if seq != self.seq {
-            unpack_err!(BadSeq {
+            err!(BadSeq {
                 received: seq,
                 expected: self.seq,
             });
@@ -68,15 +68,15 @@ impl TransportRead for FullRead {
         let computed = crc32!(&buffer[0..len - 4]);
 
         if received != computed {
-            unpack_err!(BadCrc { received, computed })
+            err!(BadCrc { received, computed })
         }
 
         self.seq += 1;
 
-        Ok(Unpack::Envelope {
+        Ok(Unpack::Packet(Packet {
             data: 8..len - 4,
             next: len,
-        })
+        }))
     }
 }
 

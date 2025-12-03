@@ -5,6 +5,7 @@ mod envelope;
 pub(crate) mod crypto;
 
 pub mod mtproto;
+pub mod plain;
 pub mod reader;
 pub mod transport;
 pub mod utils;
@@ -22,13 +23,13 @@ pub use envelope::{Envelope, EnvelopeSize};
 pub fn new<
     T: transport::Transport + Default,
     R: AsyncRead + Unpin,
-    W: AsyncWrite + Unpin,
     B: reader::ReaderBehaviour,
+    W: AsyncWrite + Unpin,
 >(
     reader: R,
-    writer: W,
     reader_behaviour: B,
     reader_buffer: BytesMut,
+    writer: W,
 ) -> (reader::Reader<R, B, T>, writer::Writer<W, T>) {
     let (reader_transport, writer_transport) = T::default().split();
 

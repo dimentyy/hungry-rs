@@ -1,4 +1,4 @@
-use crate::transport::Unpack;
+use crate::transport::{Packet, QuickAck, Unpack};
 use crate::{mtproto, reader, utils};
 use bytes::BytesMut;
 
@@ -14,12 +14,12 @@ impl<T: reader::ReaderBehaviour> reader::ReaderBehaviour for Dump<T> {
 
     fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Unpack {
         let title = match &unpack {
-            Unpack::Envelope { data, next } => {
+            Unpack::Packet(Packet { data, next }) => {
                 let message = mtproto::Message::unpack(&buffer[data.clone()]);
 
                 &format!("READER: acquired {message}")
             }
-            Unpack::QuickAck { token, len } => {
+            Unpack::QuickAck(QuickAck { token, len }) => {
                 &format!("READER: quick ack 0x{token:08x}, len: {len}")
             }
         };

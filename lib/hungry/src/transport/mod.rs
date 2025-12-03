@@ -7,15 +7,27 @@ use bytes::BytesMut;
 
 use crate::{Envelope, EnvelopeSize};
 
-pub(self) use error::unpack_err;
+pub(self) use error::err;
 
-pub use error::{UnpackError, UnpackErrorKind};
+pub use error::{Error, ErrorKind};
 pub use full::Full;
 
 #[derive(Debug, Eq, PartialEq)]
+pub struct QuickAck {
+    pub token: u32,
+    pub len: usize,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct Packet {
+    pub data: Range<usize>,
+    pub next: usize,
+}
+
+#[derive(Debug, Eq, PartialEq)]
 pub enum Unpack {
-    Envelope { data: Range<usize>, next: usize },
-    QuickAck { token: u32, len: usize },
+    Packet(Packet),
+    QuickAck(QuickAck),
 }
 
 pub trait Transport: EnvelopeSize {
@@ -30,7 +42,7 @@ pub trait TransportRead: Unpin {
 
     fn length(&mut self, buffer: &mut [u8]) -> usize;
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, UnpackError>;
+    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error>;
 }
 
 pub trait TransportWrite: Unpin {

@@ -3,12 +3,12 @@ use std::marker::PhantomData;
 use bytes::BytesMut;
 
 use crate::tl::de;
-use crate::transport::Unpack;
+use crate::transport::{Packet, QuickAck, Unpack};
 use crate::{mtproto, reader};
 
 #[derive(Debug)]
 pub enum PlainDeserializerError {
-    QuickAck { token: u32, len: usize },
+    QuickAck(QuickAck),
     EncryptedMessage(mtproto::EncryptedMessage),
     Deserialization(de::Error),
 }
@@ -37,11 +37,11 @@ impl<T: de::Deserialize + Unpin> reader::ReaderBehaviour for PlainDeserializer<T
 
     fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Unpack {
         let (data, next) = match unpack {
-            Unpack::Envelope { data, next } => (data, next),
-            Unpack::QuickAck { token, len } => {
+            Unpack::Packet(Packet { data, next }) => (data, next),
+            Unpack::QuickAck(quick_ack) => {
                 unsafe { buffer.set_len(0) };
 
-                return Err(PlainDeserializerError::QuickAck { token, len });
+                return Err(PlainDeserializerError::QuickAck(quick_ack));
             }
         };
 

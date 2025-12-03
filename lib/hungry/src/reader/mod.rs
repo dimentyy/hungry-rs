@@ -1,6 +1,7 @@
 mod dump;
 mod error;
 mod plain;
+mod split;
 
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, ReadBuf};
@@ -15,6 +16,7 @@ use crate::utils::{ready_ok, BytesMutExt};
 pub use dump::Dump;
 pub use error::Error;
 pub use plain::{PlainDeserializer, PlainDeserializerError};
+pub use split::Split;
 
 pub trait ReaderBehaviour: Unpin {
     type Unpack;
@@ -115,7 +117,7 @@ impl<R: AsyncRead + Unpin, B: ReaderBehaviour, T: Transport> Reader<R, B, T> {
             let len = length - self.buffer.len();
             let mut buf = ReadBuf::uninit(&mut self.buffer.spare_capacity_mut()[..len]);
 
-            ready_ok!(pin!(&mut self.driver).poll_read(cx, &mut buf));
+            ready_ok!(dbg!(pin!(&mut self.driver).poll_read(cx, &mut buf)));
 
             let filled = buf.filled().len();
 

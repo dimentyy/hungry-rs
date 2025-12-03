@@ -2,7 +2,7 @@ use crate::{BareVec, Serialize, VECTOR};
 
 #[inline]
 fn bare_vec_serialized_len<T: Serialize>(vec: &Vec<T>) -> usize {
-    vec.iter().map(|x| x.serialized_len()).sum::<usize>() + 4
+    vec.iter().map(|x| x.serialized_len()).sum::<usize>()
 }
 
 #[inline]

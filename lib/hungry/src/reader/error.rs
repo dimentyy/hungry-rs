@@ -1,20 +1,22 @@
-use std::{error, fmt, io};
+use std::{fmt, io};
 
-use crate::transport::UnpackError;
+use crate::transport;
 
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
-    Unpack(UnpackError),
+    Unpack(transport::Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+
         f.write_str("reader error: ")?;
 
         match self {
-            Error::Io(err) => err.fmt(f),
-            Error::Unpack(err) => err.fmt(f),
+            Io(err) => err.fmt(f),
+            Unpack(err) => err.fmt(f),
         }
     }
 }
@@ -25,14 +27,14 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<UnpackError> for Error {
-    fn from(value: UnpackError) -> Self {
+impl From<transport::Error> for Error {
+    fn from(value: transport::Error) -> Self {
         Self::Unpack(value)
     }
 }
 
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(match self {
             Error::Io(err) => err,
             Error::Unpack(err) => err,
