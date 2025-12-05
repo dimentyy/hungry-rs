@@ -3,9 +3,7 @@ use std::ops::RangeFrom;
 use bytes::BytesMut;
 
 use crate::crypto::crc32;
-use crate::transport::{
-    err, Error, ErrorKind, Packet, Transport, TransportRead, TransportWrite, Unpack,
-};
+use crate::transport::{err, Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
 use crate::{Envelope, EnvelopeSize};
 

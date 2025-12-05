@@ -1,11 +1,13 @@
 use std::fmt;
 
 macro_rules! err {
-    ($kind:ident $( $args:tt )*) => {
+    ($kind:ident $( $args:tt )*) => {{
+        use crate::transport::{Error, ErrorKind};
+
         return Err(Error {
             kind: ErrorKind::$kind $( $args )*,
         })
-    };
+    }};
 }
 
 pub(super) use err;

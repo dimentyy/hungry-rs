@@ -23,14 +23,14 @@ pub use envelope::{Envelope, EnvelopeSize};
 pub fn new<
     T: transport::Transport + Default,
     R: AsyncRead + Unpin,
-    B: reader::Handle,
+    H: reader::Handle,
     W: AsyncWrite + Unpin,
 >(
     reader: R,
-    reader_behaviour: B,
+    reader_behaviour: H,
     reader_buffer: BytesMut,
     writer: W,
-) -> (reader::Reader<R, B, T>, writer::Writer<W, T>) {
+) -> (reader::Reader<R, H, T>, writer::Writer<W, T>) {
     let (reader_transport, writer_transport) = T::default().split();
 
     let writer = writer::Writer::new(writer, writer_transport);

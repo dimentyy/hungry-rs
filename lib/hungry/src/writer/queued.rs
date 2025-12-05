@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::io;
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 
 use bytes::BytesMut;
@@ -10,7 +10,7 @@ use crate::envelope::Envelope;
 use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::writer::{write_zero_err, Writer};
+use crate::writer::Writer;
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     ready: VecDeque<BytesMut>,
@@ -75,13 +75,17 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
         // Loop may not be used here because a written buffer will be lost due to an error.
         // Storing io::Error in the Writer to return in the next poll would be an overkill.
-        let ready = match ready_ok!(pin!(&mut self.writer.driver).poll_write(cx, buffer.as_ref())) {
-            0 => write_zero_err!(),
-            n if n == buffer.len() => self.buffers.pop_front().unwrap(),
-            n => buffer.split_to(n),
+        let n = ready_ok!(self.writer.poll_checked(cx, buffer));
+
+        let buffer = if n >= buffer.len() {
+            assert_eq!(n, buffer.len());
+
+            self.buffers.pop_front().unwrap()
+        } else {
+            buffer.split_to(n)
         };
 
-        Poll::Ready(Ok(ready))
+        Poll::Ready(Ok(buffer))
     }
 }
 

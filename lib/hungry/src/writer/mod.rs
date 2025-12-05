@@ -1,9 +1,10 @@
 mod queued;
 
-use bytes::BytesMut;
 use std::io;
 use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
+
+use bytes::BytesMut;
 use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
@@ -11,17 +12,6 @@ use crate::utils::ready_ok;
 use crate::{mtproto, Envelope, EnvelopeSize};
 
 pub use queued::QueuedWriter;
-
-macro_rules! write_zero_err {
-    () => {
-        return Poll::Ready(Err(io::Error::new(
-            io::ErrorKind::WriteZero,
-            "wrote 0 bytes",
-        )))
-    };
-}
-
-pub(self) use write_zero_err;
 
 pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
     driver: W,
@@ -31,6 +21,19 @@ pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
 impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     pub(crate) fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
+    }
+
+    fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        let result = pin!(&mut self.driver).poll_write(cx, buf);
+
+        if matches!(result, Poll::Ready(Ok(0))) {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "wrote 0 bytes",
+            )));
+        }
+
+        result
     }
 
     pub(crate) fn single<'a>(
@@ -74,11 +77,7 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
                 return Poll::Ready(Ok(()));
             }
 
-            let n = ready_ok!(pin!(&mut self.writer.driver).poll_write(cx, buf));
-
-            if n == 0 {
-                write_zero_err!();
-            }
+            let n = ready_ok!(self.writer.poll_checked(cx, buf));
 
             self.pos += n;
         }

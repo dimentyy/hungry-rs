@@ -12,14 +12,14 @@ async fn main() -> anyhow::Result<()> {
     let stream = tokio::net::TcpStream::connect(ADDR).await?;
     let (r, w) = stream.into_split();
 
-    let behaviour = Dump(Parted {
+    let handle = Dump(Parted {
         buffer: Reserve,
         output: Split,
     });
 
     let buffer = BytesMut::with_capacity(1024);
 
-    let (mut reader, mut writer) = hungry::new::<Transport, _, _, _>(r, behaviour, buffer, w);
+    let (mut reader, mut writer) = hungry::new::<Transport, _, _, _>(r, handle, buffer, w);
 
     let mut buffer = BytesMut::with_capacity(1024);
 
