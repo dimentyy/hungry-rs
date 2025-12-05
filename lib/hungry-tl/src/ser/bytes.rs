@@ -1,15 +1,51 @@
+use std::ops::Range;
 use std::ptr;
 
-use crate::Serialize;
+use crate::ser::Serialize;
+
+#[inline(always)]
+pub fn bytes_len(len: usize) -> usize {
+    if len <= 253 {
+        (len + 4) & !3
+    } else {
+        (len + 7) & !3
+    }
+}
+
+pub unsafe fn prepare_bytes(mut buf: *mut u8, len: usize) -> usize {
+    unsafe {
+        if len <= 253 {
+            *buf = len as u8;
+
+            if len & 1 == 0 {
+                *buf.add(len + 1) = 0;
+            }
+
+            if len & 2 == 0 {
+                *(buf.add((len & !1) + 2) as *mut u16) = 0;
+            }
+
+            return 1;
+        }
+
+        buf = (((len as u32) << 8) | 254).serialize_unchecked(buf);
+
+        if len | 0 & 1 == 1 {
+            *buf.add(len) = 0;
+        }
+
+        if len & 2 == 0 {
+            *(buf.add((len + 1) & !1) as *mut u16) = 0;
+        }
+
+        4
+    }
+}
 
 impl Serialize for [u8] {
     #[inline]
     fn serialized_len(&self) -> usize {
-        if self.len() <= 253 {
-            (self.len() + 4) & !3
-        } else {
-            (self.len() + 7) & !3
-        }
+        bytes_len(self.len())
     }
 
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
@@ -23,7 +59,7 @@ impl Serialize for [u8] {
                     *buf.add(self.len() + 1) = 0;
                 }
 
-                if self.len() & 2 == 2 {
+                if self.len() & 2 == 0 {
                     *(buf.add((self.len() & !1) + 2) as *mut u16) = 0;
                 }
 
@@ -38,7 +74,7 @@ impl Serialize for [u8] {
                 *buf.add(self.len()) = 0;
             }
 
-            if self.len() & 2 == 2 {
+            if self.len() & 2 == 0 {
                 *(buf.add((self.len() + 1) & !1) as *mut u16) = 0;
             }
 

@@ -1,8 +1,8 @@
-use std::io::{Write, Result};
+use std::io::{Result, Write};
 
-use crate::{Cfg, F};
 use crate::code::write_escaped;
 use crate::meta::Combinator;
+use crate::{Cfg, F};
 
 pub(super) fn write_identifiable(f: &mut F, _cfg: &Cfg, x: &Combinator) -> Result<()> {
     f.write_all(b"\nimpl crate::Identifiable for ")?;

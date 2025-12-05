@@ -1,8 +1,8 @@
-use std::io::{Write, Result};
+use std::io::{Result, Write};
 
 use crate::code::{write_escaped, write_typ};
-use crate::{Cfg, F};
 use crate::meta::{Data, Func};
+use crate::{Cfg, F};
 
 pub(super) fn write_function(f: &mut F, cfg: &Cfg, data: &Data, x: &Func) -> Result<()> {
     f.write_all(b"\nimpl crate::Function for ")?;

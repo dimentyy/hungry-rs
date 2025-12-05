@@ -1,3 +1,5 @@
+//! TODO: Reimplement
+
 // Copyright 2020 - developers of the `grammers` project.
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -116,19 +118,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_factorization_1() {
+    fn test_grammers_crypto_factorization_1() {
         let pq = factorize(1470626929934143021);
         assert_eq!(pq, (1206429347, 1218991343));
     }
 
     #[test]
-    fn test_factorization_2() {
+    fn test_grammers_crypto_factorization_2() {
         let pq = factorize(2363612107535801713);
         assert_eq!(pq, (1518968219, 1556064227));
     }
 
     #[test]
-    fn test_factorization_3() {
+    fn test_grammers_crypto_factorization_3() {
         let pq = factorize(2804275833720261793);
         assert_eq!(pq, (1555252417, 1803100129));
     }

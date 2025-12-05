@@ -5,7 +5,7 @@ use crate::transport;
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error),
-    Unpack(transport::Error),
+    Transport(transport::Error),
 }
 
 impl fmt::Display for Error {
@@ -16,7 +16,7 @@ impl fmt::Display for Error {
 
         match self {
             Io(err) => err.fmt(f),
-            Unpack(err) => err.fmt(f),
+            Transport(err) => err.fmt(f),
         }
     }
 }
@@ -29,7 +29,7 @@ impl From<io::Error> for Error {
 
 impl From<transport::Error> for Error {
     fn from(value: transport::Error) -> Self {
-        Self::Unpack(value)
+        Self::Transport(value)
     }
 }
 
@@ -37,7 +37,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(match self {
             Error::Io(err) => err,
-            Error::Unpack(err) => err,
+            Error::Transport(err) => err,
         })
     }
 }

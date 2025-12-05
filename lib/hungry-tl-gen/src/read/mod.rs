@@ -8,7 +8,7 @@ mod typ;
 
 use chumsky::prelude::*;
 
-pub use arg::{Arg, Flag, ArgTyp};
+pub use arg::{Arg, ArgTyp, Flag};
 pub use combinator::Combinator;
 pub use comments::{Comment, CommentVariant};
 pub use error::Error;

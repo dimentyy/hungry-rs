@@ -19,11 +19,11 @@ impl From<FromUtf8Error> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("deserialization error: ")?;
-        
+
         match self {
             Error::UnexpectedConstructor { id } => write!(f, "unexpected constructor {id:08x}"),
             Error::UnexpectedEndOfBuffer => write!(f, "unexpected end of buffer"),
-            Error::InvalidUtf8String(err) => write!(f, "{err}")
+            Error::InvalidUtf8String(err) => write!(f, "{err}"),
         }
     }
 }

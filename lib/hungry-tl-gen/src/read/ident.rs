@@ -26,7 +26,7 @@ impl<'src> Ident<'src> {
         space: None,
         name: "true",
     };
-    
+
     pub(super) fn part_parser() -> impl ParserExtras<'src, &'src str> + Copy {
         let first = any().filter(char::is_ascii_alphabetic);
 

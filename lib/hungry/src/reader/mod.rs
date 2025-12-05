@@ -99,11 +99,16 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
         self.length = None;
 
-        Poll::Ready(Ok(self.handle.acquired(&mut self.buffer, unpack)))
+        let output = self.handle.acquired(&mut self.buffer, unpack);
+
+        assert!(self.buffer.is_empty());
+
+        Poll::Ready(Ok(output))
     }
 
     fn poll_header(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
-        ready_ok!(self.poll_part_read(cx, T::HEADER));
+        // FIXME
+        ready_ok!(self.poll_part_read(cx, 4));
 
         let required = self.transport.length(self.buffer.as_mut());
 
@@ -115,7 +120,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
         let unpacked = self.transport.unpack(self.buffer.as_mut());
 
-        Poll::Ready(unpacked.map_err(Error::Unpack))
+        Poll::Ready(unpacked.map_err(Error::Transport))
     }
 
     fn poll_part_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {

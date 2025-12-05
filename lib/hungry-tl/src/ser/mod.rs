@@ -3,6 +3,8 @@ mod bytes;
 mod primitives;
 mod vec;
 
+pub use bytes::{bytes_len, prepare_bytes};
+
 pub trait Serialize {
     fn serialized_len(&self) -> usize;
 

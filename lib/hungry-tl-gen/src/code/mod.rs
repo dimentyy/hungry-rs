@@ -1,31 +1,31 @@
+mod de;
 mod enum_body;
-mod typ;
-mod x;
-mod name;
-mod struct_body;
 mod function;
 mod identifiable;
+mod name;
 mod ser;
 mod serialized_len;
-mod de;
+mod struct_body;
+mod typ;
+mod x;
 
 use std::io::{Result, Write};
 
 use indexmap::IndexMap;
 
-use crate::{Cfg, F};
 use crate::meta::{Data, Enum, Func, Name, Type};
+use crate::{Cfg, F};
 
+use de::write_deserializable;
 use enum_body::{write_enum_body, write_enum_variant};
-use typ::write_typ;
-use x::X;
-use name::write_name;
-use struct_body::write_struct_body;
 use function::write_function;
 use identifiable::write_identifiable;
+use name::write_name;
 use ser::write_serialize;
 use serialized_len::write_serialized_len;
-use de::write_deserializable;
+use struct_body::write_struct_body;
+use typ::write_typ;
+use x::X;
 
 macro_rules! write_module {
     ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{
@@ -192,9 +192,7 @@ fn write_derive_macros(f: &mut F, cfg: &Cfg) -> Result<()> {
 
     f.write_all(b"\n")?;
 
-    let Some(x) = iter.next() else {
-        return Ok(())
-    };
+    let Some(x) = iter.next() else { return Ok(()) };
 
     f.write_all(b"#[derive(")?;
     f.write_all(x.as_bytes())?;

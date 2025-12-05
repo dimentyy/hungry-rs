@@ -1,8 +1,8 @@
-use std::ops::Index;
 use indexmap::{IndexMap, IndexSet};
+use std::ops::Index;
 
-use crate::{Category, read};
 use crate::meta::Error;
+use crate::{Category, read};
 
 pub(super) struct Temp<'a> {
     pub(super) types: IndexMap<&'a read::Ident<'a>, (&'a read::Combinator<'a>, usize)>,
@@ -34,11 +34,10 @@ impl<'a> Temp<'a> {
                 Category::Types => {
                     let index = types.len();
 
-                    let mut entry = enums
-                        .entry(&combinator.result.ident);
-                    
+                    let mut entry = enums.entry(&combinator.result.ident);
+
                     let enum_index = entry.index();
-                        
+
                     entry.or_insert_with(|| Vec::with_capacity(1)).push(index);
 
                     if let Some(_) = types.insert(&combinator.ident, (combinator, enum_index)) {

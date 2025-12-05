@@ -7,7 +7,7 @@ pub(crate) fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, mes
     let excess = envelope.adapt(buffer);
     let (h, _) = envelope.buffers();
 
-    h[0..8].copy_from_slice(&[0; 8]); // auth_key_id
+    h[0..8].fill(0); // auth_key_id
     h[8..16].copy_from_slice(&message_id.to_le_bytes());
 
     let length = buffer.len() as i32;

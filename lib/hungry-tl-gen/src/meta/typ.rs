@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::meta::{Data, Error, GenericArg, TypeOrEnum};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub enum Typ {
@@ -23,11 +23,16 @@ pub enum Typ {
 }
 
 impl Typ {
-    pub(crate) fn check_recursion(&self, data: &Data, visited: &mut HashSet<TypeOrEnum>, root: TypeOrEnum) -> bool {
+    pub(crate) fn check_recursion(
+        &self,
+        data: &Data,
+        visited: &mut HashSet<TypeOrEnum>,
+        root: TypeOrEnum,
+    ) -> bool {
         let value = match self {
             Typ::Type { index, params } => {
                 assert!(params.is_empty());
-                
+
                 TypeOrEnum::Type(*index)
             }
             Typ::Enum { index, params } => {
@@ -40,7 +45,7 @@ impl Typ {
             Typ::Generic { index } => unimplemented!(),
             _ => return false,
         };
-        
+
         if value == root {
             return true;
         }

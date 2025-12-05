@@ -1,37 +1,56 @@
-use std::fmt::Display;
-use std::io;
+use std::{fmt, io};
 
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::mtproto::{EncryptedMessage, PlainEnvelope};
-use crate::reader::{Error as ReaderError, Handle, HandleOutput, Reader, Split};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
-use crate::writer::Writer;
-use crate::{mtproto, tl, Envelope};
+use crate::{mtproto, reader, tl, writer, Envelope};
 
 #[derive(Debug)]
 pub enum Error {
-    Reader(ReaderError),
+    Reader(reader::Error),
     Writer(io::Error),
-    Deserialization(tl::de::Error),
     QuickAck(QuickAck),
-    Encrypted(EncryptedMessage),
+    EncryptedMessage(mtproto::EncryptedMessage),
+    Deserialization {
+        source: tl::de::Error,
+        buffer: BytesMut,
+    },
 }
+
+impl From<reader::Error> for Error {
+    fn from(value: reader::Error) -> Self {
+        Self::Reader(value)
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Reader(err) => err.fmt(f),
+            Error::Writer(err) => err.fmt(f),
+            Error::QuickAck(_) => todo!(),
+            Error::EncryptedMessage(_) => todo!(),
+            Error::Deserialization { source, buffer } => source.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
 
 pub async fn send<
     T: Transport,
     R: AsyncRead + Unpin,
-    H: Handle<Output = <Split as HandleOutput>::Output>,
+    H: reader::Handle<Output = <reader::Split as reader::HandleOutput>::Output>,
     W: AsyncWrite + Unpin,
     F: tl::Function,
 >(
-    r: &mut Reader<R, H, T>,
-    w: &mut Writer<W, T>,
+    r: &mut reader::Reader<R, H, T>,
+    w: &mut writer::Writer<W, T>,
     func: &F,
     buffer: &mut BytesMut,
     transport: Envelope<T>,
-    mtp: PlainEnvelope,
+    mtp: mtproto::PlainEnvelope,
     message_id: i64,
 ) -> Result<F::Response, Error> {
     unsafe {
@@ -43,7 +62,7 @@ pub async fn send<
         .await
         .map_err(Error::Writer)?;
 
-    let (buffer, unpack) = r.await.map_err(Error::Reader)?;
+    let (buffer, unpack) = r.await?;
 
     let (data, next) = match unpack {
         Unpack::Packet(Packet { data, next }) => (data, next),
@@ -55,13 +74,12 @@ pub async fn send<
     let message = match mtproto::Message::unpack(&buffer[data.clone()]) {
         mtproto::Message::Plain(message) => message,
         mtproto::Message::Encrypted(message) => {
-            return Err(Error::Encrypted(message));
+            return Err(Error::EncryptedMessage(message));
         }
     };
 
-    let mut buf = tl::de::Buf::new(&buffer[data.start + 20..data.end]);
-    let value =
-        tl::de::Deserialize::deserialize_checked(&mut buf).map_err(Error::Deserialization)?;
-
-    Ok(value)
+    match tl::de::checked(&buffer[data.start + 20..data.end]) {
+        Ok(response) => Ok(response),
+        Err(source) => Err(Error::Deserialization { source, buffer }),
+    }
 }

@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-use std::mem;
 use chumsky::container::Container;
 use indexmap::{IndexMap, IndexSet};
+use std::collections::HashSet;
+use std::mem;
 
 use crate::meta::{Arg, ArgTyp, Combinator, Error, Flag, GenericArg, Name, Temp, Typ, TypeOrEnum};
 use crate::{read, rust};
@@ -10,7 +10,7 @@ use crate::{read, rust};
 pub struct Type {
     pub combinator: Combinator,
     pub enum_index: usize,
-    pub recursive: bool
+    pub recursive: bool,
 }
 
 #[derive(Debug)]
@@ -53,7 +53,11 @@ impl Data {
         }
 
         for i in 0..data.types.len() {
-            data.types[i].recursive = data.check_recursion(&mut HashSet::new(), TypeOrEnum::Type(i), TypeOrEnum::Type(i));
+            data.types[i].recursive = data.check_recursion(
+                &mut HashSet::new(),
+                TypeOrEnum::Type(i),
+                TypeOrEnum::Type(i),
+            );
         }
 
         Ok(data)
@@ -74,7 +78,7 @@ impl Data {
         self.types.push(Type {
             combinator,
             enum_index,
-            recursive: false
+            recursive: false,
         });
 
         Ok(())
@@ -258,7 +262,12 @@ impl Data {
         ))
     }
 
-    pub(crate) fn check_recursion(&self, visited: &mut HashSet<TypeOrEnum>, root: TypeOrEnum, value: TypeOrEnum) -> bool {
+    pub(crate) fn check_recursion(
+        &self,
+        visited: &mut HashSet<TypeOrEnum>,
+        root: TypeOrEnum,
+        value: TypeOrEnum,
+    ) -> bool {
         if visited.contains(&value) {
             return !visited.is_empty();
         }
@@ -275,7 +284,7 @@ impl Data {
                     };
 
                     if typ.check_recursion(self, visited, root) {
-                        return true
+                        return true;
                     }
                 }
             }

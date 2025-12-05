@@ -6,18 +6,20 @@ use crate::{crypto, mtproto};
 #[derive(Clone)]
 pub struct AuthKey {
     data: [u8; 256],
-    hash: [u8; 20],
+
+    aux_hash: [u8; 8],
+    id: [u8; 8],
 }
 
 impl fmt::Display for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "auth key {:#016x}", u64::from_ne_bytes(*self.id()))
+        write!(f, "auth key {:#016x}", u64::from_ne_bytes(self.id))
     }
 }
 
 impl fmt::Debug for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = u64::from_ne_bytes(*self.id());
+        let id = u64::from_ne_bytes(self.id);
 
         f.debug_struct("AuthKey")
             .field("id", &format_args!("{:#016x}", id))
@@ -35,7 +37,10 @@ impl AuthKey {
     pub fn new(data: [u8; 256]) -> Self {
         let hash = crypto::sha1!(&data);
 
-        Self { data, hash }
+        let aux_hash = *hash[..8].arr();
+        let id = *hash[12..].arr();
+
+        Self { data, aux_hash, id }
     }
 
     /// Actual underlying data used for cryptographic operations.
@@ -55,7 +60,7 @@ impl AuthKey {
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
     #[inline]
     pub fn aux_hash(&self) -> &[u8; 8] {
-        self.hash[0..8].arr()
+        &self.aux_hash
     }
 
     /// The 64 lower-order bits of the SHA1 hash of the authorization key. \
@@ -63,7 +68,7 @@ impl AuthKey {
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
     pub fn id(&self) -> &[u8; 8] {
-        self.hash[12..20].arr()
+        &self.id
     }
 
     /// Compute msg_key.

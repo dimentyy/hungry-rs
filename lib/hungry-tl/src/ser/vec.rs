@@ -1,4 +1,4 @@
-use crate::{BareVec, Serialize, VECTOR};
+use crate::{BareVec, VECTOR, ser::Serialize};
 
 #[inline]
 fn bare_vec_serialized_len<T: Serialize>(vec: &Vec<T>) -> usize {

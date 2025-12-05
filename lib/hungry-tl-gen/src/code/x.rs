@@ -4,7 +4,7 @@ use crate::meta::{Enum, Func, Name, Type};
 pub enum X<'a> {
     Type(&'a Type),
     Func(&'a Func),
-    Enum(&'a Enum)
+    Enum(&'a Enum),
 }
 
 impl<'a> X<'a> {

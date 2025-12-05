@@ -1,8 +1,8 @@
-use std::io::{Write, Result};
+use std::io::{Result, Write};
 
-use crate::{Cfg, F};
 use crate::code::write_name;
 use crate::meta::{Data, GenericArg, Name, Typ};
+use crate::{Cfg, F};
 
 pub(super) fn write_typ(
     f: &mut F,
@@ -10,7 +10,7 @@ pub(super) fn write_typ(
     data: &Data,
     generic_args: &[GenericArg],
     typ: &Typ,
-    turbofish: bool
+    turbofish: bool,
 ) -> Result<()> {
     let typ: &[u8] = match typ {
         Typ::Type { index, params } => {
@@ -28,17 +28,27 @@ pub(super) fn write_typ(
             }
 
             let x = &data.enums[*index];
-            
+
             return write_name(f, "enums", &x.name);
         }
         Typ::Int => b"i32",
         Typ::Long => b"i64",
         Typ::Double => b"f64",
-        Typ::Bytes => if turbofish { b"Vec::<u8>" } else { b"Vec<u8>" },
+        Typ::Bytes => {
+            if turbofish {
+                b"Vec::<u8>"
+            } else {
+                b"Vec<u8>"
+            }
+        }
         Typ::String => b"String",
         Typ::Bool => b"bool",
         Typ::BareVector(typ) => {
-            f.write_all(if turbofish { b"crate::BareVec::<" } else { b"crate::BareVec<" })?;
+            f.write_all(if turbofish {
+                b"crate::BareVec::<"
+            } else {
+                b"crate::BareVec<"
+            })?;
             write_typ(f, cfg, data, generic_args, typ, false)?;
             b">"
         }

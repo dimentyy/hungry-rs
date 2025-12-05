@@ -2,33 +2,32 @@ use std::marker::PhantomData;
 
 use bytes::BytesMut;
 
-use crate::tl::de;
 use crate::transport::{Packet, QuickAck, Unpack};
-use crate::{mtproto, reader};
+use crate::{mtproto, reader, tl};
 
 #[derive(Debug)]
 pub enum PlainDeserializationError {
     QuickAck(QuickAck),
     EncryptedMessage(mtproto::EncryptedMessage),
-    Deserialization(de::Error),
+    Deserialization(tl::de::Error),
 }
 
-impl From<de::Error> for PlainDeserializationError {
-    fn from(value: de::Error) -> Self {
+impl From<tl::de::Error> for PlainDeserializationError {
+    fn from(value: tl::de::Error) -> Self {
         Self::Deserialization(value)
     }
 }
 
-pub struct DeserializePlain<T: de::Deserialize + Unpin>(PhantomData<T>);
+pub struct DeserializePlain<T: tl::de::Deserialize + Unpin>(PhantomData<T>);
 
-impl<T: de::Deserialize + Unpin> DeserializePlain<T> {
+impl<T: tl::de::Deserialize + Unpin> DeserializePlain<T> {
     #[inline]
     pub const fn new() -> Self {
         Self(PhantomData)
     }
 }
 
-impl<T: de::Deserialize + Unpin> reader::HandleOutput for DeserializePlain<T> {
+impl<T: tl::de::Deserialize + Unpin> reader::HandleOutput for DeserializePlain<T> {
     type Output = Result<T, PlainDeserializationError>;
 
     fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
@@ -50,11 +49,10 @@ impl<T: de::Deserialize + Unpin> reader::HandleOutput for DeserializePlain<T> {
             }
         };
 
-        let mut buf = de::Buf::new(&buffer[data.start + 20..data.end]);
-        let value = T::deserialize_checked(&mut buf)?;
+        let response = tl::de::checked(&buffer[data.start + 20..data.end])?;
 
         unsafe { buffer.set_len(0) };
 
-        Ok(value)
+        Ok(response)
     }
 }

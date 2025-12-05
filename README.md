@@ -1,4 +1,4 @@
-## A set of Rust libraries for using Telegram API via MTProto with the main focus on reliability.
+# Telegram MTProto API client in Rust 🦀
 
 ###### Binaries
 * [hungry-test](/bin/hungry-test) — binary for testing the libraries
@@ -8,7 +8,7 @@
 * [hungry-tl](/lib/hungry-tl) — generated TL schema with their traits
 * [hungry-tl-gen](/lib/hungry-tl-gen) — building library for `hungry-tl`
 
-Run test program yourself! (send `req_pq_multi#be7e8ef1` and recv `ResPQ`)
+Run test program yourself! *(auth key creation)*
 
 **Check out the [main.rs](/bin/hungry-test/src/main.rs)**
 

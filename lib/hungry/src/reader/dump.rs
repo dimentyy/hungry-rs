@@ -16,7 +16,7 @@ impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
                 &format!("READER: acquired {message}")
             }
             Unpack::QuickAck(QuickAck { token, len }) => {
-                &format!("READER: quick ack 0x{token:08x}, len: {len}")
+                &format!("READER: acquired quick ack 0x{token:08x}, len: {len}")
             }
         };
 
@@ -29,6 +29,7 @@ impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
 impl<T: reader::Handle> reader::HandleBuffer for Dump<T> {
     fn required(&mut self, buffer: &mut BytesMut, length: usize) {
         println!("READER: required {length}");
+
         self.0.required(buffer, length);
     }
 }

@@ -2,8 +2,8 @@
 
 mod envelope;
 
-pub(crate) mod crypto;
-
+pub mod auth;
+pub mod crypto;
 pub mod mtproto;
 pub mod plain;
 pub mod reader;
@@ -13,6 +13,8 @@ pub mod writer;
 
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
+
+pub use rug;
 
 pub use hungry_tl as tl;
 
@@ -27,14 +29,14 @@ pub fn new<
     W: AsyncWrite + Unpin,
 >(
     reader: R,
-    reader_behaviour: H,
+    reader_handle: H,
     reader_buffer: BytesMut,
     writer: W,
 ) -> (reader::Reader<R, H, T>, writer::Writer<W, T>) {
     let (reader_transport, writer_transport) = T::default().split();
 
     let writer = writer::Writer::new(writer, writer_transport);
-    let reader = reader::Reader::new(reader, reader_behaviour, reader_transport, reader_buffer);
+    let reader = reader::Reader::new(reader, reader_handle, reader_transport, reader_buffer);
 
     (reader, writer)
 }

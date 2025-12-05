@@ -8,7 +8,7 @@ macro_rules! sha1 (
             hasher.update($x);
         )+
 
-        <[u8; 20]>::from(hasher.finalize())
+        hasher.finalize()
     })
 );
 
@@ -24,7 +24,7 @@ macro_rules! sha256 (
             hasher.update($x);
         )+
 
-        <[u8; 32]>::from(hasher.finalize())
+        hasher.finalize()
     })
 );
 

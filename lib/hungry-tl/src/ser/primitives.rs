@@ -1,6 +1,6 @@
 use std::ptr;
 
-use crate::{Serialize, BOOL_FALSE, BOOL_TRUE};
+use crate::{BOOL_FALSE, BOOL_TRUE, ser::Serialize};
 
 macro_rules! int {
     ( $( $num:ty ),+ ) => { $(

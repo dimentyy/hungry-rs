@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use std::io::{Write, Result};
+use std::io::{Result, Write};
 
-use crate::{Cfg, F};
-use crate::code::{X, write_escaped, write_enum_variant, write_name};
+use crate::code::{X, write_enum_variant, write_escaped, write_name};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
+use crate::{Cfg, F};
 
 fn write_structure_arg_len(f: &mut F, cfg: &Cfg, data: &Data, x: &Arg) -> Result<()> {
     match &x.typ {
@@ -24,13 +24,19 @@ fn write_structure_arg_len(f: &mut F, cfg: &Cfg, data: &Data, x: &Arg) -> Result
 
             Ok(())
         }
-        ArgTyp::True { .. } => Ok(())
+        ArgTyp::True { .. } => Ok(()),
     }
 }
 
-fn write_structure_len(f: &mut F, cfg: &Cfg, data: &Data, func: bool, x: &Combinator) -> Result<()> {
+fn write_structure_len(
+    f: &mut F,
+    cfg: &Cfg,
+    data: &Data,
+    func: bool,
+    x: &Combinator,
+) -> Result<()> {
     if x.args.is_empty() {
-        return f.write_all(if func { b"4" } else { b"0" })
+        return f.write_all(if func { b"4" } else { b"0" });
     }
 
     let mut iter = x.args.iter();
@@ -43,7 +49,7 @@ fn write_structure_len(f: &mut F, cfg: &Cfg, data: &Data, func: bool, x: &Combin
 
     for arg in iter {
         if matches!(arg.typ, ArgTyp::True { .. }) {
-            continue
+            continue;
         }
         f.write_all(b"\n            + ")?;
         write_structure_arg_len(f, cfg, data, arg)?;
@@ -66,29 +72,36 @@ fn write_enum_len(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
     f.write_all(b"        }")
 }
 
-fn write_flag_arg(
-    f: &mut F, cfg: &Cfg, x: &Combinator, i: usize
-) -> Result<()> {
+fn write_flag_arg(f: &mut F, cfg: &Cfg, x: &Combinator, i: usize) -> Result<()> {
     f.write_all(b"(self.")?;
     let arg = &x.args[i];
     write_escaped(f, &arg.name)?;
     let bit = match &arg.typ {
-        ArgTyp::Typ { flag: Some(Flag { bit, .. }), .. } => {
+        ArgTyp::Typ {
+            flag: Some(Flag { bit, .. }),
+            ..
+        } => {
             f.write_all(b".is_some()")?;
             bit
         }
-        ArgTyp::True { flag: Flag { bit, .. } } => {
-            bit
-        }
+        ArgTyp::True {
+            flag: Flag { bit, .. },
+        } => bit,
         _ => unreachable!(),
     };
     f.write_all(b" as u32) << ")?;
     write!(f, "{bit}")
 }
 
-fn write_structure_ser(f: &mut F, cfg: &Cfg, data: &Data, func: bool, x: &Combinator) -> Result<()> {
+fn write_structure_ser(
+    f: &mut F,
+    cfg: &Cfg,
+    data: &Data,
+    func: bool,
+    x: &Combinator,
+) -> Result<()> {
     if x.args.is_empty() && !func {
-        return f.write_all(b"buf")
+        return f.write_all(b"buf");
     }
 
     f.write_all(b"unsafe {\n")?;
@@ -105,7 +118,7 @@ fn write_structure_ser(f: &mut F, cfg: &Cfg, data: &Data, func: bool, x: &Combin
                     f.write_all(b"0u32")?;
                 } else {
                     f.write_all(b"(")?;
-                    for arg in &args[..args.len()-1] {
+                    for arg in &args[..args.len() - 1] {
                         write_flag_arg(f, cfg, x, *arg)?;
 
                         f.write_all(b" | ")?;
@@ -117,11 +130,9 @@ fn write_structure_ser(f: &mut F, cfg: &Cfg, data: &Data, func: bool, x: &Combin
                 }
                 f.write_all(b".serialize_unchecked(buf);\n")?;
 
-                continue
-            },
-            ArgTyp::Typ { typ, flag } => {
-                (typ, flag.is_some())
-            },
+                continue;
+            }
+            ArgTyp::Typ { typ, flag } => (typ, flag.is_some()),
             ArgTyp::True { .. } => continue,
         };
         if optional {
@@ -155,7 +166,7 @@ fn write_enum_ser(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
 }
 
 pub(super) fn write_serialize(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result<()> {
-    f.write_all(b"\nimpl crate::Serialize for ")?;
+    f.write_all(b"\nimpl crate::ser::Serialize for ")?;
     f.write_all(x.name().actual.as_bytes())?;
     f.write_all(b" {\n    fn serialized_len(&self) -> usize {\n        ")?;
     match x {

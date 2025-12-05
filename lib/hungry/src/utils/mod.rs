@@ -3,8 +3,9 @@ mod dump;
 mod slice_ext;
 
 pub(crate) use bytes_ext::{unsplit_checked, BytesMutExt};
-pub use dump::dump;
 pub(crate) use slice_ext::SliceExt;
+
+pub use dump::dump;
 
 macro_rules! ready_ok {
     ($e:expr) => {{

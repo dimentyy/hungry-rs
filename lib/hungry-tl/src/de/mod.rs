@@ -11,6 +11,10 @@ pub use buf::Buf;
 pub use error::Error;
 pub use vec::{deserialize_vec_infallible, deserialize_vec_unchecked};
 
+pub fn checked<T: Deserialize>(buf: &[u8]) -> Result<T, Error> {
+    T::deserialize_checked(&mut Buf::new(buf))
+}
+
 pub trait Deserialize: Sized {
     const MINIMUM_SERIALIZED_LEN: usize;
 

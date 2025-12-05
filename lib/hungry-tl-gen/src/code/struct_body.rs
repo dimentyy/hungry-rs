@@ -1,8 +1,8 @@
 use std::io::{Result, Write};
 
-use crate::{Cfg, F};
 use crate::code::{write_derive_macros, write_escaped, write_typ};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, GenericArg, Typ};
+use crate::{Cfg, F};
 
 fn write_arg(
     f: &mut F,

@@ -10,7 +10,11 @@ pub struct Flag {
 }
 
 impl Flag {
-    pub(crate) fn find(args: &mut IndexMap<&str, Arg>, index: usize, flag: &read::Flag) -> Result<Self, Error> {
+    pub(crate) fn find(
+        args: &mut IndexMap<&str, Arg>,
+        index: usize,
+        flag: &read::Flag,
+    ) -> Result<Self, Error> {
         let Some(arg) = args.get_index_of(flag.ident) else {
             unimplemented!()
         };
@@ -22,7 +26,7 @@ impl Flag {
                     arg,
                     bit: flag.bit.unwrap_or(0),
                 })
-            },
+            }
             ArgTyp::Typ { .. } => unimplemented!(),
             ArgTyp::True { .. } => unimplemented!(),
         }
@@ -33,7 +37,7 @@ impl Flag {
 pub enum ArgTyp {
     Flags { args: Vec<usize> },
     Typ { typ: Typ, flag: Option<Flag> },
-    True { flag: Flag }
+    True { flag: Flag },
 }
 
 #[derive(Debug)]
@@ -44,7 +48,7 @@ pub struct Arg {
 
 #[derive(Debug)]
 pub struct GenericArg {
-    pub name: String
+    pub name: String,
 }
 
 #[derive(Debug)]
