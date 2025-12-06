@@ -1,7 +1,7 @@
 use bytes::BytesMut;
 
 use hungry::reader::{Dump, Parted, Reserve, Split};
-use hungry::{tl, Envelope};
+use hungry::{Envelope, tl};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -107,7 +107,9 @@ async fn main() -> anyhow::Result<()> {
 
     let func = req_dh_params.func(&key_aes_encrypted);
 
-    let _response = dbg!(plain.send(func).await?);
+    let response = dbg!(plain.send(func).await?);
+
+    let _server_dh_params = req_dh_params.server_dh_params(response);
 
     Ok(())
 }
