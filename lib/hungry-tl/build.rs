@@ -3,8 +3,8 @@ fn main() {
 
     let mtproto_config = hungry_tl_gen::Config {
         derive_clone: false,
-        derive_debug: true,
-        schema_title: "mtproto".to_owned(),
+        impl_debug: true,
+        schema_name: "mtproto".to_owned(),
     };
 
     hungry_tl_gen::generate(mtproto_config, &mtproto_schema);
@@ -13,8 +13,8 @@ fn main() {
     //
     // let api_config = hungry_tl_gen::Config {
     //     derive_clone: true,
-    //     derive_debug: true,
-    //     schema_title: "api".to_owned(),
+    //     impl_debug: true,
+    //     schema_name: "api".to_owned(),
     // };
     //
     // hungry_tl_gen::generate(api_config, &api_schema);
