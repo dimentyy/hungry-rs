@@ -8,6 +8,7 @@ mod serialized_len;
 mod struct_body;
 mod typ;
 mod x;
+mod debug;
 
 use std::io::{Result, Write};
 
@@ -26,6 +27,7 @@ use serialized_len::write_serialized_len;
 use struct_body::write_struct_body;
 use typ::write_typ;
 use x::X;
+use debug::write_debug;
 
 macro_rules! write_module {
     ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{
@@ -146,6 +148,9 @@ fn write_type(cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
     write_imports(f, cfg)?;
 
     write_struct_body(f, cfg, data, &x.combinator)?;
+    if cfg.impl_debug {
+        write_debug(f, cfg, data, X::Type(x))?;
+    }
     write_identifiable(f, cfg, &x.combinator)?;
     write_serialize(f, cfg, data, X::Type(x))?;
     if x.combinator.args.is_empty() {
@@ -162,6 +167,9 @@ fn write_func(cfg: &Cfg, data: &Data, x: &Func) -> Result<()> {
     write_imports(f, cfg)?;
 
     write_struct_body(f, cfg, data, &x.combinator)?;
+    if cfg.impl_debug {
+        write_debug(f, cfg, data, X::Func(x))?;
+    }
     write_identifiable(f, cfg, &x.combinator)?;
     write_function(f, cfg, data, x)?;
     write_serialize(f, cfg, data, X::Func(x))?;
@@ -175,6 +183,9 @@ fn write_enum(cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
     write_imports(f, cfg)?;
 
     write_enum_body(f, cfg, data, x)?;
+    if cfg.impl_debug {
+        write_debug(f, cfg, data, X::Enum(x))?;
+    }
     write_serialize(f, cfg, data, X::Enum(x))?;
     write_deserializable(f, cfg, data, X::Enum(x))?;
 
@@ -183,7 +194,7 @@ fn write_enum(cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
 
 fn write_imports(f: &mut F, cfg: &Cfg) -> Result<()> {
     f.write_all(b"use crate::{")?;
-    f.write_all(cfg.schema_title.as_bytes())?;
+    f.write_all(cfg.schema_name.as_bytes())?;
     f.write_all(b"::{types as _types, enums as _enums}, Identifiable as _};\n")
 }
 

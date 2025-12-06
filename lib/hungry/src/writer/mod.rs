@@ -1,6 +1,7 @@
 mod queued;
 
 use std::io;
+use std::num::NonZeroUsize;
 use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 
@@ -23,17 +24,14 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
         Self { driver, transport }
     }
 
-    fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
-        let result = pin!(&mut self.driver).poll_write(cx, buf);
-
-        if matches!(result, Poll::Ready(Ok(0))) {
-            return Poll::Ready(Err(io::Error::new(
+    fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {
+        match NonZeroUsize::new(ready_ok!(pin!(&mut self.driver).poll_write(cx, buf))) {
+            None => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::WriteZero,
                 "wrote 0 bytes",
-            )));
+            ))),
+            Some(n) => Poll::Ready(Ok(n)),
         }
-
-        result
     }
 
     pub(crate) fn single<'a>(
@@ -72,14 +70,14 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
             let buf = &self.buffer[self.pos..];
 
             if buf.is_empty() {
-                crate::utils::dump(self.buffer.as_ref(), "WROTE");
+                crate::utils::dump(self.buffer.as_ref(), "WROTE").unwrap();
 
                 return Poll::Ready(Ok(()));
             }
 
             let n = ready_ok!(self.writer.poll_checked(cx, buf));
 
-            self.pos += n;
+            self.pos += n.get();
         }
     }
 }

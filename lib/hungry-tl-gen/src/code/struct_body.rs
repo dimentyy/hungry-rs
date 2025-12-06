@@ -55,7 +55,7 @@ pub(super) fn write_struct_body(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinato
         return f.write_all(b" {}\n");
     };
 
-    f.write(b" {\n")?;
+    f.write_all(b" {\n")?;
 
     for arg in &x.args {
         write_arg(f, cfg, data, &x.generic_args, arg)?;

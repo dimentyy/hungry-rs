@@ -1,9 +1,10 @@
 use bytes::BytesMut;
 
-use crate::crypto::aes_ige_encrypt;
-use crate::mtproto::{AuthKey, Envelope, PlainEnvelope, Side};
+use crate::crypto;
+use crate::mtproto::{AuthKey, Envelope, EnvelopeSize, PlainEnvelope, Side};
+use crate::EnvelopeSize as _;
 
-pub(crate) fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
+pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
     let excess = envelope.adapt(buffer);
     let (h, _) = envelope.buffers();
 
@@ -16,7 +17,7 @@ pub(crate) fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, mes
     envelope.unsplit(buffer, excess);
 }
 
-pub(crate) fn pack_encrypted(
+pub fn pack_encrypted(
     buffer: &mut BytesMut,
     mut envelope: Envelope,
     auth_key: &AuthKey,
@@ -45,7 +46,7 @@ pub(crate) fn pack_encrypted(
 
     envelope.unsplit(buffer, excess);
 
-    unsafe { buffer.set_len(8 + 16 + 8 + 8 + payload_len + padding_len) };
+    buffer.truncate(EnvelopeSize::HEADER + payload_len + padding_len);
 
-    aes_ige_encrypt(&mut buffer[8 + 16..], &aes_key, &aes_iv);
+    crypto::aes_ige_encrypt(&mut buffer[8 + 16..], &aes_key, &aes_iv);
 }

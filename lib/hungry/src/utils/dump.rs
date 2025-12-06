@@ -1,4 +1,5 @@
 use std::io::Write;
+use tokio::io;
 
 const ZERO: &[u8] = b"\x1b[2m00\x1b[0m";
 
@@ -22,31 +23,31 @@ const HEX_LOOKUP: [&[u8]; 256] = [
     b"F0", b"F1", b"F2", b"F3", b"F4", b"F5", b"F6", b"F7", b"F8", b"F9", b"FA", b"FB", b"FC", b"FD", b"FE", b"FF",
 ];
 
-pub fn dump(buf: &[u8], title: &str) {
+pub fn dump(buf: &[u8], title: &str) -> io::Result<()> {
     let mut stdout = std::io::stdout().lock();
 
-    writeln!(&mut stdout, "\n\x1b[1m---  {title}  ---\x1b[0m").unwrap();
+    writeln!(&mut stdout, "\n\x1b[1m---  {title}  ---\x1b[0m")?;
 
-    for (i, line) in buf.chunks(16).enumerate() {
-        let offset = format!("{:04x}", i * 16);
+    for (i, line) in buf.chunks(32).enumerate() {
+        let offset = format!("{:04x}", i * 32);
 
         let first_nonzero = offset.find(|c| c != '0').unwrap_or(offset.len() - 1);
         let (leading_zeros, rest) = offset.split_at(first_nonzero);
 
-        write!(&mut stdout, "\x1b[2m{}\x1b[0m{}:   ", leading_zeros, rest).unwrap();
+        write!(&mut stdout, "\x1b[2m{}\x1b[0m{}:   ", leading_zeros, rest)?;
 
         for chunk in line.chunks(4) {
             for b in chunk {
-                stdout.write(HEX_LOOKUP[*b as usize]).unwrap();
+                stdout.write_all(HEX_LOOKUP[*b as usize])?;
             }
 
-            stdout.write(b"   ").unwrap();
+            stdout.write_all(b"   ")?;
         }
 
-        stdout.write(b"\n").unwrap();
+        stdout.write_all(b"\n")?;
     }
 
-    stdout.write(b"\n").unwrap();
+    stdout.write_all(b"\n")?;
 
-    stdout.flush().unwrap();
+    stdout.flush()
 }

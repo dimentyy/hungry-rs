@@ -7,7 +7,7 @@ use aes::Aes256;
 use crate::utils::SliceExt;
 
 pub fn aes_ige_decrypt(buffer: &mut [u8], key: &[u8; 32], iv: &[u8; 32]) {
-    assert_eq!(buffer.len() % 16, 0);
+    assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(GenericArray::from_slice(key));
 
@@ -41,7 +41,7 @@ pub fn aes_ige_decrypt(buffer: &mut [u8], key: &[u8; 32], iv: &[u8; 32]) {
 }
 
 pub fn aes_ige_encrypt(buffer: &mut [u8], key: &[u8; 32], iv: &[u8; 32]) {
-    assert_eq!(buffer.len() % 16, 0);
+    assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(GenericArray::from_slice(key));
 

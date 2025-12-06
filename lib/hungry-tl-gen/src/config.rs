@@ -9,8 +9,8 @@ use std::{env, fs, io};
 #[derive(Clone, Debug)]
 pub struct Config {
     pub derive_clone: bool,
-    pub derive_debug: bool,
-    pub schema_title: String,
+    pub impl_debug: bool,
+    pub schema_name: String,
 }
 
 pub(crate) struct Cfg {
@@ -24,15 +24,12 @@ impl Cfg {
         let mut out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
         out_dir.push("hungry_tl");
-        out_dir.push(&config.schema_title);
+        out_dir.push(&config.schema_name);
 
         let mut derive_macros = Vec::new();
 
         if config.derive_clone {
             derive_macros.push("Clone");
-        }
-        if config.derive_debug {
-            derive_macros.push("Debug");
         }
 
         Self {

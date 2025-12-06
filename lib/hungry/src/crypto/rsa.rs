@@ -14,7 +14,7 @@ pub struct RsaKey {
 }
 
 impl RsaKey {
-    pub fn new(n: Integer, e: Integer) -> Self {
+    fn calculate_fingerprint(n: &Integer, e: &Integer) -> i64 {
         let n_len = n.significant_digits::<u8>();
         let e_len = e.significant_digits::<u8>();
 
@@ -34,7 +34,11 @@ impl RsaKey {
             e.write_digits(&mut vec[start..start + e_len], integer::Order::MsfBe);
         }
 
-        let fingerprint = i64::from_le_bytes(*crypto::sha1!(vec)[12..].arr());
+        i64::from_le_bytes(*crypto::sha1!(vec)[12..].arr())
+    }
+
+    pub fn new(n: Integer, e: Integer) -> Self {
+        let fingerprint = Self::calculate_fingerprint(&n, &e);
 
         Self { n, e, fingerprint }
     }
@@ -71,7 +75,7 @@ impl RsaKey {
 
         // aes_encrypted := AES256_IGE(data_with_hash, temp_key, 0);
         // -- AES256-IGE encryption with zero IV.
-        crypto::aes_ige_encrypt(&mut data_with_hash, &temp_key, &[0u8; 32]);
+        crypto::aes_ige_encrypt(&mut data_with_hash, temp_key, &[0u8; 32]);
         let aes_encrypted = data_with_hash;
 
         // temp_key_xor := temp_key XOR SHA256(aes_encrypted);

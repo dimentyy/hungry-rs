@@ -1,34 +1,32 @@
 use std::collections::VecDeque;
 use std::io;
 use std::pin::Pin;
-use std::task::{Context, Poll, ready};
+use std::task::{ready, Context, Poll};
 
 use bytes::BytesMut;
 use tokio::io::AsyncWrite;
 
-use crate::envelope::Envelope;
-use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::writer::Writer;
+use crate::{mtproto, writer, Envelope};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     ready: VecDeque<BytesMut>,
-    writer: Writer<W, T>,
+    driver: writer::Writer<W, T>,
     buffers: VecDeque<BytesMut>,
 }
 
 impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
-    pub fn new(writer: Writer<W, T>) -> Self {
+    pub fn new(driver: writer::Writer<W, T>) -> Self {
         Self {
             ready: VecDeque::new(),
-            writer,
+            driver,
             buffers: VecDeque::new(),
         }
     }
 
     fn queue_impl(&mut self, mut buffer: BytesMut, envelope: Envelope<T>) {
-        let packed = self.writer.transport.pack(&mut buffer, envelope);
+        let packed = self.driver.transport.pack(&mut buffer, envelope);
 
         if packed.start > 0 {
             self.ready.push_back(buffer.split_to(packed.start));
@@ -75,7 +73,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
         // Loop may not be used here because a written buffer will be lost due to an error.
         // Storing io::Error in the Writer to return in the next poll would be an overkill.
-        let n = ready_ok!(self.writer.poll_checked(cx, buffer));
+        let n = ready_ok!(self.driver.poll_checked(cx, buffer)).get();
 
         let buffer = if n >= buffer.len() {
             assert_eq!(n, buffer.len());

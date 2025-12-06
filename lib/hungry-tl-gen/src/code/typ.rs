@@ -6,7 +6,7 @@ use crate::{Cfg, F};
 
 pub(super) fn write_typ(
     f: &mut F,
-    cfg: &Cfg,
+    _cfg: &Cfg,
     data: &Data,
     generic_args: &[GenericArg],
     typ: &Typ,
@@ -49,12 +49,12 @@ pub(super) fn write_typ(
             } else {
                 b"crate::BareVec<"
             })?;
-            write_typ(f, cfg, data, generic_args, typ, false)?;
+            write_typ(f, _cfg, data, generic_args, typ, false)?;
             b">"
         }
         Typ::Vector(typ) => {
             f.write_all(if turbofish { b"Vec::<" } else { b"Vec<" })?;
-            write_typ(f, cfg, data, generic_args, typ, false)?;
+            write_typ(f, _cfg, data, generic_args, typ, false)?;
             b">"
         }
         Typ::Int128 => b"crate::Int128",

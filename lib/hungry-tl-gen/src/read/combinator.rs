@@ -17,11 +17,9 @@ impl fmt::Display for Combinator<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.ident.fmt(f)?;
 
-        if !f.alternate() {
-            if let Some(name) = self.name {
-                f.write_str("#")?;
-                f.write_str(&format!("{:08x}", name))?;
-            }
+        if !f.alternate() && let Some(name) = self.name {
+            f.write_str("#")?;
+            f.write_str(&format!("{:08x}", name))?;
         }
 
         for arg in &self.args {

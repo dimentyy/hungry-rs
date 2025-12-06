@@ -94,9 +94,7 @@ impl ResPq {
             new_nonce,
         });
 
-        assert!(pq_inner_data.serialized_len() <= 144);
-
-        unsafe { pq_inner_data.serialize_unchecked(random_padding_bytes.as_mut_ptr()) };
+        pq_inner_data.serialize_into(&mut random_padding_bytes);
 
         let data_with_padding = random_padding_bytes;
 

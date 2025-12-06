@@ -1,3 +1,5 @@
+mod hex;
+
 pub mod de;
 pub mod ser;
 

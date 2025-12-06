@@ -4,6 +4,7 @@ use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
+use crate::utils::BytesMutExt;
 use crate::{mtproto, reader, tl, writer, Envelope};
 
 #[derive(Debug)]
@@ -53,10 +54,9 @@ pub async fn send<
     mtp: mtproto::PlainEnvelope,
     message_id: i64,
 ) -> Result<F::Response, Error> {
-    unsafe {
-        buffer.set_len(func.serialized_len());
-        func.serialize_unchecked(buffer.as_mut_ptr());
-    }
+    assert!(buffer.spare_capacity_len() >= func.serialized_len());
+
+    tl::ser::into(buffer, func);
 
     w.single(buffer, transport, mtp, message_id)
         .await

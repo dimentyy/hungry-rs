@@ -56,7 +56,7 @@ impl fmt::Display for PlainMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "plain message: [message_id=0x{:016x}, message_length={}]",
+            "plain message [message_id=0x{:016x}, message_length={}]",
             self.message_id, self.message_length
         )
     }
@@ -74,7 +74,7 @@ impl fmt::Display for EncryptedMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "encrypted message: [auth_key_id=0x{:016x}, msg_key={:032x}]",
+            "encrypted message [auth_key_id=0x{:016x}, msg_key={:032x}]",
             self.auth_key_id,
             i128::from_ne_bytes(self.msg_key)
         )
@@ -125,7 +125,7 @@ impl fmt::Display for DecryptedMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "decrypted message: [salt={:#016x}, session_id={:016x}, message_id={:#016x}, seq_no={}, message_length={}]",
+            "decrypted message [salt={:#016x}, session_id={:016x}, message_id={:#016x}, seq_no={}, message_length={}]",
             self.salt, self.session_id, self.message_id, self.seq_no, self.message_length
         )
     }

@@ -1,4 +1,4 @@
-#![allow(unused)]
+#![allow(unused, clippy::uninit_vec)]
 
 mod envelope;
 
@@ -23,17 +23,18 @@ pub(crate) use envelope::envelopes;
 pub use envelope::{Envelope, EnvelopeSize};
 
 pub fn new<
-    T: transport::Transport + Default,
+    T: transport::Transport,
     R: AsyncRead + Unpin,
     H: reader::Handle,
     W: AsyncWrite + Unpin,
 >(
+    transport: T,
     reader: R,
     reader_handle: H,
     reader_buffer: BytesMut,
     writer: W,
 ) -> (reader::Reader<R, H, T>, writer::Writer<W, T>) {
-    let (reader_transport, writer_transport) = T::default().split();
+    let (reader_transport, writer_transport) = transport.split();
 
     let writer = writer::Writer::new(writer, writer_transport);
     let reader = reader::Reader::new(reader, reader_handle, reader_transport, reader_buffer);

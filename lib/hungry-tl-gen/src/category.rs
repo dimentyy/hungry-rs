@@ -11,16 +11,11 @@ const DELIMITER: &str = "---";
 const TYPES: &str = "types";
 const FUNCTIONS: &str = "functions";
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Category {
+    #[default]
     Types,
     Funcs,
-}
-
-impl Default for Category {
-    fn default() -> Self {
-        Self::Types
-    }
 }
 
 impl fmt::Display for Category {

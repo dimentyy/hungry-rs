@@ -19,8 +19,8 @@ impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
                 &format!("READER: acquired quick ack 0x{token:08x}, len: {len}")
             }
         };
-
-        utils::dump(buffer, title);
+        
+        utils::dump(buffer, title).unwrap();
 
         self.0.acquired(buffer, unpack)
     }

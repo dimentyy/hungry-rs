@@ -42,7 +42,8 @@ impl<S: EnvelopeSize> Envelope<S> {
             "buffer is not large enough to store envelope"
         );
 
-        unsafe { buffer.set_len(buffer.capacity()) };
+        // SAFETY: the `buffer` is truncated afterward; envelope buffers must not be read.
+        unsafe { buffer.set_full_len() };
 
         let header = buffer.split_to(S::HEADER);
         let footer = buffer.split_off(buffer.capacity() - S::FOOTER);
@@ -63,7 +64,7 @@ impl<S: EnvelopeSize> Envelope<S> {
     }
 
     /// Shrink buffer capacity to match its length. Excess buffer with remaining space is returned.
-    pub(crate) fn adapt(&mut self, buffer: &mut BytesMut) -> Option<BytesMut> {
+    pub fn adapt(&mut self, buffer: &mut BytesMut) -> Option<BytesMut> {
         // Do not check the header to allow the outer envelope to adapt to an inner envelope buffer.
         assert!(
             buffer.can_unsplit(&self.footer),
@@ -76,6 +77,9 @@ impl<S: EnvelopeSize> Envelope<S> {
 
         let len = buffer.len();
 
+        // SAFETY: the `buffer` will be split to its length;
+        // the `excess` buffer is truncated afterward;
+        // envelope footer buffer must not be read.
         unsafe { buffer.set_full_len() };
         let footer = mem::take(&mut self.footer);
         buffer.unsplit(footer);

@@ -119,7 +119,7 @@ impl Data {
         typ: &read::Typ,
         generic_args: &IndexSet<&str>,
     ) -> Result<Typ, Error> {
-        fn check_params(params: &Vec<read::Typ>, typ: Typ) -> Result<Typ, Error> {
+        fn check_params(params: &[read::Typ], typ: Typ) -> Result<Typ, Error> {
             if !params.is_empty() {
                 unimplemented!()
             }

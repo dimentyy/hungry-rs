@@ -1,4 +1,3 @@
-use std::ops::Range;
 use std::ptr;
 
 use crate::ser::Serialize;
@@ -30,7 +29,7 @@ pub unsafe fn prepare_bytes(mut buf: *mut u8, len: usize) -> usize {
 
         buf = (((len as u32) << 8) | 254).serialize_unchecked(buf);
 
-        if len | 0 & 1 == 1 {
+        if (len | 0) & 1 == 1 {
             *buf.add(len) = 0;
         }
 
@@ -70,7 +69,7 @@ impl Serialize for [u8] {
 
             ptr::copy_nonoverlapping(self.as_ptr(), buf, self.len());
 
-            if self.len() | 0 & 1 == 1 {
+            if (self.len() | 0) & 1 == 1 {
                 *buf.add(self.len()) = 0;
             }
 

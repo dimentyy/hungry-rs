@@ -1,6 +1,5 @@
 mod dump;
 mod error;
-mod plain;
 mod reserve;
 mod split;
 
@@ -9,14 +8,13 @@ use tokio::io::{AsyncRead, ReadBuf};
 
 use std::io;
 use std::pin::{pin, Pin};
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll};
 
 use crate::transport::{Transport, TransportRead, Unpack};
 use crate::utils::{ready_ok, BytesMutExt};
 
 pub use dump::Dump;
 pub use error::Error;
-pub use plain::{DeserializePlain, PlainDeserializationError};
 pub use reserve::Reserve;
 pub use split::Split;
 
@@ -108,7 +106,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
     fn poll_header(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         // FIXME
-        ready_ok!(self.poll_part_read(cx, 4));
+        ready_ok!(self.poll_read(cx, 4));
 
         let required = self.transport.length(self.buffer.as_mut());
 
@@ -116,14 +114,14 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
     }
 
     fn poll_unpack(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<Result<Unpack, Error>> {
-        ready_ok!(self.poll_part_read(cx, length));
+        ready_ok!(self.poll_read(cx, length));
 
         let unpacked = self.transport.unpack(self.buffer.as_mut());
 
         Poll::Ready(unpacked.map_err(Error::Transport))
     }
 
-    fn poll_part_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {
         assert!(length <= self.buffer.capacity());
 
         if self.buffer.len() >= length {
@@ -140,19 +138,19 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
             let filled = buf.filled().len();
 
+            if filled == 0 {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "read 0 bytes",
+                )));
+            }
+
             unsafe { self.buffer.set_len(self.buffer.len() + filled) };
 
             if filled >= len {
                 assert_eq!(filled, len);
 
                 return Poll::Ready(Ok(()));
-            }
-
-            if filled == 0 {
-                return Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::ConnectionReset,
-                    "read 0 bytes",
-                )));
             }
         }
     }

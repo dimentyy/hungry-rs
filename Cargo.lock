@@ -245,6 +245,7 @@ dependencies = [
 name = "hungry-tl"
 version = "0.0.0"
 dependencies = [
+ "bytes",
  "hungry-tl-gen",
 ]
 

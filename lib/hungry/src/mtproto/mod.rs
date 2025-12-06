@@ -4,19 +4,19 @@ mod unpack;
 
 use crate::envelopes;
 
-pub(crate) use pack::{pack_encrypted, pack_plain};
-
 pub use auth_key::AuthKey;
+pub use pack::{pack_encrypted, pack_plain};
 pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 
-enum Side {
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Side {
     Client = 0,
     Server = 8,
 }
 
 impl Side {
     #[inline]
-    const fn x(self) -> usize {
+    pub const fn x(self) -> usize {
         self as usize
     }
 }

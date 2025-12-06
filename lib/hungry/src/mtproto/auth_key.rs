@@ -1,7 +1,6 @@
-use std::fmt;
-
 use crate::utils::SliceExt;
 use crate::{crypto, mtproto};
+use std::fmt;
 
 #[derive(Clone)]
 pub struct AuthKey {
@@ -13,7 +12,7 @@ pub struct AuthKey {
 
 impl fmt::Display for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "auth key {:#016x}", u64::from_ne_bytes(self.id))
+        write!(f, "auth key [id={:#016x}, ..]", u64::from_ne_bytes(self.id))
     }
 }
 
@@ -23,7 +22,7 @@ impl fmt::Debug for AuthKey {
 
         f.debug_struct("AuthKey")
             .field("id", &format_args!("{:#016x}", id))
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -49,7 +48,7 @@ impl AuthKey {
         &self.data
     }
 
-    /// Consume [`AuthKey`] returning its owned underling data.
+    /// Consume the [`AuthKey`] returning its owned underling data.
     pub fn into_inner(self) -> [u8; 256] {
         self.data
     }
@@ -75,7 +74,8 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/description#message-key-msg-key \
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
-    pub(super) fn msg_key(&self, buffer: &[u8], padding: &[u8], side: mtproto::Side) -> [u8; 16] {
+    #[allow(clippy::let_and_return)]
+    pub fn msg_key(&self, buffer: &[u8], padding: &[u8], side: mtproto::Side) -> [u8; 16] {
         let x = side.x();
 
         // SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
@@ -90,28 +90,23 @@ impl AuthKey {
     /// Compute aes_key, aes_iv.
     ///
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
-    pub(super) fn compute(&self, msg_key: &[u8; 16], side: mtproto::Side) -> ([u8; 32], [u8; 32]) {
+    pub fn compute(&self, msg_key: &[u8; 16], side: mtproto::Side) -> ([u8; 32], [u8; 32]) {
         let x = side.x();
 
         // sha256_a = SHA256(msg_key + substr(auth_key, x, 36));
-        let sha256_a = crypto::sha256!(msg_key, &self.data[x..x + 36]);
+        let mut sha256_a = crypto::sha256!(msg_key, &self.data[x..x + 36]);
 
         // sha256_b = SHA256(substr(auth_key, 40 + x, 36) + msg_key);
-        let sha256_b = crypto::sha256!(&self.data[40 + x..40 + x + 36], msg_key);
+        let mut sha256_b = crypto::sha256!(&self.data[40 + x..40 + x + 36], msg_key);
+
+        // In-place slice swap instead of a substitution.
+        sha256_a[8..8 + 16].swap_with_slice(&mut sha256_b[8..8 + 16]);
 
         // aes_key = substr(sha256_a, 0, 8) + substr(sha256_b, 8, 16) + substr(sha256_a, 24, 8);
-        let mut aes_key = [0u8; 32];
-
-        aes_key[0..8].copy_from_slice(&sha256_a[0..8]);
-        aes_key[8..24].copy_from_slice(&sha256_b[8..24]);
-        aes_key[24..32].copy_from_slice(&sha256_a[24..32]);
-
         // aes_iv = substr(sha256_b, 0, 8) + substr(sha256_a, 8, 16) + substr(sha256_b, 24, 8);
-        let mut aes_iv = [0; 32];
 
-        aes_iv[0..8].copy_from_slice(&sha256_b[0..8]);
-        aes_iv[8..24].copy_from_slice(&sha256_a[8..24]);
-        aes_iv[24..32].copy_from_slice(&sha256_b[24..32]);
+        let aes_key = sha256_a.into();
+        let aes_iv = sha256_b.into();
 
         (aes_key, aes_iv)
     }

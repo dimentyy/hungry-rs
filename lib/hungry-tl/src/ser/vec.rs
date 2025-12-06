@@ -1,12 +1,12 @@
 use crate::{BareVec, VECTOR, ser::Serialize};
 
 #[inline]
-fn bare_vec_serialized_len<T: Serialize>(vec: &Vec<T>) -> usize {
+fn bare_vec_serialized_len<T: Serialize>(vec: &[T]) -> usize {
     vec.iter().map(|x| x.serialized_len()).sum::<usize>()
 }
 
 #[inline]
-unsafe fn bare_vec_serialize_unchecked<'a, T: Serialize>(
+unsafe fn bare_vec_serialize_unchecked<T: Serialize>(
     vec: &Vec<T>,
     mut buf: *mut u8,
 ) -> *mut u8 {

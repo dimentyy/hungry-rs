@@ -1,7 +1,7 @@
 use bytes::BytesMut;
+
 use hungry::reader::{Dump, Parted, Reserve, Split};
-use hungry::tl::mtproto::{enums, funcs, types};
-use hungry::{Envelope, tl};
+use hungry::{tl, Envelope};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -47,6 +47,8 @@ async fn main() -> anyhow::Result<()> {
 
     let key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
 
+    let transport = Transport::default();
+
     let stream = tokio::net::TcpStream::connect(ADDR).await?;
     let (r, w) = stream.into_split();
 
@@ -57,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
 
     let buffer = BytesMut::with_capacity(1024 * 1024);
 
-    let (mut reader, mut writer) = hungry::new::<Transport, _, _, _>(r, handle, buffer, w);
+    let (mut reader, mut writer) = hungry::new(transport, r, handle, buffer, w);
 
     let mut buffer = BytesMut::with_capacity(1024 * 1024);
 
@@ -99,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
 
     let func = req_dh_params.func(&key_aes_encrypted);
 
-    let response = plain.send(func).await?;
+    let _response = dbg!(plain.send(func).await?);
 
     Ok(())
 }

@@ -2,10 +2,9 @@ use std::ops::RangeFrom;
 
 use bytes::BytesMut;
 
-use crate::crypto::crc32;
 use crate::transport::{err, Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
-use crate::{Envelope, EnvelopeSize};
+use crate::{crypto, Envelope, EnvelopeSize};
 
 #[derive(Default)]
 pub struct Full;
@@ -38,7 +37,7 @@ impl TransportRead for FullRead {
     fn length(&mut self, buffer: &mut [u8]) -> usize {
         match i32::from_le_bytes(*buffer[0..4].arr()) {
             ..0 => 4,
-            ..12 => 4,
+            0..12 => 4,
             len => len as usize,
         }
     }
@@ -63,7 +62,7 @@ impl TransportRead for FullRead {
 
         let received = u32::from_le_bytes(*buffer[len - 4..len].arr());
 
-        let computed = crc32!(&buffer[0..len - 4]);
+        let computed = crypto::crc32!(&buffer[0..len - 4]);
 
         if received != computed {
             err!(BadCrc { received, computed })
@@ -94,7 +93,7 @@ impl TransportWrite for FullWrite {
         h[0..4].copy_from_slice(&len.to_le_bytes());
         h[4..8].copy_from_slice(&self.seq.to_le_bytes());
 
-        let crc = crc32!(h, buffer.as_ref());
+        let crc = crypto::crc32!(h, buffer.as_ref());
 
         f[0..4].copy_from_slice(&crc.to_le_bytes());
 

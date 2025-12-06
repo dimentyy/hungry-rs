@@ -7,7 +7,7 @@ use bytes::BytesMut;
 
 use crate::{Envelope, EnvelopeSize};
 
-pub(self) use error::err;
+use error::err;
 
 pub use error::{Error, ErrorKind};
 pub use full::Full;
