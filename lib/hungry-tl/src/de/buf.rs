@@ -25,6 +25,11 @@ impl<'a> Buf<'a> {
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    #[inline]
     pub fn as_slice(&self) -> &'a [u8] {
         unsafe { slice::from_raw_parts(self.ptr, self.len) }
     }

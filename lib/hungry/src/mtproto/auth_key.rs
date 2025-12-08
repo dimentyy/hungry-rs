@@ -1,6 +1,9 @@
+use std::fmt;
+
 use crate::utils::SliceExt;
 use crate::{crypto, mtproto};
-use std::fmt;
+
+pub type MsgKey = crate::tl::Int128;
 
 #[derive(Clone)]
 pub struct AuthKey {
@@ -49,6 +52,7 @@ impl AuthKey {
     }
 
     /// Consume the [`AuthKey`] returning its owned underling data.
+    #[inline]
     pub fn into_inner(self) -> [u8; 256] {
         self.data
     }
@@ -62,7 +66,7 @@ impl AuthKey {
         &self.aux_hash
     }
 
-    /// The 64 lower-order bits of the SHA1 hash of the authorization key. \
+    /// The 64 lower-order bits of the SHA1 hash of the authorization key.
     ///
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
@@ -70,41 +74,47 @@ impl AuthKey {
         &self.id
     }
 
-    /// Compute msg_key.
+    /// Compute [`MsgKey`].
     ///
     /// https://core.telegram.org/mtproto/description#message-key-msg-key \
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     #[allow(clippy::let_and_return)]
-    pub fn msg_key(&self, buffer: &[u8], padding: &[u8], side: mtproto::Side) -> [u8; 16] {
+    pub fn compute_msg_key(&self, buffer: &[u8], padding: &[u8], side: mtproto::Side) -> MsgKey {
         let x = side.x();
 
-        // SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
+        // * msg_key_large = SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
         let msg_key_large = crypto::sha256!(&self.data[88 + x..88 + x + 32], buffer, padding);
 
-        // msg_key = substr(msg_key_large, 8, 16);
+        // * msg_key = substr(msg_key_large, 8, 16);
         let msg_key = *msg_key_large[8..24].arr();
 
         msg_key
     }
 
-    /// Compute aes_key, aes_iv.
+    /// Compute [`AesIgeKey`] and [`AesIgeIv`].
     ///
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
-    pub fn compute(&self, msg_key: &[u8; 16], side: mtproto::Side) -> ([u8; 32], [u8; 32]) {
+    ///
+    /// [`AesIgeKey`]: crypto::AesIgeKey
+    /// [`AesIgeIv`]: crypto::AesIgeIv
+    pub fn compute_aes_params(
+        &self,
+        msg_key: &MsgKey,
+        side: mtproto::Side,
+    ) -> (crypto::AesIgeKey, crypto::AesIgeIv) {
         let x = side.x();
 
-        // sha256_a = SHA256(msg_key + substr(auth_key, x, 36));
+        // * sha256_a = SHA256(msg_key + substr(auth_key, x, 36));
         let mut sha256_a = crypto::sha256!(msg_key, &self.data[x..x + 36]);
 
-        // sha256_b = SHA256(substr(auth_key, 40 + x, 36) + msg_key);
+        // * sha256_b = SHA256(substr(auth_key, 40 + x, 36) + msg_key);
         let mut sha256_b = crypto::sha256!(&self.data[40 + x..40 + x + 36], msg_key);
 
         // In-place slice swap instead of a substitution.
         sha256_a[8..8 + 16].swap_with_slice(&mut sha256_b[8..8 + 16]);
 
-        // aes_key = substr(sha256_a, 0, 8) + substr(sha256_b, 8, 16) + substr(sha256_a, 24, 8);
-        // aes_iv = substr(sha256_b, 0, 8) + substr(sha256_a, 8, 16) + substr(sha256_b, 24, 8);
-
+        // * aes_key = substr(sha256_a, 0, 8) + substr(sha256_b, 8, 16) + substr(sha256_a, 24, 8);
+        // * aes_iv = substr(sha256_b, 0, 8) + substr(sha256_a, 8, 16) + substr(sha256_b, 24, 8);
         let aes_key = sha256_a.into();
         let aes_iv = sha256_b.into();
 

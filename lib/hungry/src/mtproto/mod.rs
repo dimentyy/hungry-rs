@@ -4,7 +4,7 @@ mod unpack;
 
 use crate::envelopes;
 
-pub use auth_key::AuthKey;
+pub use auth_key::{AuthKey, MsgKey};
 pub use pack::{pack_encrypted, pack_plain};
 pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 
@@ -23,9 +23,9 @@ impl Side {
 
 envelopes! {
     pub PlainEnvelope => PlainEnvelopeSize:
-        8 + 8 + 4,  // auth_key_id (8), message_id (8), message_data_length (4)
-        0;
+        PlainMessage::HEADER_LEN,
+        0;      // no padding
     pub Envelope => EnvelopeSize:
-        8 + 16 + 8 + 8, // auth_key_id (8), msg_key (16), salt (8), session_id (8)
-        1024;           // padding (12..1024)
+        EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN,
+        1024;   // padding (12..1024)
 }

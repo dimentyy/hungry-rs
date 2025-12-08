@@ -1,8 +1,7 @@
 use bytes::BytesMut;
 
 use crate::crypto;
-use crate::mtproto::{AuthKey, Envelope, EnvelopeSize, PlainEnvelope, Side};
-use crate::EnvelopeSize as _;
+use crate::mtproto::{AuthKey, DecryptedMessage, EncryptedMessage, Envelope, PlainEnvelope, Side};
 
 pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
     let excess = envelope.adapt(buffer);
@@ -34,9 +33,9 @@ pub fn pack_encrypted(
 
     getrandom::fill(&mut f[..padding_len]).unwrap();
 
-    let msg_key = auth_key.msg_key(buffer, &f[..padding_len], Side::Client);
+    let msg_key = auth_key.compute_msg_key(buffer, &f[..padding_len], Side::Client);
 
-    let (aes_key, aes_iv) = auth_key.compute(&msg_key, Side::Client);
+    let (aes_key, aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
 
     h[0..8].copy_from_slice(auth_key.id());
     h[8..24].copy_from_slice(&msg_key);
@@ -46,7 +45,9 @@ pub fn pack_encrypted(
 
     envelope.unsplit(buffer, excess);
 
-    buffer.truncate(EnvelopeSize::HEADER + payload_len + padding_len);
+    buffer.truncate(
+        EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + payload_len + padding_len,
+    );
 
     crypto::aes_ige_encrypt(&mut buffer[8 + 16..], &aes_key, &aes_iv);
 }

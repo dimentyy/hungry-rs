@@ -109,7 +109,16 @@ async fn main() -> anyhow::Result<()> {
 
     let response = dbg!(plain.send(func).await?);
 
-    let _server_dh_params = req_dh_params.server_dh_params(response);
+    let server_dh_params = req_dh_params.server_dh_params(response);
+
+    let mut b = [0; 256];
+    rand::fill(&mut b);
+
+    let set_client_dh_params = server_dh_params.set_client_dh_params(&b, 0);
+
+    let func = set_client_dh_params.func();
+
+    let _response = dbg!(plain.send(func).await?);
 
     Ok(())
 }

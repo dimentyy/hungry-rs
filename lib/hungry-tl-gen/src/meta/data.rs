@@ -1,7 +1,8 @@
-use chumsky::container::Container;
-use indexmap::{IndexMap, IndexSet};
 use std::collections::HashSet;
 use std::mem;
+
+use chumsky::container::Container;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::meta::{Arg, ArgTyp, Combinator, Error, Flag, GenericArg, Name, Temp, Typ, TypeOrEnum};
 use crate::{read, rust};
@@ -104,11 +105,11 @@ impl Data {
         &mut self,
         temp: &Temp,
         ident: &read::Ident,
-        variants: &Vec<usize>,
+        variants: &[usize],
     ) -> Result<(), Error> {
         self.enums.push(Enum {
             name: Name::from(ident),
-            variants: variants.clone(),
+            variants: variants.to_owned(),
         });
 
         Ok(())

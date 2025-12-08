@@ -91,7 +91,7 @@ impl SerializeInto for Vec<u8> {
         let cap = self.capacity() - self.len();
 
         if len > cap {
-            self.reserve(cap - len);
+            self.reserve(len - cap);
         }
 
         let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;
@@ -109,7 +109,7 @@ impl SerializeInto for BytesMut {
         let cap = self.capacity() - self.len();
 
         if len > cap {
-            self.reserve(cap - len);
+            self.reserve(len - cap);
         }
 
         let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;

@@ -8,9 +8,10 @@ use std::{env, fs, io};
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    pub derive_clone: bool,
-    pub impl_debug: bool,
     pub schema_name: String,
+    pub impl_debug: bool,
+    pub derive_clone: bool,
+    pub impl_into_enum: bool,
 }
 
 pub(crate) struct Cfg {

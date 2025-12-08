@@ -29,6 +29,7 @@ pub unsafe fn prepare_bytes(mut buf: *mut u8, len: usize) -> usize {
 
         buf = (((len as u32) << 8) | 254).serialize_unchecked(buf);
 
+        #[allow(clippy::identity_op)]
         if (len | 0) & 1 == 1 {
             *buf.add(len) = 0;
         }
@@ -69,6 +70,7 @@ impl Serialize for [u8] {
 
             ptr::copy_nonoverlapping(self.as_ptr(), buf, self.len());
 
+            #[allow(clippy::identity_op)]
             if (self.len() | 0) & 1 == 1 {
                 *buf.add(self.len()) = 0;
             }

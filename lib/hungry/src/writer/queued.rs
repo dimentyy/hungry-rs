@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::io;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll};
 
 use bytes::BytesMut;
 use tokio::io::AsyncWrite;

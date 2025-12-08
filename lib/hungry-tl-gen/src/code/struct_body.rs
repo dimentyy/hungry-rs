@@ -8,7 +8,7 @@ fn write_arg(
     f: &mut F,
     cfg: &Cfg,
     data: &Data,
-    generic_args: &Vec<GenericArg>,
+    generic_args: &[GenericArg],
     arg: &Arg,
 ) -> Result<()> {
     let (typ, optional) = match &arg.typ {

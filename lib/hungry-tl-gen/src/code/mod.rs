@@ -1,14 +1,15 @@
 mod de;
+mod debug;
 mod enum_body;
 mod function;
 mod identifiable;
+mod into_enum;
 mod name;
 mod ser;
 mod serialized_len;
 mod struct_body;
 mod typ;
 mod x;
-mod debug;
 
 use std::io::{Result, Write};
 
@@ -18,16 +19,17 @@ use crate::meta::{Data, Enum, Func, Name, Type};
 use crate::{Cfg, F};
 
 use de::write_deserializable;
+use debug::write_debug;
 use enum_body::{write_enum_body, write_enum_variant};
 use function::write_function;
 use identifiable::write_identifiable;
+use into_enum::write_into_enum;
 use name::write_name;
 use ser::write_serialize;
 use serialized_len::write_serialized_len;
 use struct_body::write_struct_body;
 use typ::write_typ;
 use x::X;
-use debug::write_debug;
 
 macro_rules! write_module {
     ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{
@@ -150,6 +152,9 @@ fn write_type(cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
     write_struct_body(f, cfg, data, &x.combinator)?;
     if cfg.impl_debug {
         write_debug(f, cfg, data, X::Type(x))?;
+    }
+    if cfg.impl_into_enum {
+        write_into_enum(f, cfg, data, x);
     }
     write_identifiable(f, cfg, &x.combinator)?;
     write_serialize(f, cfg, data, X::Type(x))?;

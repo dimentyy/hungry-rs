@@ -23,6 +23,17 @@ pub type Int256 = [u8; 32];
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BareVec<T>(pub Vec<T>);
 
+pub trait IntoEnum {
+    type Enum;
+
+    fn into_enum(self) -> Self::Enum;
+}
+
+#[inline]
+pub fn boxed<T: IntoEnum>(variant: T) -> T::Enum {
+    variant.into_enum()
+}
+
 pub trait Identifiable {
     const CONSTRUCTOR_ID: u32;
 }

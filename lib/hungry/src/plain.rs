@@ -78,7 +78,7 @@ pub async fn send<
         }
     };
 
-    match tl::de::checked(&buffer[data.start + 20..data.end]) {
+    match tl::de::checked(&buffer[data.start + mtproto::PlainMessage::HEADER_LEN..data.end]) {
         Ok(response) => Ok(response),
         Err(source) => Err(Error::Deserialization { source, buffer }),
     }

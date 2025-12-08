@@ -3,8 +3,6 @@ use rug::{integer, Integer};
 use crate::utils::SliceExt;
 use crate::{crypto, tl};
 
-use tl::ser::{bytes_len, prepare_bytes, Serialize};
-
 /// https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows
 #[derive(Clone, Debug)]
 pub struct RsaKey {
@@ -18,8 +16,8 @@ impl RsaKey {
         let n_len = n.significant_digits::<u8>();
         let e_len = e.significant_digits::<u8>();
 
-        let n_ser_len = bytes_len(n_len);
-        let e_ser_len = bytes_len(e_len);
+        let n_ser_len = tl::ser::bytes_len(n_len);
+        let e_ser_len = tl::ser::bytes_len(e_len);
 
         let cap = n_ser_len + e_ser_len;
         let mut vec = Vec::with_capacity(cap);
@@ -27,10 +25,10 @@ impl RsaKey {
         unsafe {
             vec.set_len(cap);
 
-            let start = prepare_bytes(vec.as_mut_ptr(), n_len);
+            let start = tl::ser::prepare_bytes(vec.as_mut_ptr(), n_len);
             n.write_digits(&mut vec[start..start + n_len], integer::Order::MsfBe);
 
-            let start = prepare_bytes(vec.as_mut_ptr().add(n_ser_len), e_len) + n_ser_len;
+            let start = tl::ser::prepare_bytes(vec.as_mut_ptr().add(n_ser_len), e_len) + n_ser_len;
             e.write_digits(&mut vec[start..start + e_len], integer::Order::MsfBe);
         }
 
@@ -164,19 +162,20 @@ mod tests {
 
         let mut key_aes_encrypted = [0u8; 256];
 
-        assert!(key.key_aes_encrypted(
+        let successful = key.key_aes_encrypted(
             &data_with_padding,
             &data_pad_reversed,
             &temp_key,
-            &mut key_aes_encrypted
-        ));
+            &mut key_aes_encrypted,
+        );
+
+        assert!(successful);
 
         let mut encrypted_data = [0u8; 256];
 
-        assert_eq!(
-            key.encrypted_data(&key_aes_encrypted, &mut encrypted_data),
-            256
-        );
+        let len = key.encrypted_data(&key_aes_encrypted, &mut encrypted_data);
+
+        assert_eq!(len, 256);
 
         let expected = hex::decode(
             "b610642a828b4a61fe32931815cae318d311660580f1e0df768f3140f4d37dfcfcac0c2870318de4ff2d2e0e9669bcfdc0bad06cadb1b59d9726b427368a9c7b4fc0d5e7b2e99fc571968705c03acf5341fd7021bef653fa77b3776ae430e366fc46d232459ebe128b08d80e049ae579a48b56ca93b520709468587c81af96666046e9ea85091d729e921e8d8a36f57b27644052dae7387c7f4131701d59cda75251dac66c94276280ef950d3c44c21e5a2454f7da7a6818cf23ae9c490b72b2170d7cbc24f8a93db739d76f2d241c78b80123faaff3e664f074d6375d794dbf2800a0b5bb48d54eceafedfb355bfbebd287d9023264e3b53627888250787a9e"
