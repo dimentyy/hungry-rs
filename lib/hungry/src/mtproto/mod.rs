@@ -1,11 +1,15 @@
 mod auth_key;
+mod message_id;
 mod pack;
+mod seq_no;
 mod unpack;
 
 use crate::envelopes;
 
 pub use auth_key::{AuthKey, MsgKey};
+pub use message_id::MessageIds;
 pub use pack::{pack_encrypted, pack_plain};
+pub use seq_no::SeqNos;
 pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -17,10 +21,7 @@ pub enum Side {
 impl Side {
     #[inline]
     pub const fn x(self) -> usize {
-        match self {
-            Self::Client => 0,
-            Self::Server => 8,
-        }
+        self as usize
     }
 }
 

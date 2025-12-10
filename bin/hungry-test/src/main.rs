@@ -1,11 +1,11 @@
 use bytes::BytesMut;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use hungry::mtproto::AuthKey;
 use hungry::reader::{Dump, Parted, Reserve, Split};
 use hungry::tl::mtproto::enums::SetClientDhParamsAnswer;
 use hungry::tl::ser::Serialize;
+use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
+use hungry::tl::de::Deserialize;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -115,15 +115,6 @@ async fn main() -> anyhow::Result<()> {
 
     let server_dh_params = req_dh_params.server_dh_params(response);
 
-    let server_time = server_dh_params.server_time();
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time is before epoch")
-        .as_secs() as i32;
-
-    dbg!(now - server_time);
-
     let mut b = [0; 256];
     rand::fill(&mut b);
 
@@ -160,13 +151,16 @@ async fn main() -> anyhow::Result<()> {
     //     },
     // };
 
+    let mut message_ids = mtproto::MessageIds::new();
+    let mut seq_nos = mtproto::SeqNos::new();
+
+    let message_id = dbg!(message_ids.get(since_epoch()));
+    let seq_no = dbg!(seq_nos.get_content_related());
+
+    message_id.serialize_into(&mut buffer);
+    seq_no.serialize_into(&mut buffer);
+
     let func = tl::mtproto::funcs::GetFutureSalts { num: 64 };
-
-    let msg_id = get_new_msg_id();
-
-    msg_id.serialize_into(&mut buffer);
-
-    1i32.serialize_into(&mut buffer);
 
     (func.serialized_len() as i32).serialize_into(&mut buffer);
 
@@ -181,18 +175,49 @@ async fn main() -> anyhow::Result<()> {
         .await?;
 
     loop {
-        dbg!((&mut reader).await?);
+        let (mut buffer, unpack) = (&mut reader).await?;
+
+        let (data, next) = match unpack {
+            Unpack::Packet(Packet { data, next }) => (data, next),
+            Unpack::QuickAck(_) => todo!(),
+        };
+
+        let encrypted = match mtproto::Message::unpack(&buffer[data.clone()]) {
+            mtproto::Message::Plain(_) => todo!(),
+            mtproto::Message::Encrypted(message) => message,
+        };
+
+        assert_eq!(&encrypted.auth_key_id.get().to_le_bytes(), auth_key.id());
+
+        let decrypted = encrypted.decrypt(
+            &auth_key,
+            &mut buffer[data.start + mtproto::EncryptedMessage::HEADER_LEN..data.end],
+        );
+
+        assert_eq!(decrypted.salt, salt);
+        assert_eq!(decrypted.session_id, session_id);
+
+        let buffer = &buffer[data.start
+            + mtproto::EncryptedMessage::HEADER_LEN
+            + mtproto::DecryptedMessage::HEADER_LEN..data.end];
+
+        let mut buf = tl::de::Buf::new(buffer);
+
+        let _message_id = i64::deserialize_checked(&mut buf)?;
+        let _seq_no = i32::deserialize_checked(&mut buf)?;
+
+        let len = i32::deserialize_checked(&mut buf)? as usize;
+
+        assert!(buffer.len() - 20 >= len);
+
+        let id = u32::deserialize_checked(&mut buf)?;
+
+        println!("Received {id:#08x}")
     }
 }
 
-fn get_new_msg_id() -> i64 {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time is before epoch");
-
-    let seconds = (now.as_secs() as i32) as u64;
-    let nanoseconds = 0; //now.subsec_nanos() as u64;
-    let new_msg_id = ((seconds >> 5) << 37) as i64;
-
-    new_msg_id
+fn since_epoch() -> std::time::Duration {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
 }
