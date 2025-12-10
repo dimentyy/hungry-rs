@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
 
     let func = dbg!(req_pq.func());
 
-    let response = dbg!(plain.send(func).await?);
+    let tl::mtproto::enums::ResPq::ResPq(response) = dbg!(plain.send(func).await?);
 
     let res_pq = req_pq.res_pq(response);
 
