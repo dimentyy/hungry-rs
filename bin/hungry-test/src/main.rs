@@ -135,21 +135,21 @@ async fn main() -> anyhow::Result<()> {
     let transport = Envelope::split(&mut buffer);
     let mtp = Envelope::split(&mut buffer);
 
-    // let func = tl::api::funcs::InvokeWithLayer {
-    //     layer: 218,
-    //     query: tl::api::funcs::InitConnection {
-    //         api_id: 1,
-    //         device_model: "MacOS 64-bit".to_string(),
-    //         system_version: "26.0.1".to_string(),
-    //         app_version: "0.8.1".to_string(),
-    //         system_lang_code: "en".to_string(),
-    //         lang_pack: "".to_string(),
-    //         lang_code: "en".to_string(),
-    //         proxy: None,
-    //         params: None,
-    //         query: tl::api::funcs::help::GetConfig {},
-    //     },
-    // };
+    let func = tl::api::funcs::InvokeWithLayer {
+        layer: 218,
+        query: tl::api::funcs::InitConnection {
+            api_id: 1,
+            device_model: "MacOS 64-bit".to_string(),
+            system_version: "26.0.1".to_string(),
+            app_version: "0.8.1".to_string(),
+            system_lang_code: "en".to_string(),
+            lang_pack: "".to_string(),
+            lang_code: "en".to_string(),
+            proxy: None,
+            params: None,
+            query: tl::api::funcs::help::GetConfig {},
+        },
+    };
 
     let mut message_ids = mtproto::MessageIds::new();
     let mut seq_nos = mtproto::SeqNos::new();
@@ -160,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
     message_id.serialize_into(&mut buffer);
     seq_no.serialize_into(&mut buffer);
 
-    let func = tl::mtproto::funcs::GetFutureSalts { num: 64 };
+    let func = tl::mtproto::funcs::GetFutureSalts { num: 1 };
 
     (func.serialized_len() as i32).serialize_into(&mut buffer);
 
@@ -212,7 +212,32 @@ async fn main() -> anyhow::Result<()> {
 
         let id = u32::deserialize_checked(&mut buf)?;
 
-        println!("Received {id:#08x}")
+        assert_eq!(id, 0x73f1f8dc); // msg_container
+
+        let len = i32::deserialize_checked(&mut buf)? as usize;
+
+        for _ in 0..len {
+            let _message_id = i64::deserialize_checked(&mut buf)?;
+            let _seq_no = i32::deserialize_checked(&mut buf)?;
+
+            let _len = i32::deserialize_checked(&mut buf)? as usize;
+
+            let id = u32::deserialize_checked(&mut buf)?;
+
+            match id {
+                0x9ec20908 => {
+                    let session = tl::mtproto::types::NewSessionCreated::deserialize_checked(&mut buf)?;
+
+                    dbg!(session);
+                }
+                0xae500895 => {
+                    let salts = tl::mtproto::types::FutureSalts::deserialize_checked(&mut buf)?;
+
+                    dbg!(salts);
+                }
+                _ => todo!()
+            }
+        }
     }
 }
 

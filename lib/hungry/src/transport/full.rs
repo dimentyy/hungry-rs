@@ -1,4 +1,4 @@
-use std::ops::RangeFrom;
+use std::ops::{ControlFlow, RangeFrom};
 
 use bytes::BytesMut;
 
@@ -34,30 +34,30 @@ impl EnvelopeSize for Full {
 impl TransportRead for FullRead {
     type Transport = Full;
 
-    fn length(&mut self, buffer: &mut [u8; 4]) -> usize {
-        match i32::from_le_bytes(*buffer) {
-            ..0 => 4,
-            0..12 => 4,
-            len => len as usize,
-        }
-    }
+    const DEFAULT_BUF_LEN: usize = 4;
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error> {
+    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, Error>, usize> {
+        if buffer.len() < 4 {
+            return ControlFlow::Continue(4);
+        }
+
         let len = match i32::from_le_bytes(*buffer[0..4].arr()) {
-            len @ ..0 => return Err(Error::Status(-len)),
-            len @ 0..12 => return Err(Error::BadLen(len)),
+            len @ ..0 => return ControlFlow::Break(Err(Error::Status(-len))),
+            len @ 0..12 => return ControlFlow::Break(Err(Error::BadLen(len))),
             len => len as usize,
         };
 
-        assert!(buffer.len() >= len);
+        if buffer.len() < len {
+            return ControlFlow::Continue(len);
+        }
 
         let seq = i32::from_le_bytes(*buffer[4..8].arr());
 
         if seq != self.seq {
-            return Err(Error::BadSeq {
+            return ControlFlow::Break(Err(Error::BadSeq {
                 received: seq,
                 expected: self.seq,
-            });
+            }));
         }
 
         let received = u32::from_le_bytes(*buffer[len - 4..len].arr());
@@ -65,15 +65,15 @@ impl TransportRead for FullRead {
         let computed = crypto::crc32!(&buffer[0..len - 4]);
 
         if received != computed {
-            return Err(Error::BadCrc { received, computed });
+            return ControlFlow::Break(Err(Error::BadCrc { received, computed }));
         }
 
         self.seq += 1;
 
-        Ok(Unpack::Packet(Packet {
+        ControlFlow::Break(Ok(Unpack::Packet(Packet {
             data: 8..len - 4,
             next: len,
-        }))
+        })))
     }
 }
 

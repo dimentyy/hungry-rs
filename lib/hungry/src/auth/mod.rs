@@ -1,4 +1,5 @@
 //! TODO: security checks, retries
+#![allow(unused)]
 
 mod error;
 mod req_dh_params;

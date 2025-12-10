@@ -8,7 +8,7 @@
 * [hungry-tl](/lib/hungry-tl) — generated TL schema with their traits
 * [hungry-tl-gen](/lib/hungry-tl-gen) — building library for `hungry-tl`
 
-Run test program yourself! *(auth key creation)*
+Run test program yourself! *(auth key creation, `get_future_salts#b921bd04`)*
 
 **Check out the [main.rs](/bin/hungry-test/src/main.rs)**
 

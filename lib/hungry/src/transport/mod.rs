@@ -1,7 +1,7 @@
 mod error;
 mod full;
 
-use std::ops::{Range, RangeFrom};
+use std::ops::{ControlFlow, Range, RangeFrom};
 
 use bytes::BytesMut;
 
@@ -39,10 +39,9 @@ pub trait Transport: EnvelopeSize {
 pub trait TransportRead: Unpin {
     type Transport: Transport;
 
-    #[must_use]
-    fn length(&mut self, buffer: &mut [u8; 4]) -> usize;
+    const DEFAULT_BUF_LEN: usize;
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error>;
+    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, Error>, usize>;
 }
 
 pub trait TransportWrite: Unpin {

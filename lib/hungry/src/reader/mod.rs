@@ -7,11 +7,12 @@ use bytes::BytesMut;
 use tokio::io::{AsyncRead, ReadBuf};
 
 use std::io;
+use std::ops::ControlFlow;
 use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 
 use crate::transport::{Transport, TransportRead, Unpack};
-use crate::utils::{ready_ok, BytesMutExt, SliceExt};
+use crate::utils::{ready_ok, BytesMutExt};
 
 pub use dump::Dump;
 pub use error::Error;
@@ -55,7 +56,7 @@ pub struct Reader<R: AsyncRead + Unpin, H: Handle, T: Transport> {
     handle: H,
     transport: T::Read,
     buffer: BytesMut,
-    length: Option<usize>,
+    length: usize,
 }
 
 impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
@@ -67,64 +68,45 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
             handle,
             transport,
             buffer,
-            length: None,
+            length: T::Read::DEFAULT_BUF_LEN,
         }
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
-        let length = match self.length {
-            Some(length) => length,
-            None => ready_ok!(self.poll_length(cx)),
-        };
-
-        self.poll_unpack(cx, length)
-    }
-
-    fn poll_length(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
-        if self.buffer.capacity() < 4 {
-            self.handle.required(&mut self.buffer, 4);
-            assert!(self.buffer.capacity() >= 4);
-        }
-
-        assert!(self.buffer.len() < 4);
-
-        ready_ok!(self.poll_read(cx, 4));
-
-        let length = self.transport.length(self.buffer.arr_mut());
-
-        self.length = Some(length);
-
-        Poll::Ready(Ok(length))
-    }
-
-    fn poll_unpack(
-        &mut self,
-        cx: &mut Context<'_>,
-        length: usize,
-    ) -> Poll<<Self as Future>::Output> {
-        if self.buffer.capacity() < length {
-            self.handle.required(&mut self.buffer, length);
-            assert!(self.buffer.capacity() >= length);
-        }
-
-        ready_ok!(self.poll_read(cx, length));
-
-        self.length = None;
-
-        let unpack = match self.transport.unpack(self.buffer.as_mut()) {
-            Ok(unpack) => unpack,
-            Err(err) => {
-                self.buffer.clear();
-
-                return Poll::Ready(Err(Error::Transport(err)));
+        loop {
+            if self.buffer.capacity() < self.length {
+                self.handle.required(&mut self.buffer, 0);
+                assert!(self.buffer.capacity() >= self.length);
             }
-        };
 
-        let output = self.handle.acquired(&mut self.buffer, unpack);
+            ready_ok!(self.poll_read(cx, self.length));
 
-        assert!(self.buffer.is_empty());
+            let unpack = match self.transport.unpack(self.buffer.as_mut()) {
+                ControlFlow::Continue(length) => {
+                    assert!(length > self.length);
 
-        Poll::Ready(Ok(output))
+                    self.length = length;
+
+                    continue;
+                }
+                ControlFlow::Break(Err(err)) => {
+                    self.buffer.clear();
+
+                    self.length = T::Read::DEFAULT_BUF_LEN;
+
+                    return Poll::Ready(Err(Error::Transport(err)));
+                }
+                ControlFlow::Break(Ok(unpack)) => unpack,
+            };
+
+            self.length = T::Read::DEFAULT_BUF_LEN;
+
+            let output = self.handle.acquired(&mut self.buffer, unpack);
+
+            assert!(self.buffer.is_empty());
+
+            return Poll::Ready(Ok(output));
+        }
     }
 
     fn poll_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {

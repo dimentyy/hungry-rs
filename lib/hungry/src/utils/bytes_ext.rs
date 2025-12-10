@@ -30,9 +30,9 @@ pub(crate) trait BytesMutExt {
 
     fn can_unsplit(&self, other: &BytesMut) -> bool;
 
-    fn split_right(&mut self, index: usize) -> BytesMut;
-
-    fn split_left(&mut self, index: usize) -> BytesMut;
+    // fn split_right(&mut self, index: usize) -> BytesMut;
+    //
+    // fn split_left(&mut self, index: usize) -> BytesMut;
 
     fn spare_capacity_len(&self) -> usize;
 
@@ -66,33 +66,33 @@ impl BytesMutExt for BytesMut {
         self.end_ptr() == other.as_ptr()
     }
 
-    fn split_right(&mut self, index: usize) -> BytesMut {
-        unsafe {
-            let len = self.len();
-            self.set_len(self.capacity());
-
-            let mut other = self.split_off(index);
-
-            self.set_len(len.min(self.capacity()));
-            other.set_len(len.saturating_sub(index));
-
-            other
-        }
-    }
-
-    fn split_left(&mut self, index: usize) -> BytesMut {
-        unsafe {
-            let len = self.len();
-            self.set_len(self.capacity());
-
-            let mut other = self.split_to(index);
-
-            other.set_len(len.min(other.capacity()));
-            self.set_len(len.saturating_sub(index));
-
-            other
-        }
-    }
+    // fn split_right(&mut self, index: usize) -> BytesMut {
+    //     unsafe {
+    //         let len = self.len();
+    //         self.set_len(self.capacity());
+    //
+    //         let mut other = self.split_off(index);
+    //
+    //         self.set_len(len.min(self.capacity()));
+    //         other.set_len(len.saturating_sub(index));
+    //
+    //         other
+    //     }
+    // }
+    //
+    // fn split_left(&mut self, index: usize) -> BytesMut {
+    //     unsafe {
+    //         let len = self.len();
+    //         self.set_len(self.capacity());
+    //
+    //         let mut other = self.split_to(index);
+    //
+    //         other.set_len(len.min(other.capacity()));
+    //         self.set_len(len.saturating_sub(index));
+    //
+    //         other
+    //     }
+    // }
 
     #[inline]
     fn spare_capacity_len(&self) -> usize {
