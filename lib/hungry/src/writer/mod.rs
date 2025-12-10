@@ -92,8 +92,6 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
             let buf = &self.buffer[self.pos..];
 
             if buf.is_empty() {
-                crate::utils::dump(self.buffer.as_ref(), "WROTE").unwrap();
-
                 return Poll::Ready(Ok(()));
             }
 

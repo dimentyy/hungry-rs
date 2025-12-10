@@ -2,7 +2,7 @@ use std::ops::RangeFrom;
 
 use bytes::BytesMut;
 
-use crate::transport::{err, Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
+use crate::transport::{Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
 use crate::{crypto, Envelope, EnvelopeSize};
 
@@ -34,8 +34,8 @@ impl EnvelopeSize for Full {
 impl TransportRead for FullRead {
     type Transport = Full;
 
-    fn length(&mut self, buffer: &mut [u8]) -> usize {
-        match i32::from_le_bytes(*buffer[0..4].arr()) {
+    fn length(&mut self, buffer: &mut [u8; 4]) -> usize {
+        match i32::from_le_bytes(*buffer) {
             ..0 => 4,
             0..12 => 4,
             len => len as usize,
@@ -44,8 +44,8 @@ impl TransportRead for FullRead {
 
     fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error> {
         let len = match i32::from_le_bytes(*buffer[0..4].arr()) {
-            len @ ..0 => err!(Status(-len)),
-            len @ 0..12 => err!(BadLen(len)),
+            len @ ..0 => return Err(Error::Status(-len)),
+            len @ 0..12 => return Err(Error::BadLen(len)),
             len => len as usize,
         };
 
@@ -54,7 +54,7 @@ impl TransportRead for FullRead {
         let seq = i32::from_le_bytes(*buffer[4..8].arr());
 
         if seq != self.seq {
-            err!(BadSeq {
+            return Err(Error::BadSeq {
                 received: seq,
                 expected: self.seq,
             });
@@ -65,7 +65,7 @@ impl TransportRead for FullRead {
         let computed = crypto::crc32!(&buffer[0..len - 4]);
 
         if received != computed {
-            err!(BadCrc { received, computed })
+            return Err(Error::BadCrc { received, computed });
         }
 
         self.seq += 1;

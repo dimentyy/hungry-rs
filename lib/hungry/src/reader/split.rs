@@ -1,14 +1,13 @@
 use bytes::BytesMut;
 
-use crate::reader;
-use crate::transport::Unpack;
+use crate::{reader, transport};
 
 pub struct Split;
 
 impl reader::HandleOutput for Split {
-    type Output = (BytesMut, Unpack);
+    type Output = (BytesMut, transport::Unpack);
 
-    fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
+    fn acquired(&mut self, buffer: &mut BytesMut, unpack: transport::Unpack) -> Self::Output {
         (buffer.split(), unpack)
     }
 }

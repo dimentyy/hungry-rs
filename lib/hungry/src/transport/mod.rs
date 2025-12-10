@@ -7,9 +7,7 @@ use bytes::BytesMut;
 
 use crate::{Envelope, EnvelopeSize};
 
-use error::err;
-
-pub use error::{Error, ErrorKind};
+pub use error::Error;
 pub use full::Full;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -42,7 +40,7 @@ pub trait TransportRead: Unpin {
     type Transport: Transport;
 
     #[must_use]
-    fn length(&mut self, buffer: &mut [u8]) -> usize;
+    fn length(&mut self, buffer: &mut [u8; 4]) -> usize;
 
     fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error>;
 }

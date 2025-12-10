@@ -1,5 +1,6 @@
-use crate::{auth, crypto, tl};
 use rug::{integer, Integer};
+
+use crate::{auth, crypto, tl};
 
 use tl::mtproto::{funcs, types};
 use tl::ser::Serialize;

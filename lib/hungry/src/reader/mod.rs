@@ -10,8 +10,8 @@ use std::io;
 use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 
-use crate::transport::{Error as TransportError, Transport, TransportRead, Unpack};
-use crate::utils::{ready_ok, BytesMutExt};
+use crate::transport::{Transport, TransportRead, Unpack};
+use crate::utils::{ready_ok, BytesMutExt, SliceExt};
 
 pub use dump::Dump;
 pub use error::Error;
@@ -74,62 +74,57 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
         let length = match self.length {
             Some(length) => length,
-            None => {
-                if self.buffer.capacity() < T::HEADER {
-                    self.handle.required(&mut self.buffer, T::HEADER);
-                    assert!(self.buffer.capacity() >= T::HEADER);
-                }
-
-                assert!(self.buffer.len() < T::HEADER);
-
-                let length = ready_ok!(self.poll_header(cx));
-                self.length = Some(length);
-                length
-            }
+            None => ready_ok!(self.poll_length(cx)),
         };
 
-        if self.buffer.capacity() < length {
-            self.handle.required(&mut self.buffer, length);
-            assert!(self.buffer.capacity() >= length);
-        }
-
-        let unpack = match ready_ok!(self.poll_unpack(cx, length)) {
-            Ok(unpack) => unpack,
-            Err(err) => {
-                self.length = None;
-                self.buffer.clear();
-                return Poll::Ready(Err(err.into()));
-            }
-        };
-
-        self.length = None;
-
-        let output = self.handle.acquired(&mut self.buffer, unpack);
-
-        assert!(self.buffer.is_empty());
-
-        Poll::Ready(Ok(output))
+        self.poll_unpack(cx, length)
     }
 
-    fn poll_header(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
-        // FIXME
+    fn poll_length(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+        if self.buffer.capacity() < 4 {
+            self.handle.required(&mut self.buffer, 4);
+            assert!(self.buffer.capacity() >= 4);
+        }
+
+        assert!(self.buffer.len() < 4);
+
         ready_ok!(self.poll_read(cx, 4));
 
-        let required = self.transport.length(self.buffer.as_mut());
+        let length = self.transport.length(self.buffer.arr_mut());
 
-        Poll::Ready(Ok(required))
+        self.length = Some(length);
+
+        Poll::Ready(Ok(length))
     }
 
     fn poll_unpack(
         &mut self,
         cx: &mut Context<'_>,
         length: usize,
-    ) -> Poll<io::Result<Result<Unpack, TransportError>>> {
+    ) -> Poll<<Self as Future>::Output> {
+        if self.buffer.capacity() < length {
+            self.handle.required(&mut self.buffer, length);
+            assert!(self.buffer.capacity() >= length);
+        }
+
         ready_ok!(self.poll_read(cx, length));
 
-        let unpacked = self.transport.unpack(self.buffer.as_mut());
+        self.length = None;
 
-        Poll::Ready(Ok(unpacked))
+        let unpack = match self.transport.unpack(self.buffer.as_mut()) {
+            Ok(unpack) => unpack,
+            Err(err) => {
+                self.buffer.clear();
+
+                return Poll::Ready(Err(Error::Transport(err)));
+            }
+        };
+
+        let output = self.handle.acquired(&mut self.buffer, unpack);
+
+        assert!(self.buffer.is_empty());
+
+        Poll::Ready(Ok(output))
     }
 
     fn poll_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {
@@ -147,19 +142,20 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
             ready_ok!(pin!(&mut self.driver).poll_read(cx, &mut buf));
 
-            let filled = buf.filled().len();
+            let n = buf.filled().len();
 
-            if filled == 0 {
+            if n == 0 {
                 return Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::ConnectionReset,
                     "read 0 bytes",
                 )));
             }
 
-            unsafe { self.buffer.set_len(self.buffer.len() + filled) };
+            // SAFETY: data is initialized up to additional `n` bytes.
+            unsafe { self.buffer.set_len(self.buffer.len() + n) };
 
-            if filled >= len {
-                assert_eq!(filled, len);
+            if n >= len {
+                assert_eq!(n, len);
 
                 return Poll::Ready(Ok(()));
             }
@@ -170,6 +166,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Future for Reader<R, H, T> {
     type Output = Result<H::Output, Error>;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().poll(cx)
     }

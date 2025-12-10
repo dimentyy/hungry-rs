@@ -1,5 +1,6 @@
-use rug::{integer, Integer};
 use std::ops::RangeTo;
+
+use rug::{integer, Integer};
 
 use crate::utils::SliceExt;
 use crate::{crypto, tl};
@@ -14,7 +15,7 @@ pub struct RsaKey {
 
 impl RsaKey {
     #[must_use]
-    fn calculate_fingerprint(n: &Integer, e: &Integer) -> i64 {
+    pub fn calculate_fingerprint(n: &Integer, e: &Integer) -> i64 {
         let n_len = n.significant_digits::<u8>();
         let e_len = e.significant_digits::<u8>();
 

@@ -1,34 +1,7 @@
 use std::fmt;
 
-macro_rules! err {
-    ($kind:ident $( $args:tt )*) => {{
-        use crate::transport::{Error, ErrorKind};
-
-        return Err(Error {
-            kind: ErrorKind::$kind $( $args )*,
-        })
-    }};
-}
-
-pub(super) use err;
-
 #[derive(Clone, Debug)]
-pub struct Error {
-    pub kind: ErrorKind,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("transport error: ")?;
-
-        self.kind.fmt(f)
-    }
-}
-
-impl std::error::Error for Error {}
-
-#[derive(Clone, Debug)]
-pub enum ErrorKind {
+pub enum Error {
     QuickAck,
     Status(i32),
     BadLen(i32),
@@ -36,9 +9,11 @@ pub enum ErrorKind {
     BadSeq { received: i32, expected: i32 },
 }
 
-impl fmt::Display for ErrorKind {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ErrorKind::*;
+        use Error::*;
+
+        f.write_str("transport error: ")?;
 
         match self {
             QuickAck => write!(f, "quick ack is not supported"),
@@ -55,3 +30,5 @@ impl fmt::Display for ErrorKind {
         }
     }
 }
+
+impl std::error::Error for Error {}
