@@ -153,8 +153,8 @@ impl ReqDhParams<'_> {
     pub fn func(&mut self, key_aes_encrypted: &[u8; 256]) -> &funcs::ReqDhParams {
         let encrypted_data = self.func.encrypted_data.arr_mut();
 
-        let len = self.key.encrypted_data(key_aes_encrypted, encrypted_data);
-        encrypted_data[..256 - len].fill(0);
+        let range = self.key.encrypted_data(key_aes_encrypted, encrypted_data);
+        encrypted_data[range].fill(0);
 
         &self.func
     }

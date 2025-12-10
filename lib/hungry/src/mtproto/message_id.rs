@@ -15,18 +15,21 @@ impl fmt::Debug for MessageIds {
 
 impl MessageIds {
     #[inline]
+    #[must_use]
     pub const fn new() -> Self {
         Self { previous: 0 }
     }
 
     #[inline]
+    #[must_use]
     pub const fn previous(&self) -> i64 {
         self.previous as i64
     }
 
+    #[must_use]
     pub const fn get(&mut self, since_epoch: std::time::Duration) -> i64 {
         let subsec_nanos = since_epoch.subsec_nanos() as u64;
-        let message_id = (since_epoch.as_secs() << 32 | subsec_nanos << 2);
+        let message_id = since_epoch.as_secs() << 32 | subsec_nanos << 2;
 
         if self.previous >= message_id {
             self.previous += 4;

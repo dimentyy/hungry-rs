@@ -11,42 +11,48 @@ use crate::utils::ready_ok;
 use crate::{mtproto, writer, Envelope};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
-    ready: VecDeque<BytesMut>,
     driver: writer::Writer<W, T>,
     buffers: VecDeque<BytesMut>,
 }
 
 impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
+    #[must_use]
     pub fn new(driver: writer::Writer<W, T>) -> Self {
         Self {
-            ready: VecDeque::new(),
             driver,
             buffers: VecDeque::new(),
         }
     }
 
-    fn queue_impl(&mut self, mut buffer: BytesMut, envelope: Envelope<T>) {
+    /// Returned buffer may be out-of-order due to multiple being queued at the same time.
+    fn queue_impl(&mut self, mut buffer: BytesMut, envelope: Envelope<T>) -> Option<BytesMut> {
         let packed = self.driver.transport.pack(&mut buffer, envelope);
 
-        if packed.start > 0 {
-            self.ready.push_back(buffer.split_to(packed.start));
-        }
+        let result = if packed.start > 0 {
+            Some(buffer.split_to(packed.start))
+        } else {
+            None
+        };
 
         self.buffers.push_back(buffer);
+
+        result
     }
 
+    #[must_use = "the `BytesMut` must be reused to avoid unnecessary memory reallocation"]
     pub fn queue_plain(
         &mut self,
         mut buffer: BytesMut,
         transport: Envelope<T>,
         mtp: mtproto::PlainEnvelope,
         message_id: i64,
-    ) {
+    ) -> Option<BytesMut> {
         mtproto::pack_plain(&mut buffer, mtp, message_id);
 
-        self.queue_impl(buffer, transport);
+        self.queue_impl(buffer, transport)
     }
 
+    #[must_use = "the `BytesMut` must be reused to avoid unnecessary memory reallocation"]
     pub fn queue(
         &mut self,
         mut buffer: BytesMut,
@@ -54,18 +60,13 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         mtp: mtproto::Envelope,
         auth_key: &mtproto::AuthKey,
         message: &mtproto::DecryptedMessage,
-    ) {
+    ) -> Option<BytesMut> {
         mtproto::pack_encrypted(&mut buffer, mtp, auth_key, message);
 
-        self.queue_impl(buffer, transport);
+        self.queue_impl(buffer, transport)
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<BytesMut>> {
-        // Buffers may be returned out of order due to multiple being queued at the same time.
-        if let Some(buffer) = self.ready.pop_front() {
-            return Poll::Ready(Ok(buffer));
-        }
-
         let Some(buffer) = self.buffers.front_mut() else {
             return Poll::Pending;
         };

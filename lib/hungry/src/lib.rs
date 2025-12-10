@@ -1,4 +1,5 @@
-#![allow(unused, clippy::uninit_vec)]
+#![allow(clippy::uninit_vec)]
+#![deny(unused_imports)]
 
 mod envelope;
 

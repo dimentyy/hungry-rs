@@ -24,6 +24,7 @@ impl fmt::Display for Message {
 
 impl Message {
     /// Unpacks a [`Message`] enum for working with [`PlainMessage`] and [`EncryptedMessage`].
+    #[must_use]
     pub fn unpack(buffer: &[u8]) -> Message {
         let Some(auth_key_id) = NonZeroI64::new(i64::from_le_bytes(*buffer[0..8].arr())) else {
             let message_id = i64::from_le_bytes(*buffer[8..16].arr());
@@ -107,6 +108,7 @@ impl EncryptedMessage {
     /// Decrypts the [`EncryptedMessage`] using [`AuthKey`] identified by the `auth_key_id` field.
     ///
     /// [`AuthKey`]: mtproto::AuthKey
+    #[must_use]
     pub fn decrypt(self, auth_key: &mtproto::AuthKey, buffer: &mut [u8]) -> DecryptedMessage {
         assert!(buffer.len() >= 40);
 

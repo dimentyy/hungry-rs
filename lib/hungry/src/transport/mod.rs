@@ -34,12 +34,14 @@ pub trait Transport: EnvelopeSize {
     type Read: TransportRead<Transport = Self>;
     type Write: TransportWrite<Transport = Self>;
 
+    #[must_use]
     fn split(self) -> (Self::Read, Self::Write);
 }
 
 pub trait TransportRead: Unpin {
     type Transport: Transport;
 
+    #[must_use]
     fn length(&mut self, buffer: &mut [u8]) -> usize;
 
     fn unpack(&mut self, buffer: &mut [u8]) -> Result<Unpack, Error>;
@@ -48,6 +50,7 @@ pub trait TransportRead: Unpin {
 pub trait TransportWrite: Unpin {
     type Transport: Transport;
 
+    #[must_use]
     fn pack(
         &mut self,
         buffer: &mut BytesMut,

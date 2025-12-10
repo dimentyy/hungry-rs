@@ -36,6 +36,7 @@ impl fmt::Debug for AuthKey {
 /// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 impl AuthKey {
     /// Create a new instance of [`AuthKey`] from its data.
+    #[must_use]
     pub fn new(data: [u8; 256]) -> Self {
         let hash = crypto::sha1!(&data);
 
@@ -47,12 +48,14 @@ impl AuthKey {
 
     /// Actual underlying data used for cryptographic operations.
     #[inline]
+    #[must_use]
     pub fn data(&self) -> &[u8; 256] {
         &self.data
     }
 
     /// Consume the [`AuthKey`] returning its owned underling data.
     #[inline]
+    #[must_use]
     pub fn into_inner(self) -> [u8; 256] {
         self.data
     }
@@ -62,6 +65,7 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
     #[inline]
+    #[must_use]
     pub fn aux_hash(&self) -> &[u8; 8] {
         &self.aux_hash
     }
@@ -70,6 +74,7 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
+    #[must_use]
     pub fn id(&self) -> &[u8; 8] {
         &self.id
     }
@@ -79,6 +84,7 @@ impl AuthKey {
     /// https://core.telegram.org/mtproto/description#message-key-msg-key \
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     #[allow(clippy::let_and_return)]
+    #[must_use]
     pub fn compute_msg_key(
         &self,
         plaintext_header: &[u8; mtproto::DecryptedMessage::HEADER_LEN],
@@ -108,6 +114,7 @@ impl AuthKey {
     ///
     /// [`AesIgeKey`]: crypto::AesIgeKey
     /// [`AesIgeIv`]: crypto::AesIgeIv
+    #[must_use]
     pub fn compute_aes_params(
         &self,
         msg_key: &MsgKey,

@@ -32,7 +32,7 @@ impl fmt::Display for Error {
             Error::Writer(err) => err.fmt(f),
             Error::QuickAck(_) => todo!(),
             Error::EncryptedMessage(_) => todo!(),
-            Error::Deserialization { source, buffer } => source.fmt(f),
+            Error::Deserialization { source, buffer: _ } => source.fmt(f),
         }
     }
 }

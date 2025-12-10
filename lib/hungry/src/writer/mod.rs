@@ -10,7 +10,7 @@ use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::{mtproto, Envelope, EnvelopeSize};
+use crate::{mtproto, Envelope};
 
 pub use queued::QueuedWriter;
 
@@ -82,6 +82,7 @@ pub struct Single<'a, W: AsyncWrite + Unpin, T: Transport> {
 
 impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
     #[inline]
+    #[must_use]
     pub fn pos(self) -> usize {
         self.pos
     }

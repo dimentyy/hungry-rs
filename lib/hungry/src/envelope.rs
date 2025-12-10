@@ -36,6 +36,7 @@ pub struct Envelope<S: EnvelopeSize> {
 
 impl<S: EnvelopeSize> Envelope<S> {
     /// Split an envelope from buffer. Buffer length is set to zero.
+    #[must_use]
     pub fn split(buffer: &mut BytesMut) -> Self {
         assert!(
             buffer.capacity() >= S::HEADER + S::FOOTER,
@@ -59,11 +60,13 @@ impl<S: EnvelopeSize> Envelope<S> {
 
     /// Get envelope buffers. May be uninitialized.
     #[inline]
+    #[must_use]
     pub(crate) fn buffers(&mut self) -> (&mut [u8], &mut [u8]) {
         (self.header.as_mut(), self.footer.as_mut())
     }
 
     /// Shrink buffer capacity to match its length. Excess buffer with remaining space is returned.
+    #[must_use]
     pub fn adapt(&mut self, buffer: &mut BytesMut) -> Option<BytesMut> {
         // Do not check the header to allow the outer envelope to adapt to an inner envelope buffer.
         assert!(
