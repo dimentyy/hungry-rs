@@ -81,17 +81,20 @@ impl AuthKey {
     #[allow(clippy::let_and_return)]
     pub fn compute_msg_key(
         &self,
-        b1: &[u8],
-        b2: &[u8],
-        buffer: &[u8],
-        padding: &[u8],
+        plaintext_header: &[u8; mtproto::DecryptedMessage::HEADER_LEN],
+        plaintext: &[u8],
+        random_padding: &[u8],
         side: mtproto::Side,
     ) -> MsgKey {
         let x = side.x();
 
         // * msg_key_large = SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
-        let msg_key_large =
-            crypto::sha256!(&self.data[88 + x..88 + x + 32], b1, b2, buffer, padding);
+        let msg_key_large = crypto::sha256!(
+            &self.data[88 + x..88 + x + 32],
+            plaintext_header,
+            plaintext,
+            random_padding
+        );
 
         // * msg_key = substr(msg_key_large, 8, 16);
         let msg_key = *msg_key_large[8..24].arr();

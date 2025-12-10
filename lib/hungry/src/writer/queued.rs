@@ -53,10 +53,9 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         transport: Envelope<T>,
         mtp: mtproto::Envelope,
         auth_key: &mtproto::AuthKey,
-        salt: i64,
-        session_id: i64,
+        message: &mtproto::DecryptedMessage,
     ) {
-        mtproto::pack_encrypted(&mut buffer, mtp, auth_key, salt, session_id);
+        mtproto::pack_encrypted(&mut buffer, mtp, auth_key, message);
 
         self.queue_impl(buffer, transport);
     }

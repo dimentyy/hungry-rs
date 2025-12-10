@@ -1,11 +1,11 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use bytes::BytesMut;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use hungry::mtproto::AuthKey;
 use hungry::reader::{Dump, Parted, Reserve, Split};
 use hungry::tl::mtproto::enums::SetClientDhParamsAnswer;
-use hungry::{Envelope, tl};
-use hungry::mtproto::AuthKey;
 use hungry::tl::ser::Serialize;
+use hungry::{Envelope, mtproto, tl};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -141,10 +141,6 @@ async fn main() -> anyhow::Result<()> {
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok);
 
-
-    dbg!(hex::encode(auth_key.data()));
-    dbg!(&auth_key);
-
     let transport = Envelope::split(&mut buffer);
     let mtp = Envelope::split(&mut buffer);
 
@@ -164,9 +160,7 @@ async fn main() -> anyhow::Result<()> {
     //     },
     // };
 
-    let func = tl::mtproto::funcs::GetFutureSalts {
-        num: 64
-    };
+    let func = tl::mtproto::funcs::GetFutureSalts { num: 64 };
 
     let msg_id = get_new_msg_id();
 
@@ -180,15 +174,15 @@ async fn main() -> anyhow::Result<()> {
 
     let session_id = rand::random();
 
+    let message = mtproto::DecryptedMessage { salt, session_id };
+
     writer
-        .single(&mut buffer, transport, mtp, &auth_key, salt, session_id)
+        .single(&mut buffer, transport, mtp, &auth_key, &message)
         .await?;
 
     loop {
-        dbg!((&mut reader).await);
+        dbg!((&mut reader).await?);
     }
-
-    Ok(())
 }
 
 fn get_new_msg_id() -> i64 {

@@ -2,6 +2,7 @@ use bytes::BytesMut;
 
 use crate::crypto;
 use crate::mtproto::{AuthKey, DecryptedMessage, EncryptedMessage, Envelope, PlainEnvelope, Side};
+use crate::utils::SliceExt;
 
 pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
     let excess = envelope.adapt(buffer);
@@ -20,43 +21,38 @@ pub fn pack_encrypted(
     buffer: &mut BytesMut,
     mut envelope: Envelope,
     auth_key: &AuthKey,
-    salt: i64,
-    session_id: i64,
+    message: &DecryptedMessage,
 ) {
     let excess = envelope.adapt(buffer);
     let (h, f) = envelope.buffers();
 
-    let payload_len = buffer.len();
+    let plaintext_len = buffer.len();
 
-    // TODO: allow custom padding length
-    let padding_len = 16 + (16 - (payload_len % 16)); // 16..32
+    // TODO: allow custom padding length; currently minimum possible
+    let random_padding_len = (20 - (plaintext_len % 16)) % 16 + 12; // 12..28
+    let random_padding = &mut f[..random_padding_len];
+    getrandom::fill(random_padding).unwrap();
 
-    // getrandom::fill(&mut f[..padding_len]).unwrap();
-    f.fill(0);
+    let plaintext_header = h[EncryptedMessage::HEADER_LEN..].arr_mut();
 
-    let msg_key = auth_key.compute_msg_key(
-        &salt.to_le_bytes(),
-        &session_id.to_le_bytes(),
-        buffer,
-        &f[..padding_len],
-        Side::Client,
-    );
+    plaintext_header[0..8].copy_from_slice(&message.salt.to_le_bytes());
+    plaintext_header[8..16].copy_from_slice(&message.session_id.to_le_bytes());
 
-    let (aes_key, aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
+    let msg_key = auth_key.compute_msg_key(plaintext_header, buffer, random_padding, Side::Client);
 
     h[0..8].copy_from_slice(auth_key.id());
-    h[8..24].copy_from_slice(&dbg!(msg_key));
-
-    h[24..32].copy_from_slice(&salt.to_le_bytes());
-    h[32..40].copy_from_slice(&session_id.to_le_bytes());
+    h[8..24].copy_from_slice(&msg_key);
 
     envelope.unsplit(buffer, excess);
 
     buffer.truncate(
-        EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + payload_len + padding_len,
+        EncryptedMessage::HEADER_LEN
+            + DecryptedMessage::HEADER_LEN
+            + plaintext_len
+            + random_padding_len,
     );
 
-    crate::utils::dump(&buffer[24..], "BEFORE ENCRYPT");
+    let (aes_key, aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
 
     crypto::aes_ige_encrypt(
         &mut buffer[EncryptedMessage::HEADER_LEN..],
