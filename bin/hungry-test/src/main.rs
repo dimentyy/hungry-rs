@@ -135,22 +135,6 @@ async fn main() -> anyhow::Result<()> {
     let transport = Envelope::split(&mut buffer);
     let mtp = Envelope::split(&mut buffer);
 
-    let func = tl::api::funcs::InvokeWithLayer {
-        layer: 218,
-        query: tl::api::funcs::InitConnection {
-            api_id: 1,
-            device_model: "MacOS 64-bit".to_string(),
-            system_version: "26.0.1".to_string(),
-            app_version: "0.8.1".to_string(),
-            system_lang_code: "en".to_string(),
-            lang_pack: "".to_string(),
-            lang_code: "en".to_string(),
-            proxy: None,
-            params: None,
-            query: tl::api::funcs::help::GetConfig {},
-        },
-    };
-
     let mut message_ids = mtproto::MessageIds::new();
     let mut seq_nos = mtproto::SeqNos::new();
 
