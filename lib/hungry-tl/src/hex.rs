@@ -10,7 +10,7 @@ fn hex_byte(x: u8) -> [u8; 2] {
     [hex_digit(x >> 4), hex_digit(x & 15)]
 }
 
-/// Buffered `bytes` hex formatter.  
+/// Buffered `bytes` hex formatter.
 pub(crate) struct HexBytesFmt<'a>(pub(crate) &'a [u8]);
 
 impl fmt::Debug for HexBytesFmt<'_> {
@@ -53,12 +53,12 @@ macro_rules! int {
                 buf[0] = b'0';
                 buf[1] = b'x';
 
-                let mut int_i = const { cfg!(target_endian = "little") as usize * 16 };
+                let mut int_i = const { cfg!(target_endian = "little") as usize * $len };
                 let mut buf_i = 0;
 
                 while {
                     #[cfg(target_endian = "big")]
-                    { int_i < 16 }
+                    { int_i < $len }
 
                     #[cfg(target_endian = "little")]
                     { int_i > 0 }

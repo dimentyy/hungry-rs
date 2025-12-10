@@ -3,7 +3,7 @@
 use rug::{integer, Integer};
 
 use crate::utils::SliceExt;
-use crate::{crypto, tl};
+use crate::{crypto, mtproto, tl};
 
 use tl::mtproto::{enums, funcs, types};
 use tl::ser::Serialize;
@@ -89,14 +89,14 @@ impl ResPq {
             todo!()
         }
 
-        let pq_inner_data = tl::boxed(types::PQInnerData {
+        let pq_inner_data = tl::boxed(dbg!(types::PQInnerData {
             pq: self.pq.clone(),
             p: self.p.clone(),
             q: self.q.clone(),
             nonce: self.nonce,
             server_nonce: self.server_nonce,
             new_nonce,
-        });
+        }));
 
         pq_inner_data.serialize_into(&mut random_padding_bytes);
 
@@ -252,6 +252,7 @@ impl ReqDhParams<'_> {
         ServerDhParams {
             nonce: self.func.nonce,
             server_nonce: self.func.server_nonce,
+            new_nonce: self.new_nonce,
             tmp_aes_key,
             tmp_aes_iv,
             g: answer.g,
@@ -265,6 +266,7 @@ impl ReqDhParams<'_> {
 pub struct ServerDhParams {
     nonce: Int128,
     server_nonce: Int128,
+    new_nonce: Int256,
     tmp_aes_key: crypto::AesIgeKey,
     tmp_aes_iv: crypto::AesIgeIv,
     g: i32,
@@ -281,6 +283,8 @@ impl ServerDhParams {
 
     pub fn set_client_dh_params(self, b: &[u8; 256], retry_id: i64) -> SetClientDhParams {
         let one = Integer::from(1);
+
+        crate::utils::dump(b, "b").unwrap();
 
         let b = Integer::from_digits(b, integer::Order::MsfBe);
 
@@ -322,17 +326,70 @@ impl ServerDhParams {
             encrypted_data,
         };
 
-        SetClientDhParams { func }
+        SetClientDhParams {
+            new_nonce: self.new_nonce,
+            g: self.g,
+            dh_prime: self.dh_prime,
+            g_a: self.g_a,
+            server_time: self.server_time,
+            b,
+            func,
+        }
     }
 }
 
 pub struct SetClientDhParams {
+    new_nonce: Int256,
+    g: i32,
+    dh_prime: Integer,
+    g_a: Integer,
+    server_time: i32,
+    b: Integer,
     func: funcs::SetClientDhParams,
+}
+
+fn new_nonce_hash(auth_key: &mtproto::AuthKey, new_nonce: &[u8; 32], number: u8) -> [u8; 16] {
+    let mut data = [0; 32 + 1 + 8];
+
+    data[..32].copy_from_slice(new_nonce);
+    data[32] = number;
+    data[33..].copy_from_slice(auth_key.aux_hash());
+
+    *crypto::sha1!(data)[4..].arr()
 }
 
 impl SetClientDhParams {
     #[inline]
     pub fn func(&self) -> &funcs::SetClientDhParams {
         &self.func
+    }
+
+    pub fn dh_gen_ok(self, dh_gen_ok: types::DhGenOk) -> (mtproto::AuthKey, i64) {
+        if dh_gen_ok.nonce != self.func.nonce {
+            todo!()
+        }
+
+        if dh_gen_ok.server_nonce != self.func.server_nonce {
+            todo!()
+        }
+
+        let mut data = [0; 256];
+
+        let g_ab = self.g_a.pow_mod(&self.b, &self.dh_prime).unwrap();
+
+        let len = g_ab.significant_digits::<u8>();
+
+        g_ab.write_digits(&mut data[256 - len..], integer::Order::MsfBe);
+
+        let auth_key = mtproto::AuthKey::new(data);
+
+        if dh_gen_ok.new_nonce_hash_1 != new_nonce_hash(&auth_key, &self.new_nonce, 1) {
+            todo!()
+        }
+
+        let mut salt = i64::from_le_bytes(*self.new_nonce[..8].arr())
+            ^ i64::from_le_bytes(*self.func.server_nonce[..8].arr());
+
+        (auth_key, salt)
     }
 }

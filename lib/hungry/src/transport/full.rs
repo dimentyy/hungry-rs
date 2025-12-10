@@ -93,7 +93,7 @@ impl TransportWrite for FullWrite {
         h[0..4].copy_from_slice(&len.to_le_bytes());
         h[4..8].copy_from_slice(&self.seq.to_le_bytes());
 
-        let crc = crypto::crc32!(h, buffer.as_ref());
+        let crc = crypto::crc32!(h, buffer);
 
         f[0..4].copy_from_slice(&crc.to_le_bytes());
 

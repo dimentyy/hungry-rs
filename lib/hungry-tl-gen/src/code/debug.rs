@@ -4,17 +4,13 @@ use std::io::{Result, Write};
 use crate::code::{X, write_enum_variant, write_escaped, write_name};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
 use crate::{Cfg, F};
+use crate::code::generic::write_generics;
 
 fn write_after_f(f: &mut F) -> Result<()> {
     f.write_all(b"f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        ")
 }
 
-fn write_struct_debug(
-    f: &mut F,
-    cfg: &Cfg,
-    data: &Data,
-    x: &Combinator,
-) -> Result<()> {
+fn write_struct_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Result<()> {
     if x.args.is_empty() {
         f.write_all(b"_")?;
     }
@@ -41,7 +37,23 @@ fn write_struct_debug(
         f.write_all(b"\", ")?;
 
         if optional {
-
+            match typ {
+                Typ::Int128 | Typ::Int256 => {
+                    f.write_all(b"&if let Some(x) = &self.")?;
+                    write_escaped(f, &arg.name)?;
+                    f.write_all(b" { Some(crate::hex::HexIntFmt(x)) } else { None })\n")?;
+                }
+                Typ::Bytes => {
+                    f.write_all(b"&if let Some(x) = &self.")?;
+                    write_escaped(f, &arg.name)?;
+                    f.write_all(b" { Some(crate::hex::HexBytesFmt(x)) } else { None })\n")?;
+                }
+                _ => {
+                    f.write_all(b"&self.")?;
+                    write_escaped(f, &arg.name)?;
+                    f.write_all(b")\n")?;
+                }
+            }
         } else {
             match typ {
                 Typ::Int128 | Typ::Int256 => {
@@ -82,8 +94,17 @@ fn write_enum_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
 }
 
 pub(super) fn write_debug(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result<()> {
-    f.write_all(b"\nimpl std::fmt::Debug for ")?;
-    f.write_all(x.name().actual.as_bytes())?;
+    f.write_all(b"\nimpl")?;
+    match x {
+        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, false)?,
+        _ => {}
+    }
+    f.write_all(b" std::fmt::Debug for ")?;
+    write_escaped(f, &x.name().actual)?;
+    match x {
+        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, true)?,
+        _ => {}
+    }
     f.write_all(b" {\n    fn fmt(&self, ")?;
     match x {
         X::Type(x) => write_struct_debug(f, cfg, data, &x.combinator)?,

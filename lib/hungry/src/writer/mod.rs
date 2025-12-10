@@ -34,7 +34,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
         }
     }
 
-    pub(crate) fn single<'a>(
+    pub fn single_plain<'a>(
         &'a mut self,
         buffer: &'a mut BytesMut,
         transport: Envelope<T>,
@@ -43,6 +43,28 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     ) -> Single<'a, W, T> {
         mtproto::pack_plain(buffer, mtp, message_id);
 
+        self.single_impl(buffer, transport)
+    }
+
+    pub fn single<'a>(
+        &'a mut self,
+        buffer: &'a mut BytesMut,
+        transport: Envelope<T>,
+        mtp: mtproto::Envelope,
+        auth_key: &mtproto::AuthKey,
+        salt: i64,
+        session_id: i64,
+    ) -> Single<'a, W, T> {
+        mtproto::pack_encrypted(buffer, mtp, auth_key, salt, session_id);
+
+        self.single_impl(buffer, transport)
+    }
+
+    fn single_impl<'a>(
+        &'a mut self,
+        buffer: &'a mut BytesMut,
+        transport: Envelope<T>,
+    ) -> Single<'a, W, T> {
         let range = self.transport.pack(buffer, transport);
 
         Single {

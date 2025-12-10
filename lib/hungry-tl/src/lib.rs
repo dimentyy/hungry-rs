@@ -1,12 +1,14 @@
+use std::fmt;
+
 mod hex;
 
 pub mod de;
 pub mod ser;
 
-// #[allow(unused_imports, unused_mut)]
-// pub mod api {
-//     include!(concat!(env!("OUT_DIR"), "/hungry_tl/api/mod.rs"));
-// }
+#[allow(unused_imports, unused_mut)]
+pub mod api {
+    include!(concat!(env!("OUT_DIR"), "/hungry_tl/api/mod.rs"));
+}
 
 #[allow(unused_imports, unused_mut)]
 pub mod mtproto {
@@ -38,7 +40,7 @@ pub trait Identifiable {
     const CONSTRUCTOR_ID: u32;
 }
 
-pub trait Function: Identifiable + ser::Serialize {
+pub trait Function: Identifiable + ser::Serialize + fmt::Debug {
     type Response: de::Deserialize;
 }
 

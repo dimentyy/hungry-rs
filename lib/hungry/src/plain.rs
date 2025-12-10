@@ -58,7 +58,7 @@ pub async fn send<
 
     tl::ser::into(buffer, func);
 
-    w.single(buffer, transport, mtp, message_id)
+    w.single_plain(buffer, transport, mtp, message_id)
         .await
         .map_err(Error::Writer)?;
 

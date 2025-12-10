@@ -12,6 +12,7 @@ aes = "0.8.4"
 getrandom = "0.3.4"
 hungry-tl = { path = "../hungry-tl" }
 rug = "1.28.0"
+hex = "0.4.3"
 
 [dev-dependencies]
 hex = "0.4.3"

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Result, Write};
 
-use crate::code::{X, write_enum_variant, write_escaped, write_name};
+use crate::code::{X, write_enum_variant, write_escaped, write_name, write_generics};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
 use crate::{Cfg, F};
 
@@ -10,7 +10,7 @@ fn write_structure_arg_len(f: &mut F, cfg: &Cfg, data: &Data, x: &Arg) -> Result
         ArgTyp::Flags { .. } => f.write_all(b"4"),
         ArgTyp::Typ { typ, flag } => {
             if flag.is_some() {
-                f.write_all(b"if let Some(ref x) = ")?;
+                f.write_all(b"if let Some(x) = &")?;
             }
             f.write_all(b"self.")?;
             write_escaped(f, &x.name)?;
@@ -166,8 +166,17 @@ fn write_enum_ser(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
 }
 
 pub(super) fn write_serialize(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result<()> {
-    f.write_all(b"\nimpl crate::ser::Serialize for ")?;
+    f.write_all(b"\nimpl")?;
+    match x {
+        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, false)?,
+        _ => {}
+    }
+    f.write_all(b" crate::ser::Serialize for ")?;
     f.write_all(x.name().actual.as_bytes())?;
+    match x {
+        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, true)?,
+        _ => {}
+    }
     f.write_all(b" {\n    fn serialized_len(&self) -> usize {\n        ")?;
     match x {
         X::Type(x) => write_structure_len(f, cfg, data, false, &x.combinator)?,

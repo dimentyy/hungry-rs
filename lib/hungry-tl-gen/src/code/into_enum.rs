@@ -13,5 +13,9 @@ pub(super) fn write_into_enum(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Re
     write_name(f, "enums", &data.enums[x.enum_index].name)?;
     f.write_all(b"::")?;
     write_enum_variant(f, cfg, x)?;
-    f.write_all(b"(self)\n    }\n}\n")
+    if x.recursive {
+        f.write_all(b"(Box::new(self))\n    }\n}\n")
+    } else {
+        f.write_all(b"(self)\n    }\n}\n")
+    }
 }

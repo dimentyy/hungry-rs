@@ -59,7 +59,9 @@ pub(super) fn write_typ(
         }
         Typ::Int128 => b"crate::Int128",
         Typ::Int256 => b"crate::Int256",
-        Typ::Generic { index } => generic_args[*index].name.as_bytes(),
+        Typ::Generic { index } => {
+            generic_args[*index].name.as_bytes()
+        },
     };
 
     f.write_all(typ)

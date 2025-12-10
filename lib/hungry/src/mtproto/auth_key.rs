@@ -79,11 +79,19 @@ impl AuthKey {
     /// https://core.telegram.org/mtproto/description#message-key-msg-key \
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     #[allow(clippy::let_and_return)]
-    pub fn compute_msg_key(&self, buffer: &[u8], padding: &[u8], side: mtproto::Side) -> MsgKey {
+    pub fn compute_msg_key(
+        &self,
+        b1: &[u8],
+        b2: &[u8],
+        buffer: &[u8],
+        padding: &[u8],
+        side: mtproto::Side,
+    ) -> MsgKey {
         let x = side.x();
 
         // * msg_key_large = SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
-        let msg_key_large = crypto::sha256!(&self.data[88 + x..88 + x + 32], buffer, padding);
+        let msg_key_large =
+            crypto::sha256!(&self.data[88 + x..88 + x + 32], b1, b2, buffer, padding);
 
         // * msg_key = substr(msg_key_large, 8, 16);
         let msg_key = *msg_key_large[8..24].arr();

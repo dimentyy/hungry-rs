@@ -17,7 +17,10 @@ pub enum Side {
 impl Side {
     #[inline]
     pub const fn x(self) -> usize {
-        self as usize
+        match self {
+            Self::Client => 0,
+            Self::Server => 8,
+        }
     }
 }
 

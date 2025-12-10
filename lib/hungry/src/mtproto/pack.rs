@@ -28,17 +28,24 @@ pub fn pack_encrypted(
 
     let payload_len = buffer.len();
 
-    // TODO: allow custom padding length; currently minimum possible
-    let padding_len = (20 - (payload_len % 16)) % 16 + 12; // 12..28
+    // TODO: allow custom padding length
+    let padding_len = 16 + (16 - (payload_len % 16)); // 16..32
 
-    getrandom::fill(&mut f[..padding_len]).unwrap();
+    // getrandom::fill(&mut f[..padding_len]).unwrap();
+    f.fill(0);
 
-    let msg_key = auth_key.compute_msg_key(buffer, &f[..padding_len], Side::Client);
+    let msg_key = auth_key.compute_msg_key(
+        &salt.to_le_bytes(),
+        &session_id.to_le_bytes(),
+        buffer,
+        &f[..padding_len],
+        Side::Client,
+    );
 
     let (aes_key, aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
 
     h[0..8].copy_from_slice(auth_key.id());
-    h[8..24].copy_from_slice(&msg_key);
+    h[8..24].copy_from_slice(&dbg!(msg_key));
 
     h[24..32].copy_from_slice(&salt.to_le_bytes());
     h[32..40].copy_from_slice(&session_id.to_le_bytes());
@@ -49,5 +56,11 @@ pub fn pack_encrypted(
         EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + payload_len + padding_len,
     );
 
-    crypto::aes_ige_encrypt(&mut buffer[8 + 16..], &aes_key, &aes_iv);
+    crate::utils::dump(&buffer[24..], "BEFORE ENCRYPT");
+
+    crypto::aes_ige_encrypt(
+        &mut buffer[EncryptedMessage::HEADER_LEN..],
+        &aes_key,
+        &aes_iv,
+    );
 }

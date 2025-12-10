@@ -10,7 +10,7 @@ use std::io;
 use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 
-use crate::transport::{Transport, TransportRead, Unpack};
+use crate::transport::{Error as TransportError, Transport, TransportRead, Unpack};
 use crate::utils::{ready_ok, BytesMutExt};
 
 pub use dump::Dump;
@@ -93,7 +93,14 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
             assert!(self.buffer.capacity() >= length);
         }
 
-        let unpack = ready_ok!(self.poll_unpack(cx, length));
+        let unpack = match ready_ok!(self.poll_unpack(cx, length)) {
+            Ok(unpack) => unpack,
+            Err(err) => {
+                self.length = None;
+                self.buffer.clear();
+                return Poll::Ready(Err(err.into()));
+            }
+        };
 
         self.length = None;
 
@@ -113,12 +120,16 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
         Poll::Ready(Ok(required))
     }
 
-    fn poll_unpack(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<Result<Unpack, Error>> {
+    fn poll_unpack(
+        &mut self,
+        cx: &mut Context<'_>,
+        length: usize,
+    ) -> Poll<io::Result<Result<Unpack, TransportError>>> {
         ready_ok!(self.poll_read(cx, length));
 
         let unpacked = self.transport.unpack(self.buffer.as_mut());
 
-        Poll::Ready(unpacked.map_err(Error::Transport))
+        Poll::Ready(Ok(unpacked))
     }
 
     fn poll_read(&mut self, cx: &mut Context<'_>, length: usize) -> Poll<io::Result<()>> {

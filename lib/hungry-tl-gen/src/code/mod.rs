@@ -10,6 +10,7 @@ mod serialized_len;
 mod struct_body;
 mod typ;
 mod x;
+mod generic;
 
 use std::io::{Result, Write};
 
@@ -30,6 +31,7 @@ use serialized_len::write_serialized_len;
 use struct_body::write_struct_body;
 use typ::write_typ;
 use x::X;
+use generic::write_generics;
 
 macro_rules! write_module {
     ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{

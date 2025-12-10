@@ -1,7 +1,11 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 use bytes::BytesMut;
 
 use hungry::reader::{Dump, Parted, Reserve, Split};
+use hungry::tl::mtproto::enums::SetClientDhParamsAnswer;
 use hungry::{Envelope, tl};
+use hungry::mtproto::AuthKey;
+use hungry::tl::ser::Serialize;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -105,20 +109,96 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    let func = req_dh_params.func(&key_aes_encrypted);
+    let func = dbg!(req_dh_params.func(&key_aes_encrypted));
 
     let response = dbg!(plain.send(func).await?);
 
     let server_dh_params = req_dh_params.server_dh_params(response);
+
+    let server_time = server_dh_params.server_time();
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time is before epoch")
+        .as_secs() as i32;
+
+    dbg!(now - server_time);
 
     let mut b = [0; 256];
     rand::fill(&mut b);
 
     let set_client_dh_params = server_dh_params.set_client_dh_params(&b, 0);
 
-    let func = set_client_dh_params.func();
+    let func = dbg!(set_client_dh_params.func());
 
-    let _response = dbg!(plain.send(func).await?);
+    let response = dbg!(plain.send(func).await?);
+
+    let dh_gen_ok = match response {
+        SetClientDhParamsAnswer::DhGenOk(x) => x,
+        SetClientDhParamsAnswer::DhGenRetry(_) => todo!(),
+        SetClientDhParamsAnswer::DhGenFail(_) => todo!(),
+    };
+
+    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok);
+
+
+    dbg!(hex::encode(auth_key.data()));
+    dbg!(&auth_key);
+
+    let transport = Envelope::split(&mut buffer);
+    let mtp = Envelope::split(&mut buffer);
+
+    // let func = tl::api::funcs::InvokeWithLayer {
+    //     layer: 218,
+    //     query: tl::api::funcs::InitConnection {
+    //         api_id: 1,
+    //         device_model: "MacOS 64-bit".to_string(),
+    //         system_version: "26.0.1".to_string(),
+    //         app_version: "0.8.1".to_string(),
+    //         system_lang_code: "en".to_string(),
+    //         lang_pack: "".to_string(),
+    //         lang_code: "en".to_string(),
+    //         proxy: None,
+    //         params: None,
+    //         query: tl::api::funcs::help::GetConfig {},
+    //     },
+    // };
+
+    let func = tl::mtproto::funcs::GetFutureSalts {
+        num: 64
+    };
+
+    let msg_id = get_new_msg_id();
+
+    msg_id.serialize_into(&mut buffer);
+
+    1i32.serialize_into(&mut buffer);
+
+    (func.serialized_len() as i32).serialize_into(&mut buffer);
+
+    func.serialize_into(&mut buffer);
+
+    let session_id = rand::random();
+
+    writer
+        .single(&mut buffer, transport, mtp, &auth_key, salt, session_id)
+        .await?;
+
+    loop {
+        dbg!((&mut reader).await);
+    }
 
     Ok(())
+}
+
+fn get_new_msg_id() -> i64 {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time is before epoch");
+
+    let seconds = (now.as_secs() as i32) as u64;
+    let nanoseconds = 0; //now.subsec_nanos() as u64;
+    let new_msg_id = ((seconds >> 5) << 37) as i64;
+
+    new_msg_id
 }
