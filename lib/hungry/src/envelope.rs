@@ -60,7 +60,6 @@ impl<S: EnvelopeSize> Envelope<S> {
 
     /// Get envelope buffers. May be uninitialized.
     #[inline]
-    #[must_use]
     pub(crate) fn buffers(&mut self) -> (&mut [u8], &mut [u8]) {
         (self.header.as_mut(), self.footer.as_mut())
     }

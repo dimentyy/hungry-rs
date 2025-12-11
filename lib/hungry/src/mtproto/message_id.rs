@@ -15,13 +15,11 @@ impl fmt::Debug for MessageIds {
 
 impl MessageIds {
     #[inline]
-    #[must_use]
     pub const fn new() -> Self {
         Self { previous: 0 }
     }
 
     #[inline]
-    #[must_use]
     pub const fn previous(&self) -> i64 {
         self.previous as i64
     }

@@ -5,7 +5,6 @@ pub struct SeqNos {
 
 impl SeqNos {
     #[inline]
-    #[must_use]
     pub const fn new() -> Self {
         Self { current: 0 }
     }

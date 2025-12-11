@@ -47,7 +47,6 @@ impl RsaKey {
     }
 
     #[inline]
-    #[must_use]
     pub fn fingerprint(&self) -> i64 {
         self.fingerprint
     }

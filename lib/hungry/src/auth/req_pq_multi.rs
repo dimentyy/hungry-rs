@@ -9,7 +9,6 @@ pub struct ReqPqMulti {
 
 impl ReqPqMulti {
     #[inline]
-    #[must_use]
     pub fn func(&self) -> &funcs::ReqPqMulti {
         &self.func
     }

@@ -82,7 +82,6 @@ pub struct Single<'a, W: AsyncWrite + Unpin, T: Transport> {
 
 impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
     #[inline]
-    #[must_use]
     pub fn pos(self) -> usize {
         self.pos
     }

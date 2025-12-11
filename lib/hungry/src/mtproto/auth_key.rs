@@ -48,7 +48,6 @@ impl AuthKey {
 
     /// Actual underlying data used for cryptographic operations.
     #[inline]
-    #[must_use]
     pub fn data(&self) -> &[u8; 256] {
         &self.data
     }
@@ -65,7 +64,6 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
     #[inline]
-    #[must_use]
     pub fn aux_hash(&self) -> &[u8; 8] {
         &self.aux_hash
     }
@@ -74,7 +72,6 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
-    #[must_use]
     pub fn id(&self) -> &[u8; 8] {
         &self.id
     }
