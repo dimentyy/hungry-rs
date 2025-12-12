@@ -60,17 +60,20 @@ impl<'a> MsgContainer<'a> {
 
     fn deserialize_next_message(&mut self) -> <Self as Iterator>::Item {
         unsafe {
-            let buf = self.buf.advance(16)?;
-            let message = Msg::deserialize_infallible(buf);
+            let ptr = self
+                .buf
+                .advance(Msg::SERIALIZED_LEN + i32::SERIALIZED_LEN)?;
+
+            let message = Msg::deserialize_infallible(ptr);
 
             // FIXME: negative length check.
-            let bytes = i32::deserialize_infallible(buf.add(Msg::SERIALIZED_LEN)) as usize;
+            let bytes = i32::deserialize_infallible(ptr.add(Msg::SERIALIZED_LEN)) as usize;
 
-            self.buf.check_len(bytes)?;
+            let mut buf = self.buf.clone();
 
-            let buf = Buf::new(&self.buf.as_slice()[..bytes]);
+            self.buf.advance(bytes)?;
 
-            let _ = self.buf.advance_unchecked(bytes);
+            buf.truncate(bytes);
 
             Ok((message, buf))
         }

@@ -4,12 +4,12 @@ use crate::crypto;
 use crate::mtproto::{AuthKey, DecryptedMessage, EncryptedMessage, Envelope, PlainEnvelope, Side};
 use crate::utils::SliceExt;
 
-pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
+pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, msg_id: i64) {
     let excess = envelope.adapt(buffer);
     let (h, _) = envelope.buffers();
 
     h[0..8].fill(0); // auth_key_id
-    h[8..16].copy_from_slice(&message_id.to_le_bytes());
+    h[8..16].copy_from_slice(&msg_id.to_le_bytes());
 
     let length = buffer.len() as i32;
     h[16..20].copy_from_slice(&length.to_le_bytes());
@@ -23,7 +23,7 @@ pub fn pack_encrypted(
     auth_key: &AuthKey,
     salt: i64,
     session_id: i64,
-    message_id: i64,
+    msg_id: i64,
     seq_no: i32,
 ) {
     let excess = envelope.adapt(buffer);
@@ -41,7 +41,7 @@ pub fn pack_encrypted(
     plaintext_header[0..8].copy_from_slice(&salt.to_le_bytes());
     plaintext_header[8..16].copy_from_slice(&session_id.to_le_bytes());
 
-    plaintext_header[16..24].copy_from_slice(&message_id.to_le_bytes());
+    plaintext_header[16..24].copy_from_slice(&msg_id.to_le_bytes());
     plaintext_header[24..28].copy_from_slice(&seq_no.to_le_bytes());
     plaintext_header[28..32].copy_from_slice(&(plaintext_len as i32).to_le_bytes());
 

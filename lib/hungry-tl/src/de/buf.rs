@@ -24,6 +24,13 @@ impl<'a> Buf<'a> {
     pub fn len(&self) -> usize {
         self.len
     }
+    
+    #[inline]
+    pub fn truncate(&mut self, len: usize) {
+        if self.len > len {
+            self.len = len;
+        }
+    }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
