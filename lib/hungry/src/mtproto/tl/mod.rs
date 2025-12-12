@@ -1,6 +1,7 @@
 use crate::tl;
 
 use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
+use tl::ser::Serialize;
 use tl::SerializedLen;
 
 #[derive(Debug)]
@@ -14,6 +15,22 @@ impl Message {
     #[inline]
     pub fn length(&self) -> usize {
         self.length as usize
+    }
+}
+
+impl Serialize for Message {
+    #[inline]
+    fn serialized_len(&self) -> usize {
+        16
+    }
+
+    unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
+        unsafe {
+            buf = self.msg_id.serialize_unchecked(buf);
+            buf = self.seq_no.serialize_unchecked(buf);
+            buf = self.length.serialize_unchecked(buf);
+            buf
+        }
     }
 }
 
@@ -39,26 +56,39 @@ impl DeserializeInfallible for Message {
 /// A container may only be accepted or rejected by the other party as a whole.
 ///
 /// https://core.telegram.org/mtproto/service_messages#containers
-pub struct MsgContainer {
-    pub messages: Vec<Message>,
+pub struct MsgContainer<'a> {
+    buf: &'a mut Buf<'a>,
+    len: usize,
 }
 
-impl Deserialize for MsgContainer {
-    const MINIMUM_SERIALIZED_LEN: usize = 4;
+impl<'a> MsgContainer<'a> {
+    pub fn new(buf: &'a mut Buf<'a>) -> Result<Self, Error> {
+        let len = u32::deserialize_checked(buf)? as usize;
 
-    unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        let len = unsafe { u32::deserialize_infallible(buf.advance_unchecked(4)) as usize };
+        Ok(Self { buf, len })
+    }
 
-        let mut messages = Vec::with_capacity(len);
+    fn deserialize_next_message(&mut self) -> <Self as Iterator>::Item {
+        let message = Message::deserialize_checked(&mut self.buf)?;
 
-        for _ in 0..len {
-            let message = Message::deserialize_checked(buf)?;
-            let _ = buf.advance(message.length())?;
-            messages.push(message);
-        }
+        let buf = self.buf.clone();
 
-        Ok(Self { messages })
+        let _ = self.buf.advance(message.length())?;
+
+        Ok((message, buf))
     }
 }
 
-impl MsgContainer {}
+impl<'a> Iterator for MsgContainer<'a> {
+    type Item = Result<(Message, Buf<'a>), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len == 0 {
+            return None;
+        }
+
+        self.len -= 1;
+
+        Some(self.deserialize_next_message())
+    }
+}

@@ -1,19 +1,19 @@
 use std::fmt;
 
 #[derive(Default)]
-pub struct MessageIds {
+pub struct MsgIds {
     previous: u64,
 }
 
-impl fmt::Debug for MessageIds {
+impl fmt::Debug for MsgIds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MessageIds")
+        f.debug_struct("MsgIds")
             .field("previous", &format_args!("{:#016x}", self.previous))
             .finish()
     }
 }
 
-impl MessageIds {
+impl MsgIds {
     #[inline]
     pub const fn new() -> Self {
         Self { previous: 0 }

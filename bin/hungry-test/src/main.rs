@@ -136,19 +136,21 @@ async fn main() -> anyhow::Result<()> {
     let transport = Envelope::split(&mut buffer);
     let mtp = Envelope::split(&mut buffer);
 
-    let mut message_ids = mtproto::MessageIds::new();
+    let mut msg_ids = mtproto::MsgIds::new();
     let mut seq_nos = mtproto::SeqNos::new();
 
-    let message_id = dbg!(message_ids.get(since_epoch()));
+    let message_id = dbg!(msg_ids.get(since_epoch()));
     let seq_no = dbg!(seq_nos.get_content_related());
-
-    message_id.serialize_into(&mut buffer);
-    seq_no.serialize_into(&mut buffer);
 
     let func = tl::mtproto::funcs::GetFutureSalts { num: 1 };
 
-    (func.serialized_len() as i32).serialize_into(&mut buffer);
+    let message = mtproto::tl::Message {
+        msg_id: msg_ids.get(since_epoch()),
+        seq_no: seq_nos.get_content_related(),
+        length: func.serialized_len() as i32,
+    };
 
+    message.serialize_into(&mut buffer);
     func.serialize_into(&mut buffer);
 
     let session_id = rand::random();
@@ -196,14 +198,12 @@ async fn main() -> anyhow::Result<()> {
 
         assert_eq!(id, 0x73f1f8dc); // msg_container
 
-        let container = mtproto::tl::MsgContainer::deserialize_checked(&mut buf.clone())?;
+        let container = mtproto::tl::MsgContainer::new(&mut buf)?;
 
-        buf.advance(4)?;
+        for message in container {
+            let (message, mut buf) = message?;
 
-        for message in container.messages {
             dbg!(&message);
-
-            buf.advance(16)?;
 
             let id = u32::deserialize_checked(&mut buf)?;
 

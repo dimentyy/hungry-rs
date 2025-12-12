@@ -1,5 +1,5 @@
 mod auth_key;
-mod message_id;
+mod msg_id;
 mod pack;
 mod seq_no;
 mod unpack;
@@ -9,7 +9,7 @@ pub mod tl;
 use crate::envelopes;
 
 pub use auth_key::{AuthKey, MsgKey};
-pub use message_id::MessageIds;
+pub use msg_id::MsgIds;
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::SeqNos;
 pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
