@@ -1,8 +1,8 @@
 use bytes::BytesMut;
 
 use crate::mtproto::Msg;
+use crate::tl;
 use crate::utils::BytesMutExt;
-use crate::{tl, EnvelopeSize};
 
 use tl::ser::Serialize;
 
@@ -12,21 +12,13 @@ pub struct MsgContainer {
     length: usize,
 }
 
-impl EnvelopeSize for MsgContainer {
-    const HEADER: usize = 4 + 4;
-    const FOOTER: usize = 0;
-}
-
 impl MsgContainer {
     #[must_use]
     pub fn new(mut buffer: BytesMut) -> Self {
-        assert!(
-            buffer.capacity() >= Self::HEADER,
-            "buffer does not enough capacity"
-        );
+        assert!(buffer.capacity() >= 8, "buffer does not enough capacity");
         assert!(buffer.is_empty(), "buffer is not empty");
 
-        let header = buffer.split_left(Self::HEADER);
+        let header = buffer.split_left(8);
 
         Self {
             header,

@@ -1,5 +1,5 @@
 mod auth_key;
-mod msg;
+mod message;
 mod msg_id;
 mod pack;
 mod seq_no;
@@ -8,11 +8,11 @@ mod unpack;
 use crate::envelopes;
 
 pub use auth_key::{AuthKey, MsgKey};
-pub use msg::{Msg, MsgContainer};
+pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 pub use msg_id::MsgIds;
+pub use pack::msg::{Msg, MsgContainer};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::SeqNos;
-pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 
 pub const DECRYPTED_MESSAGE_HEADER_SIZE: usize = DecryptedMessage::HEADER_LEN
     + 8  // message_id
