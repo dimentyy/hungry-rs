@@ -5,46 +5,36 @@ use tl::ser::Serialize;
 use tl::SerializedLen;
 
 #[derive(Debug)]
-pub struct Message {
+pub struct Msg {
     pub msg_id: i64,
     pub seq_no: i32,
-    pub length: i32,
 }
 
-impl Message {
-    #[inline]
-    pub fn length(&self) -> usize {
-        self.length as usize
-    }
-}
-
-impl Serialize for Message {
+impl Serialize for Msg {
     #[inline]
     fn serialized_len(&self) -> usize {
-        16
+        12
     }
 
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             buf = self.msg_id.serialize_unchecked(buf);
             buf = self.seq_no.serialize_unchecked(buf);
-            buf = self.length.serialize_unchecked(buf);
             buf
         }
     }
 }
 
-impl SerializedLen for Message {
-    const SERIALIZED_LEN: usize = 16;
+impl SerializedLen for Msg {
+    const SERIALIZED_LEN: usize = 12;
 }
 
-impl DeserializeInfallible for Message {
+impl DeserializeInfallible for Msg {
     unsafe fn deserialize_infallible(buf: *const u8) -> Self {
         unsafe {
             Self {
                 msg_id: i64::deserialize_infallible(buf),
                 seq_no: i32::deserialize_infallible(buf.add(8)),
-                length: i32::deserialize_infallible(buf.add(12)),
             }
         }
     }
@@ -69,18 +59,26 @@ impl<'a> MsgContainer<'a> {
     }
 
     fn deserialize_next_message(&mut self) -> <Self as Iterator>::Item {
-        let message = Message::deserialize_checked(&mut self.buf)?;
+        unsafe {
+            let buf = self.buf.advance(16)?;
+            let message = Msg::deserialize_infallible(buf);
 
-        let buf = self.buf.clone();
+            // FIXME: negative length check.
+            let bytes = i32::deserialize_infallible(buf.add(Msg::SERIALIZED_LEN)) as usize;
 
-        let _ = self.buf.advance(message.length())?;
+            self.buf.check_len(bytes)?;
 
-        Ok((message, buf))
+            let buf = Buf::new(&self.buf.as_slice()[..bytes]);
+
+            let _ = self.buf.advance_unchecked(bytes);
+
+            Ok((message, buf))
+        }
     }
 }
 
 impl<'a> Iterator for MsgContainer<'a> {
-    type Item = Result<(Message, Buf<'a>), Error>;
+    type Item = Result<(Msg, Buf<'a>), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.len == 0 {

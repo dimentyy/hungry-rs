@@ -2,6 +2,7 @@
 #![deny(unused_imports)]
 
 mod envelope;
+mod msg_container;
 
 pub mod auth;
 pub mod crypto;
@@ -22,6 +23,7 @@ pub use hungry_tl as tl;
 pub(crate) use envelope::envelopes;
 
 pub use envelope::{Envelope, EnvelopeSize};
+pub use msg_container::MsgContainer;
 
 pub fn new<
     T: transport::Transport,

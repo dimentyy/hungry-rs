@@ -21,7 +21,10 @@ pub fn pack_encrypted(
     buffer: &mut BytesMut,
     mut envelope: Envelope,
     auth_key: &AuthKey,
-    message: &DecryptedMessage,
+    salt: i64,
+    session_id: i64,
+    message_id: i64,
+    seq_no: i32,
 ) {
     let excess = envelope.adapt(buffer);
     let (h, f) = envelope.buffers();
@@ -35,8 +38,12 @@ pub fn pack_encrypted(
 
     let plaintext_header = h[EncryptedMessage::HEADER_LEN..].arr_mut();
 
-    plaintext_header[0..8].copy_from_slice(&message.salt.to_le_bytes());
-    plaintext_header[8..16].copy_from_slice(&message.session_id.to_le_bytes());
+    plaintext_header[0..8].copy_from_slice(&salt.to_le_bytes());
+    plaintext_header[8..16].copy_from_slice(&session_id.to_le_bytes());
+
+    plaintext_header[16..24].copy_from_slice(&message_id.to_le_bytes());
+    plaintext_header[24..28].copy_from_slice(&seq_no.to_le_bytes());
+    plaintext_header[28..32].copy_from_slice(&(plaintext_len as i32).to_le_bytes());
 
     let msg_key = auth_key.compute_msg_key(plaintext_header, buffer, random_padding, Side::Client);
 
@@ -48,6 +55,9 @@ pub fn pack_encrypted(
     buffer.truncate(
         EncryptedMessage::HEADER_LEN
             + DecryptedMessage::HEADER_LEN
+            + 8 // message_id
+            + 4 // seq_no
+            + 4 // message_data_length
             + plaintext_len
             + random_padding_len,
     );

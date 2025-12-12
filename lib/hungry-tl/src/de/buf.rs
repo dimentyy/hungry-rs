@@ -48,7 +48,7 @@ impl<'a> Buf<'a> {
     }
 
     #[inline]
-    pub(crate) fn check_len(&mut self, n: usize) -> Result<(), Error> {
+    pub fn check_len(&mut self, n: usize) -> Result<(), Error> {
         if self.len < n {
             return Err(Error::UnexpectedEndOfBuffer);
         }

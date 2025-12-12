@@ -132,6 +132,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok);
+    let session_id = rand::random();
 
     let transport = Envelope::split(&mut buffer);
     let mtp = Envelope::split(&mut buffer);
@@ -141,21 +142,31 @@ async fn main() -> anyhow::Result<()> {
 
     let func = tl::mtproto::funcs::GetFutureSalts { num: 1 };
 
-    let message = mtproto::tl::Message {
+    let message = mtproto::Msg {
         msg_id: msg_ids.get(since_epoch()),
         seq_no: seq_nos.get_content_related(),
-        length: func.serialized_len() as i32,
     };
 
-    message.serialize_into(&mut buffer);
-    func.serialize_into(&mut buffer);
+    let mut msg_container = hungry::MsgContainer::new(buffer);
 
-    let session_id = rand::random();
+    msg_container.push(message, &func).unwrap();
 
-    let message = mtproto::DecryptedMessage { salt, session_id };
+    let mut buffer = msg_container.finalize();
+
+    let msg_id = msg_ids.get(since_epoch());
+    let seq_no = seq_nos.get_content_related();
 
     writer
-        .single(&mut buffer, transport, mtp, &auth_key, &message)
+        .single(
+            &mut buffer,
+            transport,
+            mtp,
+            &auth_key,
+            salt,
+            session_id,
+            msg_id,
+            seq_no,
+        )
         .await?;
 
     loop {
@@ -187,24 +198,28 @@ async fn main() -> anyhow::Result<()> {
 
         let mut buf = tl::de::Buf::new(buffer);
 
-        let message: mtproto::tl::Message = dbg!(buf.infallible());
+        let _message: mtproto::Msg = buf.infallible();
+        let bytes = i32::deserialize_checked(&mut buf)? as usize;
 
-        assert!(buffer.len() - 20 >= message.length());
+        assert!(buffer.len() - 20 >= bytes);
 
         let id = u32::deserialize_checked(&mut buf)?;
 
-        assert_eq!(id, 0x73f1f8dc); // msg_container
+        match id {
+            0x73f1f8dc => {}
+            0xf35c6d01 => {
+                println!("rpc result, todo");
+                continue
+            }
+            _ => todo!()
+        }
 
-        let container = mtproto::tl::MsgContainer::new(&mut buf)?;
+        let container = mtproto::MsgContainer::new(&mut buf)?;
 
         for message in container {
             let (message, mut buf) = message?;
 
-            dbg!(&message);
-
             let id = u32::deserialize_checked(&mut buf)?;
-
-            dbg!(tl::mtproto::types::name(id).unwrap());
 
             match id {
                 0x9ec20908 => {
@@ -217,6 +232,11 @@ async fn main() -> anyhow::Result<()> {
                     let salts = tl::mtproto::types::FutureSalts::deserialize_checked(&mut buf)?;
 
                     dbg!(salts);
+                }
+                0x62d6b459 => {
+                    let ack = tl::mtproto::types::MsgsAck::deserialize_checked(&mut buf)?;
+
+                    dbg!(ack);
                 }
                 _ => todo!(),
             }

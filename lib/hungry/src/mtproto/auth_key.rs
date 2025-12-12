@@ -84,7 +84,7 @@ impl AuthKey {
     #[must_use]
     pub fn compute_msg_key(
         &self,
-        plaintext_header: &[u8; mtproto::DecryptedMessage::HEADER_LEN],
+        plaintext_header: &[u8; mtproto::DecryptedMessage::HEADER_LEN + 8 + 4 + 4],
         plaintext: &[u8],
         random_padding: &[u8],
         side: mtproto::Side,
