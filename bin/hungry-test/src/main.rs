@@ -43,8 +43,15 @@ impl<'a> Plain<'a> {
     }
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    rt.block_on(async_main())
+}
+
+async fn async_main() -> anyhow::Result<()> {
     const N: &str = "25342889448840415564971689590713473206898847759084779052582026594546022463853\
         940585885215951168491965708222649399180603818074200620463776135424884632162512403163793083\
         921641631564740959529419359595852941166848940585952337613333022396096584117954892216031229\
@@ -153,21 +160,15 @@ async fn main() -> anyhow::Result<()> {
 
     let mut buffer = msg_container.finalize();
 
+    let message = mtproto::DecryptedMessage { salt, session_id };
+
     let msg = mtproto::Msg {
         msg_id: msg_ids.get(since_epoch()),
         seq_no: seq_nos.get_content_related(),
     };
 
     writer
-        .single(
-            &mut buffer,
-            transport,
-            mtp,
-            &auth_key,
-            salt,
-            session_id,
-            msg,
-        )
+        .single(&mut buffer, transport, mtp, &auth_key, message, msg)
         .await?;
 
     loop {
