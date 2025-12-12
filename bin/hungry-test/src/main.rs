@@ -153,8 +153,10 @@ async fn main() -> anyhow::Result<()> {
 
     let mut buffer = msg_container.finalize();
 
-    let msg_id = msg_ids.get(since_epoch());
-    let seq_no = seq_nos.get_content_related();
+    let msg = mtproto::Msg {
+        msg_id: msg_ids.get(since_epoch()),
+        seq_no: seq_nos.get_content_related(),
+    };
 
     writer
         .single(
@@ -164,8 +166,7 @@ async fn main() -> anyhow::Result<()> {
             &auth_key,
             salt,
             session_id,
-            msg_id,
-            seq_no,
+            msg,
         )
         .await?;
 
@@ -209,9 +210,9 @@ async fn main() -> anyhow::Result<()> {
             0x73f1f8dc => {}
             0xf35c6d01 => {
                 println!("rpc result, todo");
-                continue
+                continue;
             }
-            _ => todo!()
+            _ => todo!(),
         }
 
         let container = mtproto::MsgContainer::new(&mut buf)?;
