@@ -139,9 +139,6 @@ async fn main() -> anyhow::Result<()> {
     let mut msg_ids = mtproto::MsgIds::new();
     let mut seq_nos = mtproto::SeqNos::new();
 
-    let message_id = dbg!(msg_ids.get(since_epoch()));
-    let seq_no = dbg!(seq_nos.get_content_related());
-
     let func = tl::mtproto::funcs::GetFutureSalts { num: 1 };
 
     let message = mtproto::tl::Message {
