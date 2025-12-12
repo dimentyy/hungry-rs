@@ -189,17 +189,21 @@ async fn main() -> anyhow::Result<()> {
         let mut buf = tl::de::Buf::new(buffer);
 
         let message: mtproto::tl::Message = dbg!(buf.infallible());
-        
+
         assert!(buffer.len() - 20 >= message.length());
 
         let id = u32::deserialize_checked(&mut buf)?;
 
         assert_eq!(id, 0x73f1f8dc); // msg_container
 
-        let len = i32::deserialize_checked(&mut buf)? as usize;
+        let container = mtproto::tl::MsgContainer::deserialize_checked(&mut buf.clone())?;
 
-        for _ in 0..len {
-            let _message: mtproto::tl::Message = dbg!(buf.infallible());
+        buf.advance(4)?;
+
+        for message in container.messages {
+            dbg!(&message);
+
+            buf.advance(16)?;
 
             let id = u32::deserialize_checked(&mut buf)?;
 

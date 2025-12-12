@@ -3,6 +3,7 @@ use std::slice;
 
 use crate::de::{DeserializeInfallible, Error};
 
+#[derive(Clone)]
 pub struct Buf<'a> {
     pub(super) ptr: *const u8,
     pub(super) len: usize,
@@ -35,7 +36,7 @@ impl<'a> Buf<'a> {
     }
 
     #[inline]
-    pub(crate) unsafe fn advance_unchecked(&mut self, n: usize) -> *const u8 {
+    pub unsafe fn advance_unchecked(&mut self, n: usize) -> *const u8 {
         let ptr = self.ptr;
 
         unsafe {
@@ -56,7 +57,7 @@ impl<'a> Buf<'a> {
     }
 
     #[inline]
-    pub(crate) fn advance(&mut self, n: usize) -> Result<*const u8, Error> {
+    pub fn advance(&mut self, n: usize) -> Result<*const u8, Error> {
         self.check_len(n)?;
 
         let ptr = self.ptr;
