@@ -7,9 +7,9 @@ mod typ;
 
 use crate::read;
 
-use temp::Temp;
 
 pub(crate) use data::{Data, Enum, Func, Type};
+pub(crate) use temp::Temp;
 
 pub use combinator::{Arg, ArgTyp, Combinator, Flag, GenericArg};
 pub use error::Error;
@@ -22,10 +22,10 @@ pub enum TypeOrEnum {
     Enum(usize),
 }
 
-pub(crate) fn validate<'a>(parsed: &'a [read::Item<'a>]) -> Result<Data, Error> {
+pub(crate) fn validate<'a>(parsed: &'a [read::Item<'a>]) -> Result<(Data, Temp<'a>), Error> {
     let mut temp = Temp::build(parsed)?;
 
-    let mut data = Data::validate(temp)?;
+    let mut data = Data::validate(&temp)?;
 
-    Ok(data)
+    Ok((data, temp))
 }

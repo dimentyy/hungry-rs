@@ -34,7 +34,7 @@ pub(crate) struct Data {
 }
 
 impl Data {
-    pub(super) fn validate(temp: Temp<'_>) -> Result<Self, Error> {
+    pub(super) fn validate(temp: &Temp<'_>) -> Result<Self, Error> {
         let mut data = Self {
             types: Vec::with_capacity(temp.types.len()),
             funcs: Vec::with_capacity(temp.funcs.len()),

@@ -26,7 +26,7 @@ pub fn generate(config: Config, schema: &str) {
 
     let parsed = read::parse(&config, schema).unwrap();
 
-    let data = meta::validate(&parsed).unwrap();
+    let (data, temp) = meta::validate(&parsed).unwrap();
 
-    code::generate(&config, &data).unwrap();
+    code::generate(&config, &data, &temp).unwrap();
 }

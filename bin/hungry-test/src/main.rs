@@ -207,6 +207,8 @@ async fn main() -> anyhow::Result<()> {
 
             let id = u32::deserialize_checked(&mut buf)?;
 
+            dbg!(tl::mtproto::types::name(id).unwrap());
+
             match id {
                 0x9ec20908 => {
                     let session =

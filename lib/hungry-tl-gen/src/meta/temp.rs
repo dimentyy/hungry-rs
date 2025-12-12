@@ -4,10 +4,10 @@ use std::ops::Index;
 use crate::meta::Error;
 use crate::{Category, read};
 
-pub(super) struct Temp<'a> {
-    pub(super) types: IndexMap<&'a read::Ident<'a>, (&'a read::Combinator<'a>, usize)>,
-    pub(super) funcs: IndexMap<&'a read::Ident<'a>, &'a read::Combinator<'a>>,
-    pub(super) enums: IndexMap<&'a read::Ident<'a>, Vec<usize>>,
+pub(crate) struct Temp<'a> {
+    pub(crate) types: IndexMap<&'a read::Ident<'a>, (&'a read::Combinator<'a>, usize)>,
+    pub(crate) funcs: IndexMap<&'a read::Ident<'a>, &'a read::Combinator<'a>>,
+    pub(crate) enums: IndexMap<&'a read::Ident<'a>, Vec<usize>>,
 }
 
 impl<'a> Temp<'a> {

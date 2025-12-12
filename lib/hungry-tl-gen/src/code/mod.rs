@@ -2,36 +2,38 @@ mod de;
 mod debug;
 mod enum_body;
 mod function;
+mod generic;
 mod identifiable;
 mod into_enum;
 mod name;
+mod name_for_id;
 mod ser;
 mod serialized_len;
 mod struct_body;
 mod typ;
 mod x;
-mod generic;
 
 use std::io::{Result, Write};
 
 use indexmap::IndexMap;
 
-use crate::meta::{Data, Enum, Func, Name, Type};
+use crate::meta::{Data, Enum, Func, Name, Temp, Type};
 use crate::{Cfg, F};
 
 use de::write_deserializable;
 use debug::write_debug;
 use enum_body::{write_enum_body, write_enum_variant};
 use function::write_function;
+use generic::write_generics;
 use identifiable::write_identifiable;
 use into_enum::write_into_enum;
 use name::write_name;
+use name_for_id::write_name_for_id;
 use ser::write_serialize;
 use serialized_len::write_serialized_len;
 use struct_body::write_struct_body;
 use typ::write_typ;
 use x::X;
-use generic::write_generics;
 
 macro_rules! write_module {
     ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{
@@ -50,29 +52,51 @@ macro_rules! write_module {
             $func;
         }
 
-        let f = &mut $cfg.mod_file($module)?;
+        let mut f = $cfg.mod_file($module)?;
 
-        write_module(f, $cfg, $module, &root, &mods)?;
+        write_module(&mut f, $cfg, $module, &root, &mods)?;
 
-        f.flush()?;
+        f
     }};
 }
 
-pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
-    write_module!(
+pub(crate) fn generate(cfg: &Cfg, data: &Data, temp: &Temp) -> Result<()> {
+    let mut f = write_module!(
         cfg, "types": for x in &data.types => &x.combinator.name;
-        write_type(cfg, data, x)?;
+        write_type(cfg, data, temp, x)?;
     );
 
-    write_module!(
+    write_name_for_id(
+        &mut f,
+        data.types
+            .iter()
+            .map(|x| &x.combinator)
+            .zip(temp.types.values().map(|x| x.0)),
+    )?;
+
+    f.flush()?;
+
+    let mut f = write_module!(
         cfg, "funcs": for x in &data.funcs => &x.combinator.name;
-        write_func(cfg, data, x)?;
+        write_func(cfg, data, temp, x)?;
     );
 
-    write_module!(
+    write_name_for_id(
+        &mut f,
+        data.funcs
+            .iter()
+            .map(|x| &x.combinator)
+            .zip(temp.funcs.values().map(|x| *x)),
+    )?;
+
+    f.flush()?;
+
+    let mut f = write_module!(
         cfg, "enums": for x in &data.enums => &x.name;
-        write_enum(cfg, data, x)?;
+        write_enum(cfg, data, temp, x)?;
     );
+
+    f.flush()?;
 
     let mut f = cfg.mod_file("mod")?;
 
@@ -111,7 +135,7 @@ fn write_module(
     if !root.is_empty() {
         f.write_all(b"pub use ")?;
         f.write_all(Cfg::UNSPACED.as_bytes())?;
-        f.write_all(b"::*;\n\n")?;
+        f.write_all(b"::*;\n")?;
     }
 
     Ok(())
@@ -146,7 +170,7 @@ fn write_uses(f: &mut F, cfg: &Cfg, names: &Vec<&Name>) -> Result<()> {
     f.write_all(b"\n")
 }
 
-fn write_type(cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
+fn write_type(cfg: &Cfg, data: &Data, temp: &Temp, x: &Type) -> Result<()> {
     let f = &mut cfg.item_file("types", &x.combinator.name)?;
 
     write_imports(f, cfg)?;
@@ -168,7 +192,7 @@ fn write_type(cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
     f.flush()
 }
 
-fn write_func(cfg: &Cfg, data: &Data, x: &Func) -> Result<()> {
+fn write_func(cfg: &Cfg, data: &Data, temp: &Temp, x: &Func) -> Result<()> {
     let f = &mut cfg.item_file("funcs", &x.combinator.name)?;
 
     write_imports(f, cfg)?;
@@ -184,7 +208,7 @@ fn write_func(cfg: &Cfg, data: &Data, x: &Func) -> Result<()> {
     f.flush()
 }
 
-fn write_enum(cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
+fn write_enum(cfg: &Cfg, data: &Data, temp: &Temp, x: &Enum) -> Result<()> {
     let f = &mut cfg.item_file("enums", &x.name)?;
 
     write_imports(f, cfg)?;
