@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::slice;
 
-use crate::de::Error;
+use crate::de::{DeserializeInfallible, Error};
 
 pub struct Buf<'a> {
     pub(super) ptr: *const u8,
@@ -64,5 +64,13 @@ impl<'a> Buf<'a> {
         unsafe { self.advance_unchecked(n) };
 
         Ok(ptr)
+    }
+    
+    pub fn infallible<T: DeserializeInfallible>(&mut self) -> T {
+        let ptr = self
+            .advance(T::SERIALIZED_LEN)
+            .expect("`Buf` to have required length");
+
+        unsafe { T::deserialize_infallible(ptr) }
     }
 }

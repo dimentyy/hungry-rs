@@ -188,12 +188,9 @@ async fn main() -> anyhow::Result<()> {
 
         let mut buf = tl::de::Buf::new(buffer);
 
-        let _message_id = i64::deserialize_checked(&mut buf)?;
-        let _seq_no = i32::deserialize_checked(&mut buf)?;
-
-        let len = i32::deserialize_checked(&mut buf)? as usize;
-
-        assert!(buffer.len() - 20 >= len);
+        let message: mtproto::tl::Message = dbg!(buf.infallible());
+        
+        assert!(buffer.len() - 20 >= message.length());
 
         let id = u32::deserialize_checked(&mut buf)?;
 
@@ -202,10 +199,7 @@ async fn main() -> anyhow::Result<()> {
         let len = i32::deserialize_checked(&mut buf)? as usize;
 
         for _ in 0..len {
-            let _message_id = i64::deserialize_checked(&mut buf)?;
-            let _seq_no = i32::deserialize_checked(&mut buf)?;
-
-            let _len = i32::deserialize_checked(&mut buf)? as usize;
+            let _message: mtproto::tl::Message = dbg!(buf.infallible());
 
             let id = u32::deserialize_checked(&mut buf)?;
 
