@@ -1,11 +1,12 @@
 use bytes::BytesMut;
 
 use hungry::reader::{Dump, Parted, Reserve, Split};
-use hungry::tl::mtproto::enums::SetClientDhParamsAnswer;
-use hungry::tl::ser::Serialize;
 use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
-use hungry::tl::de::Deserialize;
+
+use tl::de::Deserialize;
+use tl::mtproto::enums::SetClientDhParamsAnswer;
+use tl::ser::Serialize;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -88,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
 
     let tl::mtproto::enums::ResPq::ResPq(response) = dbg!(plain.send(func).await?);
 
-    let res_pq = req_pq.res_pq(response);
+    let res_pq = req_pq.res_pq(&response)?;
 
     let mut random_padding_bytes = [0; 192];
     rand::fill(&mut random_padding_bytes);
@@ -210,7 +211,8 @@ async fn main() -> anyhow::Result<()> {
 
             match id {
                 0x9ec20908 => {
-                    let session = tl::mtproto::types::NewSessionCreated::deserialize_checked(&mut buf)?;
+                    let session =
+                        tl::mtproto::types::NewSessionCreated::deserialize_checked(&mut buf)?;
 
                     dbg!(session);
                 }
@@ -219,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
 
                     dbg!(salts);
                 }
-                _ => todo!()
+                _ => todo!(),
             }
         }
     }

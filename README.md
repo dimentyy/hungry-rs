@@ -1,4 +1,4 @@
-# Telegram MTProto API client in Rust 🦀
+# Telegram MTProto API client in Rust with the main focus on <ins>reliability</ins>
 
 ###### Binaries
 * [hungry-test](/bin/hungry-test) — binary for testing the libraries
@@ -16,4 +16,4 @@ Run test program yourself! *(auth key creation, `get_future_salts#b921bd04`)*
 cargo run --bin hungry-test
 ```
 
-The repository will be recreated once this project is complete and refactored. ⚠️
+The repository will be recreated once this project is complete and refactored.
