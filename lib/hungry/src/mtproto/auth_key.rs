@@ -1,10 +1,22 @@
+// STATUS: stable.
+
 use std::fmt;
 
 use crate::utils::SliceExt;
 use crate::{crypto, mtproto};
 
+/// The middle 128 bits of the SHA-256 hash of the message to be encrypted
+/// (including the internal header and the padding bytes for MTProto),
+/// prepended by a 32-byte fragment of the authorization key.
+///
+/// https://core.telegram.org/mtproto/description#message-key-msg-key
 pub type MsgKey = crate::tl::Int128;
 
+/// A 2048-bit key shared by the client device and the server,
+/// created upon user registration directly on the client device by
+/// exchanging Diffie-Hellman keys, and never transmitted over a network.
+///
+/// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 #[derive(Clone)]
 pub struct AuthKey {
     data: [u8; 256],
@@ -15,7 +27,9 @@ pub struct AuthKey {
 
 impl fmt::Display for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "auth key [id={:#016x}, ..]", u64::from_ne_bytes(self.id))
+        let id = u64::from_ne_bytes(self.id);
+
+        write!(f, "auth key [id={id:#016x}, ..]")
     }
 }
 
@@ -24,16 +38,11 @@ impl fmt::Debug for AuthKey {
         let id = u64::from_ne_bytes(self.id);
 
         f.debug_struct("AuthKey")
-            .field("id", &format_args!("{:#016x}", id))
+            .field("id", &format_args!("{id:#016x}"))
             .finish_non_exhaustive()
     }
 }
 
-/// A 2048-bit key shared by the client device and the server,
-/// created upon user registration directly on the client device by
-/// exchanging Diffie-Hellman keys, and never transmitted over a network.
-///
-/// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 impl AuthKey {
     /// Create a new instance of [`AuthKey`] from its data.
     #[must_use]
@@ -48,6 +57,7 @@ impl AuthKey {
 
     /// Actual underlying data used for cryptographic operations.
     #[inline]
+    #[must_use]
     pub fn data(&self) -> &[u8; 256] {
         &self.data
     }
@@ -64,6 +74,7 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
     #[inline]
+    #[must_use]
     pub fn aux_hash(&self) -> &[u8; 8] {
         &self.aux_hash
     }
@@ -72,19 +83,18 @@ impl AuthKey {
     ///
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
+    #[must_use]
     pub fn id(&self) -> &[u8; 8] {
         &self.id
     }
 
     /// Compute [`MsgKey`].
     ///
-    /// https://core.telegram.org/mtproto/description#message-key-msg-key \
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
-    #[allow(clippy::let_and_return)]
     #[must_use]
     pub fn compute_msg_key(
         &self,
-        plaintext_header: &[u8; mtproto::DecryptedMessage::HEADER_LEN + 8 + 4 + 4],
+        plaintext_header: &[u8; mtproto::DECRYPTED_MESSAGE_HEADER_SIZE],
         plaintext: &[u8],
         random_padding: &[u8],
         side: mtproto::Side,
@@ -102,6 +112,7 @@ impl AuthKey {
         // * msg_key = substr(msg_key_large, 8, 16);
         let msg_key = *msg_key_large[8..24].arr();
 
+        #[allow(clippy::let_and_return)]
         msg_key
     }
 

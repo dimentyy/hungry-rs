@@ -14,6 +14,11 @@ pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::SeqNos;
 pub use unpack::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 
+pub const DECRYPTED_MESSAGE_HEADER_SIZE: usize = DecryptedMessage::HEADER_LEN
+    + 8  // message_id
+    + 4  // seq_no
+    + 4; // message_data_length
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
     Client = 0,
@@ -32,10 +37,6 @@ envelopes! {
         PlainMessage::HEADER_LEN,
         0;          // no padding
     pub Envelope => EnvelopeSize:
-        EncryptedMessage::HEADER_LEN
-            + DecryptedMessage::HEADER_LEN
-            + 8     // message_id
-            + 4     // seq_no
-            + 4,    // message_data_length
+        EncryptedMessage::HEADER_LEN + DECRYPTED_MESSAGE_HEADER_SIZE,
         1024;       // padding (12..1024)
 }
