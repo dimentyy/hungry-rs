@@ -73,24 +73,32 @@ fn write_enum_len(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
 }
 
 fn write_flag_arg(f: &mut F, cfg: &Cfg, x: &Combinator, i: usize) -> Result<()> {
-    f.write_all(b"(self.")?;
     let arg = &x.args[i];
-    write_escaped(f, &arg.name)?;
-    let bit = match &arg.typ {
+
+    let (bit, opt) = match &arg.typ {
         ArgTyp::Typ {
             flag: Some(Flag { bit, .. }),
             ..
         } => {
-            f.write_all(b".is_some()")?;
-            bit
+            (*bit, true)
         }
         ArgTyp::True {
             flag: Flag { bit, .. },
-        } => bit,
+        } => (*bit, false),
         _ => unreachable!(),
     };
-    f.write_all(b" as u32) << ")?;
-    write!(f, "{bit}")
+
+    f.write_all(if bit > 0 { b"(self." } else { b"self." })?;
+    write_escaped(f, &arg.name)?;
+    if opt {
+        f.write_all(b".is_some()")?;
+    }
+    f.write_all(b" as u32")?;
+    if bit > 0 {
+        f.write_all(b") << ")?;
+        write!(f, "{bit}")?;
+    }
+    Ok(())
 }
 
 fn write_structure_ser(

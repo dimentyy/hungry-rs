@@ -1,8 +1,7 @@
 use crate::de::{Buf, Deserialize, DeserializeInfallible, DeserializeUnchecked, Error};
 use crate::{BareVec, VECTOR};
 
-#[inline]
-unsafe fn deserialize_vec<T: Deserialize>(buf: &mut Buf) -> Result<Vec<T>, Error> {
+pub unsafe fn deserialize_vec<T: Deserialize>(buf: &mut Buf) -> Result<Vec<T>, Error> {
     let len = unsafe { u32::deserialize_infallible(buf.advance_unchecked(4)) } as usize;
 
     let mut vec = Vec::with_capacity(len);

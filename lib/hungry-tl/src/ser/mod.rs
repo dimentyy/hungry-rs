@@ -8,6 +8,7 @@ use ::bytes::BytesMut;
 use crate::SerializedLen;
 
 pub use bytes::{bytes_len, prepare_bytes};
+pub use vec::{bare_vec_serialized_len, serialize_bare_vec_unchecked};
 
 pub trait Serialize: SerializedLen {
     /// Serializes the instance into `buf` without checking its capacity.
