@@ -31,7 +31,7 @@ pub const TRUE: u32 = 0x997275b5;
 pub const FALSE: u32 = 0xbc799737;
 
 /// Identifier of the `vector` constructor:
-/// 
+///
 /// ```tl
 /// vector#1cb5c415 {t:Type} # [ t ] = Vector t;
 /// ```

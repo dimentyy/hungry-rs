@@ -1,12 +1,12 @@
 use std::fmt;
 
-use rug::{integer, Integer};
+use rug::{Integer, integer};
 
 use crate::utils::SliceExt;
 use crate::{auth, crypto, mtproto, tl};
 
-use tl::mtproto::{funcs, types};
 use tl::Int256;
+use tl::mtproto::{funcs, types};
 
 #[derive(Debug)]
 pub enum DhGenOkError {

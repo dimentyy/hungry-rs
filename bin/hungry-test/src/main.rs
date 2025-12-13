@@ -38,7 +38,8 @@ impl<'a> Plain<'a> {
             transport_envelope,
             mtp_envelope,
             0,
-        ).await?;
+        )
+        .await?;
 
         Ok(response)
     }

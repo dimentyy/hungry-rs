@@ -79,9 +79,7 @@ fn write_flag_arg(f: &mut F, cfg: &Cfg, x: &Combinator, i: usize) -> Result<()> 
         ArgTyp::Typ {
             flag: Some(Flag { bit, .. }),
             ..
-        } => {
-            (*bit, true)
-        }
+        } => (*bit, true),
         ArgTyp::True {
             flag: Flag { bit, .. },
         } => (*bit, false),

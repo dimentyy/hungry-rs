@@ -1,4 +1,4 @@
-use crate::{ConstSerializedLen, SerializedLen, VECTOR, ser::Serialize, BareVec};
+use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR, ser::Serialize};
 
 pub fn bare_vec_serialized_len<T: SerializedLen>(vec: &[T]) -> usize {
     u32::SERIALIZED_LEN + vec.iter().map(|x| x.serialized_len()).sum::<usize>()

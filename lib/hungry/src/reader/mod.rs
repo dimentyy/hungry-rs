@@ -5,7 +5,7 @@ mod split;
 
 use std::io;
 use std::ops::ControlFlow;
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
