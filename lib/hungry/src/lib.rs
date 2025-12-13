@@ -28,7 +28,7 @@ pub use msg_container::MsgContainer;
 pub fn new<
     T: transport::Transport,
     R: AsyncRead + Unpin,
-    H: reader::Handle,
+    H: reader::HandleReader,
     W: AsyncWrite + Unpin,
 >(
     transport: T,
@@ -36,11 +36,11 @@ pub fn new<
     reader_handle: H,
     reader_buffer: BytesMut,
     writer: W,
-) -> (reader::Reader<R, H, T>, writer::Writer<W, T>) {
+) -> (reader::Reader<R, T, H>, writer::Writer<W, T>) {
     let (reader_transport, writer_transport) = transport.split();
 
     let writer = writer::Writer::new(writer, writer_transport);
-    let reader = reader::Reader::new(reader, reader_handle, reader_transport, reader_buffer);
+    let reader = reader::Reader::new(reader, reader_transport, reader_handle, reader_buffer);
 
     (reader, writer)
 }

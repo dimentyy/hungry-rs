@@ -3,70 +3,74 @@ mod error;
 mod reserve;
 mod split;
 
+use std::io;
+use std::ops::ControlFlow;
+use std::pin::{pin, Pin};
+use std::task::{Context, Poll};
+
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, ReadBuf};
 
-use std::io;
-use std::ops::ControlFlow;
-use std::pin::{Pin, pin};
-use std::task::{Context, Poll};
-
 use crate::transport::{Transport, TransportRead, Unpack};
-use crate::utils::{BytesMutExt, ready_ok};
+use crate::utils::ready_ok;
 
 pub use dump::Dump;
 pub use error::Error;
 pub use reserve::Reserve;
 pub use split::Split;
 
-pub trait HandleBuffer {
-    fn required(&mut self, buffer: &mut BytesMut, length: usize);
+pub trait ReserveReaderBuffer {
+    fn reserve(&mut self, buffer: &mut BytesMut, length: usize);
 }
 
-pub trait HandleOutput {
+pub trait ProcessReaderPacket {
     type Output;
 
-    fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output;
+    fn process(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output;
 }
 
-pub trait Handle: HandleBuffer + HandleOutput + Unpin {}
-impl<T: HandleBuffer + HandleOutput + Unpin> Handle for T {}
+pub trait HandleReader: ReserveReaderBuffer + ProcessReaderPacket + Unpin {}
+impl<T: ReserveReaderBuffer + ProcessReaderPacket + Unpin> HandleReader for T {}
 
-pub struct Parted<B: HandleBuffer + Unpin, O: HandleOutput + Unpin> {
-    pub buffer: B,
-    pub output: O,
+pub struct Parted<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> {
+    pub reserve: R,
+    pub process: P,
 }
 
-impl<B: HandleBuffer + Unpin, O: HandleOutput + Unpin> HandleBuffer for Parted<B, O> {
-    fn required(&mut self, buffer: &mut BytesMut, length: usize) {
-        self.buffer.required(buffer, length);
+impl<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> ReserveReaderBuffer
+    for Parted<R, P>
+{
+    fn reserve(&mut self, buffer: &mut BytesMut, length: usize) {
+        self.reserve.reserve(buffer, length);
     }
 }
 
-impl<B: HandleBuffer + Unpin, O: HandleOutput + Unpin> HandleOutput for Parted<B, O> {
-    type Output = O::Output;
+impl<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> ProcessReaderPacket
+    for Parted<R, P>
+{
+    type Output = P::Output;
 
-    fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
-        self.output.acquired(buffer, unpack)
+    fn process(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
+        self.process.process(buffer, unpack)
     }
 }
 
-pub struct Reader<R: AsyncRead + Unpin, H: Handle, T: Transport> {
+pub struct Reader<R: AsyncRead + Unpin, T: Transport, H: HandleReader> {
     driver: R,
-    handle: H,
     transport: T::Read,
+    handle: H,
     buffer: BytesMut,
     length: usize,
 }
 
-impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
-    pub(crate) fn new(driver: R, handle: H, transport: T::Read, mut buffer: BytesMut) -> Self {
-        buffer.set_zero_len();
+impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
+    pub(crate) fn new(driver: R, transport: T::Read, handle: H, buffer: BytesMut) -> Self {
+        assert!(buffer.is_empty());
 
         Self {
             driver,
-            handle,
             transport,
+            handle,
             buffer,
             length: T::Read::DEFAULT_BUF_LEN,
         }
@@ -75,7 +79,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
         loop {
             if self.buffer.capacity() < self.length {
-                self.handle.required(&mut self.buffer, 0);
+                self.handle.reserve(&mut self.buffer, 0);
                 assert!(self.buffer.capacity() >= self.length);
             }
 
@@ -101,7 +105,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
 
             self.length = T::Read::DEFAULT_BUF_LEN;
 
-            let output = self.handle.acquired(&mut self.buffer, unpack);
+            let output = self.handle.process(&mut self.buffer, unpack);
 
             assert!(self.buffer.is_empty());
 
@@ -145,7 +149,7 @@ impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Reader<R, H, T> {
     }
 }
 
-impl<R: AsyncRead + Unpin, H: Handle, T: Transport> Future for Reader<R, H, T> {
+impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Future for Reader<R, T, H> {
     type Output = Result<H::Output, Error>;
 
     #[inline]

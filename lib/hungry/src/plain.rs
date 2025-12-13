@@ -42,11 +42,11 @@ impl std::error::Error for Error {}
 pub async fn send<
     T: Transport,
     R: AsyncRead + Unpin,
-    H: reader::Handle<Output = <reader::Split as reader::HandleOutput>::Output>,
+    H: reader::HandleReader<Output = <reader::Split as reader::ProcessReaderPacket>::Output>,
     W: AsyncWrite + Unpin,
     F: tl::Function,
 >(
-    r: &mut reader::Reader<R, H, T>,
+    r: &mut reader::Reader<R, T, H>,
     w: &mut writer::Writer<W, T>,
     func: &F,
     buffer: &mut BytesMut,

@@ -3,12 +3,12 @@ use bytes::BytesMut;
 use crate::transport::{Packet, QuickAck, Unpack};
 use crate::{mtproto, reader, utils};
 
-pub struct Dump<T: reader::Handle>(pub T);
+pub struct Dump<T: reader::HandleReader>(pub T);
 
-impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
+impl<T: reader::HandleReader> reader::ProcessReaderPacket for Dump<T> {
     type Output = T::Output;
 
-    fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
+    fn process(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
         let title = match &unpack {
             Unpack::Packet(Packet { data }) => {
                 let message = mtproto::Message::unpack(&buffer[data.clone()]);
@@ -22,14 +22,14 @@ impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
 
         utils::dump(buffer, title).unwrap();
 
-        self.0.acquired(buffer, unpack)
+        self.0.process(buffer, unpack)
     }
 }
 
-impl<T: reader::Handle> reader::HandleBuffer for Dump<T> {
-    fn required(&mut self, buffer: &mut BytesMut, length: usize) {
+impl<T: reader::HandleReader> reader::ReserveReaderBuffer for Dump<T> {
+    fn reserve(&mut self, buffer: &mut BytesMut, length: usize) {
         println!("READER: required {length}");
 
-        self.0.required(buffer, length);
+        self.0.reserve(buffer, length);
     }
 }
