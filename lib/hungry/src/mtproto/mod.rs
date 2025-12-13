@@ -19,6 +19,18 @@ pub const DECRYPTED_MESSAGE_HEADER_SIZE: usize = DecryptedMessage::HEADER_LEN
     + 4  // seq_no
     + 4; // message_data_length
 
+/// # Server Salt
+///
+/// A (random) 64-bit number changed every 30 minutes (separately
+/// for each session) at the request of the server. All subsequent
+/// messages must contain the new salt (although, messages with
+/// the old salt are still accepted for a further 1800 seconds).
+/// Required to protect against replay attacks and certain tricks associated
+/// with adjusting the client clock to a moment in the distant future.
+///
+/// https://core.telegram.org/mtproto/description#server-salt
+pub type Salt = i64;
+
 /// For MTProto 2.0, the algorithm for computing
 /// aes_key and aes_iv from auth_key and msg_key is
 /// <...> where x = 0 for messages from client to

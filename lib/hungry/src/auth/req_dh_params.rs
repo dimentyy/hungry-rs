@@ -59,6 +59,7 @@ impl From<tl::de::Error> for ServerDhParamsOkError {
     }
 }
 
+#[must_use]
 pub struct ReqDhParams<'a> {
     pub(crate) data_with_padding: [u8; 192],
     pub(crate) data_pad_reversed: [u8; 192],
@@ -69,6 +70,7 @@ pub struct ReqDhParams<'a> {
 
 /// Wrapper around `key_aes_encrypted: &[u8; 256]` to prevent
 /// arbitrary data for being passed into [`ReqDhParams::func`].
+#[must_use]
 pub struct KeyAesEncrypted<'a>(&'a [u8; 256]);
 
 impl ReqDhParams<'_> {

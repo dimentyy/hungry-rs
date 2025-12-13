@@ -17,6 +17,7 @@ pub type MsgKey = crate::tl::Int128;
 /// exchanging Diffie-Hellman keys, and never transmitted over a network.
 ///
 /// https://core.telegram.org/mtproto/description#authorization-key-auth-key
+#[must_use]
 #[derive(Clone)]
 pub struct AuthKey {
     data: [u8; 256],
@@ -45,7 +46,6 @@ impl fmt::Debug for AuthKey {
 
 impl AuthKey {
     /// Create a new instance of [`AuthKey`] from its data.
-    #[must_use]
     pub fn new(data: [u8; 256]) -> Self {
         let hash = crypto::sha1!(&data);
 

@@ -49,6 +49,7 @@ impl fmt::Display for InvalidPqLen {
 
 impl std::error::Error for InvalidPqLen {}
 
+#[must_use]
 pub struct ReqPqMulti {
     func: funcs::ReqPqMulti,
 }

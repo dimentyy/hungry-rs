@@ -6,6 +6,7 @@ use crate::{crypto, mtproto, tl};
 use tl::mtproto::{funcs, types};
 use tl::Int256;
 
+#[must_use]
 pub struct SetClientDhParams {
     pub(crate) new_nonce: Int256,
     pub(crate) g: i32,
@@ -16,6 +17,7 @@ pub struct SetClientDhParams {
     pub(crate) func: funcs::SetClientDhParams,
 }
 
+#[must_use]
 fn new_nonce_hash(auth_key: &mtproto::AuthKey, new_nonce: &[u8; 32], number: u8) -> [u8; 16] {
     let mut data = [0; 32 + 1 + 8];
 
@@ -32,7 +34,7 @@ impl SetClientDhParams {
         &self.func
     }
 
-    pub fn dh_gen_ok(self, dh_gen_ok: types::DhGenOk) -> (mtproto::AuthKey, i64) {
+    pub fn dh_gen_ok(self, dh_gen_ok: types::DhGenOk) -> (mtproto::AuthKey, mtproto::Salt) {
         if dh_gen_ok.nonce != self.func.nonce {
             todo!()
         }

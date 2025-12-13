@@ -6,6 +6,7 @@ use tl::mtproto::{funcs, types};
 use tl::ser::Serialize;
 use tl::{Int128, Int256};
 
+#[must_use]
 pub struct ServerDhParamsOk {
     pub(crate) nonce: Int128,
     pub(crate) server_nonce: Int128,

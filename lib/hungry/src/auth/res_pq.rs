@@ -4,6 +4,7 @@ use tl::mtproto::{funcs, types};
 use tl::ser::Serialize;
 use tl::{Int128, Int256};
 
+#[must_use]
 pub struct ResPq {
     pub(super) nonce: Int128,
     pub(super) server_nonce: Int128,
