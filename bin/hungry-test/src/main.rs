@@ -144,7 +144,7 @@ async fn async_main() -> anyhow::Result<()> {
         SetClientDhParamsAnswer::DhGenFail(_) => todo!(),
     };
 
-    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok);
+    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
     let session_id = rand::random();
 
     let transport = Envelope::split(&mut buffer);
