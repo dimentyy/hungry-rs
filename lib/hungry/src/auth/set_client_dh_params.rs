@@ -1,10 +1,45 @@
-use rug::{Integer, integer};
+use std::fmt;
+
+use rug::{integer, Integer};
 
 use crate::utils::SliceExt;
-use crate::{crypto, mtproto, tl};
+use crate::{auth, crypto, mtproto, tl};
 
-use tl::Int256;
 use tl::mtproto::{funcs, types};
+use tl::Int256;
+
+#[derive(Debug)]
+pub enum DhGenOkError {
+    NonceMismatch(auth::error::NonceMismatch),
+    ServerNonceMismatch(()),
+    NewNonceHash1Mismatch(()),
+}
+
+impl fmt::Display for DhGenOkError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use DhGenOkError::*;
+
+        f.write_str("`DhGenOk` validation error: ")?;
+
+        match self {
+            NonceMismatch(err) => err.fmt(f),
+            ServerNonceMismatch(_) => todo!(),
+            NewNonceHash1Mismatch(_) => todo!(),
+        }
+    }
+}
+
+impl std::error::Error for DhGenOkError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use DhGenOkError::*;
+
+        Some(match self {
+            NonceMismatch(err) => err,
+            ServerNonceMismatch(_) => todo!(),
+            NewNonceHash1Mismatch(_) => todo!(),
+        })
+    }
+}
 
 #[must_use]
 pub struct SetClientDhParams {
@@ -34,13 +69,21 @@ impl SetClientDhParams {
         &self.func
     }
 
-    pub fn dh_gen_ok(self, dh_gen_ok: types::DhGenOk) -> (mtproto::AuthKey, mtproto::Salt) {
+    pub fn dh_gen_ok(
+        self,
+        dh_gen_ok: types::DhGenOk,
+    ) -> Result<(mtproto::AuthKey, mtproto::Salt), DhGenOkError> {
+        use DhGenOkError::*;
+
         if dh_gen_ok.nonce != self.func.nonce {
-            todo!()
+            return Err(NonceMismatch(auth::error::NonceMismatch {
+                expected: self.func.nonce,
+                received: dh_gen_ok.nonce,
+            }));
         }
 
         if dh_gen_ok.server_nonce != self.func.server_nonce {
-            todo!()
+            return Err(ServerNonceMismatch(()));
         }
 
         let mut data = [0; 256];
@@ -54,12 +97,12 @@ impl SetClientDhParams {
         let auth_key = mtproto::AuthKey::new(data);
 
         if dh_gen_ok.new_nonce_hash_1 != new_nonce_hash(&auth_key, &self.new_nonce, 1) {
-            todo!()
+            return Err(NewNonceHash1Mismatch(()));
         }
 
         let mut salt = i64::from_le_bytes(*self.new_nonce[..8].arr())
             ^ i64::from_le_bytes(*self.func.server_nonce[..8].arr());
 
-        (auth_key, salt)
+        Ok((auth_key, salt))
     }
 }
