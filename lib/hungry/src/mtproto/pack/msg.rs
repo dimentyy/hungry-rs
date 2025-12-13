@@ -1,8 +1,8 @@
 use crate::tl;
 
+use tl::ConstSerializedLen;
 use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
 use tl::ser::Serialize;
-use tl::ConstSerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {

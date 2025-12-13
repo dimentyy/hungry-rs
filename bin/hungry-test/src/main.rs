@@ -18,7 +18,7 @@ type ReaderHandle = Dump<Parted<Reserve, Split>>;
 
 struct Plain<'a> {
     buffer: &'a mut BytesMut,
-    reader: &'a mut hungry::reader::Reader<ReaderDriver, ReaderHandle, Transport>,
+    reader: &'a mut hungry::reader::Reader<ReaderDriver, Transport, ReaderHandle>,
     writer: &'a mut hungry::writer::Writer<WriterDriver, Transport>,
 }
 
@@ -73,8 +73,8 @@ async fn async_main() -> anyhow::Result<()> {
     let (r, w) = stream.into_split();
 
     let handle = Dump(Parted {
-        buffer: Reserve,
-        output: Split,
+        reserve: Reserve,
+        process: Split,
     });
 
     let buffer = BytesMut::with_capacity(1024 * 1024);
