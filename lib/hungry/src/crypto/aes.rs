@@ -1,8 +1,8 @@
 // STATUS: stable.
 
+use aes::Aes256;
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
-use aes::Aes256;
 
 pub type AesIgeKey = [u8; 32];
 pub type AesIgeIv = [u8; 32];

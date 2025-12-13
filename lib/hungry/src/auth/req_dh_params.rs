@@ -3,10 +3,10 @@ use std::fmt;
 use crate::utils::SliceExt;
 use crate::{auth, crypto, tl};
 
-use rug::{integer, Integer};
+use rug::{Integer, integer};
 
-use tl::mtproto::{enums, funcs, types};
 use tl::Int256;
+use tl::mtproto::{enums, funcs, types};
 
 #[derive(Debug)]
 pub enum ServerDhParamsOkError {

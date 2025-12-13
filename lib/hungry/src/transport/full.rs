@@ -4,7 +4,7 @@ use bytes::BytesMut;
 
 use crate::transport::{Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
-use crate::{crypto, Envelope, EnvelopeSize};
+use crate::{Envelope, EnvelopeSize, crypto};
 
 #[derive(Default)]
 pub struct Full;

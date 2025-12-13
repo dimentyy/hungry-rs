@@ -1,10 +1,10 @@
-use rug::{integer, Integer};
+use rug::{Integer, integer};
 
 use crate::utils::SliceExt;
 use crate::{crypto, mtproto, tl};
 
-use tl::mtproto::{funcs, types};
 use tl::Int256;
+use tl::mtproto::{funcs, types};
 
 #[must_use]
 pub struct SetClientDhParams {

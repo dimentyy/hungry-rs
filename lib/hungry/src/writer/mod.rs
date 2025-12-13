@@ -2,7 +2,7 @@ mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
@@ -10,7 +10,7 @@ use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::{mtproto, Envelope};
+use crate::{Envelope, mtproto};
 
 pub use queued::QueuedWriter;
 

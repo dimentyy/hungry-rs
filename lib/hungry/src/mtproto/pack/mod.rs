@@ -1,8 +1,8 @@
 use bytes::BytesMut;
 
 use crate::mtproto::{
-    AuthKey, DecryptedMessage, EncryptedMessage, Envelope, PlainEnvelope,
-    Side, DECRYPTED_MESSAGE_HEADER_SIZE,
+    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedMessage, Envelope,
+    PlainEnvelope, Side,
 };
 use crate::utils::SliceExt;
 use crate::{crypto, mtproto};

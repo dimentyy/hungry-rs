@@ -3,8 +3,8 @@ use std::fmt;
 use crate::utils::SliceExt;
 use crate::{auth, crypto, tl};
 
-use tl::mtproto::{funcs, types};
 use tl::Int128;
+use tl::mtproto::{funcs, types};
 
 #[derive(Debug)]
 pub enum ResPqError {

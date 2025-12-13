@@ -3,7 +3,7 @@ use std::mem;
 
 use bytes::BytesMut;
 
-use crate::utils::{unsplit_checked, BytesMutExt};
+use crate::utils::{BytesMutExt, unsplit_checked};
 
 /// A helper macro to define a standalone envelope size.
 macro_rules! envelopes {

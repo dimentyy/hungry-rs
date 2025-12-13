@@ -8,11 +8,11 @@ use tokio::io::{AsyncRead, ReadBuf};
 
 use std::io;
 use std::ops::ControlFlow;
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{Context, Poll};
 
 use crate::transport::{Transport, TransportRead, Unpack};
-use crate::utils::{ready_ok, BytesMutExt};
+use crate::utils::{BytesMutExt, ready_ok};
 
 pub use dump::Dump;
 pub use error::Error;

@@ -1,4 +1,4 @@
-use rug::{integer, Integer};
+use rug::{Integer, integer};
 
 use crate::{auth, crypto, tl};
 

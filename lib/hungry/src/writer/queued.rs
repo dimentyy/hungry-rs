@@ -8,7 +8,7 @@ use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::{mtproto, writer, Envelope};
+use crate::{Envelope, mtproto, writer};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     driver: writer::Writer<W, T>,

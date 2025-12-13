@@ -2,7 +2,7 @@
 
 use std::ops::RangeTo;
 
-use rug::{integer::Order::MsfBe, Integer};
+use rug::{Integer, integer::Order::MsfBe};
 
 use crate::utils::SliceExt;
 use crate::{crypto, tl};
