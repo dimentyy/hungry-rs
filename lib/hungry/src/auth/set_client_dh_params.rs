@@ -1,18 +1,18 @@
 use std::fmt;
 
-use rug::{Integer, integer};
+use rug::{Integer, integer::Order::MsfBe};
 
 use crate::utils::SliceExt;
-use crate::{auth, crypto, mtproto, tl};
+use crate::{crypto, mtproto, tl};
 
 use tl::Int256;
 use tl::mtproto::{funcs, types};
 
 #[derive(Debug)]
 pub enum DhGenOkError {
-    NonceMismatch(auth::error::NonceMismatch),
-    ServerNonceMismatch(()),
-    NewNonceHash1Mismatch(()),
+    NonceMismatch,
+    ServerNonceMismatch,
+    NewNonceHash1Mismatch,
 }
 
 impl fmt::Display for DhGenOkError {
@@ -21,25 +21,15 @@ impl fmt::Display for DhGenOkError {
 
         f.write_str("`DhGenOk` validation error: ")?;
 
-        match self {
-            NonceMismatch(err) => err.fmt(f),
-            ServerNonceMismatch(_) => todo!(),
-            NewNonceHash1Mismatch(_) => todo!(),
-        }
-    }
-}
-
-impl std::error::Error for DhGenOkError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use DhGenOkError::*;
-
-        Some(match self {
-            NonceMismatch(err) => err,
-            ServerNonceMismatch(_) => todo!(),
-            NewNonceHash1Mismatch(_) => todo!(),
+        f.write_str(match self {
+            NonceMismatch => "`nonce` mismatch",
+            ServerNonceMismatch => "`server_nonce` mismatch",
+            NewNonceHash1Mismatch => "`new_nonce_hash1` mismatch",
         })
     }
 }
+
+impl std::error::Error for DhGenOkError {}
 
 #[must_use]
 pub struct SetClientDhParams {
@@ -71,19 +61,16 @@ impl SetClientDhParams {
 
     pub fn dh_gen_ok(
         self,
-        dh_gen_ok: types::DhGenOk,
+        response: types::DhGenOk,
     ) -> Result<(mtproto::AuthKey, mtproto::Salt), DhGenOkError> {
         use DhGenOkError::*;
 
-        if dh_gen_ok.nonce != self.func.nonce {
-            return Err(NonceMismatch(auth::error::NonceMismatch {
-                expected: self.func.nonce,
-                received: dh_gen_ok.nonce,
-            }));
+        if response.nonce != self.func.nonce {
+            return Err(NonceMismatch);
         }
 
-        if dh_gen_ok.server_nonce != self.func.server_nonce {
-            return Err(ServerNonceMismatch(()));
+        if response.server_nonce != self.func.server_nonce {
+            return Err(ServerNonceMismatch);
         }
 
         let mut data = [0; 256];
@@ -92,12 +79,12 @@ impl SetClientDhParams {
 
         let len = g_ab.significant_digits::<u8>();
 
-        g_ab.write_digits(&mut data[256 - len..], integer::Order::MsfBe);
+        g_ab.write_digits(&mut data[256 - len..], MsfBe);
 
         let auth_key = mtproto::AuthKey::new(data);
 
-        if dh_gen_ok.new_nonce_hash_1 != new_nonce_hash(&auth_key, &self.new_nonce, 1) {
-            return Err(NewNonceHash1Mismatch(()));
+        if response.new_nonce_hash_1 != new_nonce_hash(&auth_key, &self.new_nonce, 1) {
+            return Err(NewNonceHash1Mismatch);
         }
 
         let mut salt = i64::from_le_bytes(*self.new_nonce[..8].arr())

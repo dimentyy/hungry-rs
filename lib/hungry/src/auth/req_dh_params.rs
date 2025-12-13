@@ -10,13 +10,13 @@ use tl::mtproto::{enums, funcs, types};
 
 #[derive(Debug)]
 pub enum ServerDhParamsOkError {
-    NonceMismatch(auth::error::NonceMismatch),
-    ServerNonceMismatch(()),
-    InvalidEncryptedAnswerLength(()),
-    AnswerHashMismatch(()),
+    NonceMismatch,
+    ServerNonceMismatch,
+    InvalidEncryptedAnswerLength,
+    AnswerHashMismatch,
     InnerDeserialization(tl::de::Error),
-    InnerNonceMismatch(()),
-    InnerServerNonceMismatch(()),
+    InnerNonceMismatch,
+    InnerServerNonceMismatch,
 }
 
 impl fmt::Display for ServerDhParamsOkError {
@@ -25,15 +25,15 @@ impl fmt::Display for ServerDhParamsOkError {
 
         f.write_str("`ServerDhParamsOk` validation error: ")?;
 
-        match self {
-            NonceMismatch(err) => err.fmt(f),
-            ServerNonceMismatch(_) => todo!(),
-            InvalidEncryptedAnswerLength(_) => todo!(),
-            AnswerHashMismatch(_) => todo!(),
-            InnerDeserialization(err) => err.fmt(f),
-            InnerNonceMismatch(_) => todo!(),
-            InnerServerNonceMismatch(_) => todo!(),
-        }
+        f.write_str(match self {
+            NonceMismatch => "`nonce` mismatch",
+            ServerNonceMismatch => "`server_nonce` mismatch",
+            InvalidEncryptedAnswerLength => "invalid `encrypted_answer` length",
+            AnswerHashMismatch => "`answer` hash mismatch",
+            InnerDeserialization(err) => return err.fmt(f),
+            InnerNonceMismatch => "`answer` `nonce` mismatch",
+            InnerServerNonceMismatch => "`answer` `server_nonce` mismatch",
+        })
     }
 }
 
@@ -41,15 +41,10 @@ impl std::error::Error for ServerDhParamsOkError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ServerDhParamsOkError::*;
 
-        Some(match self {
-            NonceMismatch(err) => err,
-            ServerNonceMismatch(_) => todo!(),
-            InvalidEncryptedAnswerLength(_) => todo!(),
-            AnswerHashMismatch(_) => todo!(),
-            InnerDeserialization(err) => err,
-            InnerNonceMismatch(_) => todo!(),
-            InnerServerNonceMismatch(_) => todo!(),
-        })
+        match self {
+            InnerDeserialization(err) => Some(err),
+            _ => None,
+        }
     }
 }
 
@@ -134,20 +129,17 @@ impl ReqDhParams<'_> {
         use ServerDhParamsOkError::*;
 
         if response.nonce != self.func.nonce {
-            return Err(NonceMismatch(auth::error::NonceMismatch {
-                expected: self.func.nonce,
-                received: response.nonce,
-            }));
+            return Err(NonceMismatch);
         }
 
         if response.server_nonce != self.func.server_nonce {
-            return Err(ServerNonceMismatch(()));
+            return Err(ServerNonceMismatch);
         }
 
         let mut encrypted_answer = response.encrypted_answer.clone();
 
         if !encrypted_answer.len().is_multiple_of(16) {
-            return Err(InvalidEncryptedAnswerLength(()));
+            return Err(InvalidEncryptedAnswerLength);
         }
 
         let (tmp_aes_key, tmp_aes_iv) =
@@ -173,17 +165,17 @@ impl ReqDhParams<'_> {
         let answer_sha1 = crypto::sha1!(&answer_with_hash[20..20 + len]);
 
         if &answer_with_hash[..20] != answer_sha1.as_slice() {
-            return Err(AnswerHashMismatch(()));
+            return Err(AnswerHashMismatch);
         }
 
         let enums::ServerDhInnerData::ServerDhInnerData(answer) = answer;
 
         if answer.nonce != self.func.nonce {
-            return Err(InnerNonceMismatch(()));
+            return Err(InnerNonceMismatch);
         }
 
         if answer.server_nonce != self.func.server_nonce {
-            return Err(InnerServerNonceMismatch(()));
+            return Err(InnerServerNonceMismatch);
         }
 
         let dh_prime = Integer::from_digits(&answer.dh_prime, integer::Order::MsfBe);

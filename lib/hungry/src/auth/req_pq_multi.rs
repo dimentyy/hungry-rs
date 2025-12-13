@@ -8,8 +8,8 @@ use tl::mtproto::{funcs, types};
 
 #[derive(Debug)]
 pub enum ResPqError {
-    NonceMismatch(auth::error::NonceMismatch),
-    InvalidPqLen(InvalidPqLen),
+    NonceMismatch,
+    InvalidPqLen,
 }
 
 impl fmt::Display for ResPqError {
@@ -18,36 +18,14 @@ impl fmt::Display for ResPqError {
 
         f.write_str("`ResPq` validation error: ")?;
 
-        match self {
-            NonceMismatch(err) => err.fmt(f),
-            InvalidPqLen(err) => err.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for ResPqError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use ResPqError::*;
-
-        Some(match self {
-            NonceMismatch(err) => err,
-            InvalidPqLen(err) => err,
+        f.write_str(match self {
+            NonceMismatch => "`nonce` mismatch",
+            InvalidPqLen => "invalid `pq` length",
         })
     }
 }
 
-#[derive(Debug)]
-pub struct InvalidPqLen {
-    pub received: usize,
-}
-
-impl fmt::Display for InvalidPqLen {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid `pq` len: {}", self.received)
-    }
-}
-
-impl std::error::Error for InvalidPqLen {}
+impl std::error::Error for ResPqError {}
 
 #[must_use]
 pub struct ReqPqMulti {
@@ -82,16 +60,11 @@ impl ReqPqMulti {
 
     pub fn res_pq(&self, response: &types::ResPq) -> Result<auth::ResPq, ResPqError> {
         if response.nonce != self.func.nonce {
-            return Err(ResPqError::NonceMismatch(auth::error::NonceMismatch {
-                expected: self.func.nonce,
-                received: response.nonce,
-            }));
+            return Err(ResPqError::NonceMismatch);
         }
 
         if response.pq.len() != 8 {
-            return Err(ResPqError::InvalidPqLen(InvalidPqLen {
-                received: response.pq.len(),
-            }));
+            return Err(ResPqError::InvalidPqLen);
         }
 
         let pq = u64::from_be_bytes(*response.pq.arr());
