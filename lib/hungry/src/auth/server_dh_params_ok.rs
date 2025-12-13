@@ -6,7 +6,7 @@ use tl::mtproto::{funcs, types};
 use tl::ser::Serialize;
 use tl::{Int128, Int256};
 
-pub struct ServerDhParams {
+pub struct ServerDhParamsOk {
     pub(crate) nonce: Int128,
     pub(crate) server_nonce: Int128,
     pub(crate) new_nonce: Int256,
@@ -18,7 +18,7 @@ pub struct ServerDhParams {
     pub(crate) server_time: i32,
 }
 
-impl ServerDhParams {
+impl ServerDhParamsOk {
     #[inline]
     pub fn server_time(&self) -> i32 {
         self.server_time

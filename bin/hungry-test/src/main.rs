@@ -1,9 +1,9 @@
 use bytes::BytesMut;
 
 use hungry::reader::{Dump, Parted, Reserve, Split};
+use hungry::tl::mtproto::enums::ServerDhParams;
 use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
-
 use tl::de::Deserialize;
 use tl::mtproto::enums::SetClientDhParamsAnswer;
 
@@ -108,24 +108,31 @@ async fn async_main() -> anyhow::Result<()> {
     let mut temp_key = [0; 32];
     let mut key_aes_encrypted = [0; 256];
 
-    loop {
+    let key_aes_encrypted = loop {
         rand::fill(&mut temp_key);
 
-        if req_dh_params.key_aes_encrypted(&temp_key, &mut key_aes_encrypted) {
-            break;
+        if let Some(key_aes_encrypted) =
+            req_dh_params.key_aes_encrypted(&temp_key, &mut key_aes_encrypted)
+        {
+            break key_aes_encrypted;
         }
-    }
+    };
 
-    let func = dbg!(req_dh_params.func(&key_aes_encrypted));
+    let func = dbg!(req_dh_params.func(key_aes_encrypted));
 
     let response = dbg!(plain.send(func).await?);
 
-    let server_dh_params = req_dh_params.server_dh_params(response);
+    let response = match response {
+        ServerDhParams::ServerDhParamsFail(_) => todo!(),
+        ServerDhParams::ServerDhParamsOk(response) => response,
+    };
+
+    let server_dh_params_ok = req_dh_params.server_dh_params_ok(&response)?;
 
     let mut b = [0; 256];
     rand::fill(&mut b);
 
-    let set_client_dh_params = server_dh_params.set_client_dh_params(&b, 0);
+    let set_client_dh_params = server_dh_params_ok.set_client_dh_params(&b, 0);
 
     let func = dbg!(set_client_dh_params.func());
 

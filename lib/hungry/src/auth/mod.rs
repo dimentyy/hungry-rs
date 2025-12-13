@@ -4,7 +4,7 @@
 mod req_dh_params;
 mod req_pq_multi;
 mod res_pq;
-mod server_dh_params;
+mod server_dh_params_ok;
 mod set_client_dh_params;
 
 pub mod error;
@@ -16,7 +16,7 @@ use tl::Int128;
 pub use req_dh_params::ReqDhParams;
 pub use req_pq_multi::ReqPqMulti;
 pub use res_pq::ResPq;
-pub use server_dh_params::ServerDhParams;
+pub use server_dh_params_ok::ServerDhParamsOk;
 pub use set_client_dh_params::SetClientDhParams;
 
 #[inline]

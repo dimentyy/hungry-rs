@@ -16,7 +16,7 @@ impl fmt::Display for ResPqError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ResPqError::*;
 
-        f.write_str("`ResPq` validation error")?;
+        f.write_str("`ResPq` validation error: ")?;
 
         match self {
             NonceMismatch(err) => err.fmt(f),
@@ -27,9 +27,11 @@ impl fmt::Display for ResPqError {
 
 impl std::error::Error for ResPqError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use ResPqError::*;
+
         Some(match self {
-            ResPqError::NonceMismatch(err) => err,
-            ResPqError::InvalidPqLen(err) => err,
+            NonceMismatch(err) => err,
+            InvalidPqLen(err) => err,
         })
     }
 }

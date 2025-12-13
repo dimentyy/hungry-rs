@@ -31,7 +31,7 @@ impl ResPq {
             .server_public_key_fingerprints
             .contains(&public_key_fingerprint)
         {
-            todo!()
+            panic!("invalid fingerprint of the provided `key`")
         }
 
         let pq_inner_data = tl::boxed(dbg!(types::PQInnerData {
