@@ -19,7 +19,6 @@ pub struct QuickAck {
 #[derive(Debug, Eq, PartialEq)]
 pub struct Packet {
     pub data: Range<usize>,
-    pub next: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]

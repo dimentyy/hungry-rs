@@ -23,14 +23,14 @@ struct Plain<'a> {
 }
 
 impl<'a> Plain<'a> {
-    fn send<F: tl::Function>(
+    async fn send<F: tl::Function>(
         &mut self,
         func: &F,
-    ) -> impl Future<Output = Result<F::Response, hungry::plain::Error>> {
+    ) -> Result<F::Response, hungry::plain::Error> {
         let transport_envelope = Envelope::split(&mut self.buffer);
         let mtp_envelope = Envelope::split(&mut self.buffer);
 
-        hungry::plain::send(
+        let (_message_id, response) = hungry::plain::send(
             self.reader,
             self.writer,
             func,
@@ -38,7 +38,9 @@ impl<'a> Plain<'a> {
             transport_envelope,
             mtp_envelope,
             0,
-        )
+        ).await?;
+
+        Ok(response)
     }
 }
 
@@ -180,8 +182,8 @@ async fn async_main() -> anyhow::Result<()> {
     loop {
         let (mut buffer, unpack) = (&mut reader).await?;
 
-        let (data, next) = match unpack {
-            Unpack::Packet(Packet { data, next }) => (data, next),
+        let data = match unpack {
+            Unpack::Packet(Packet { data }) => data,
             Unpack::QuickAck(_) => todo!(),
         };
 

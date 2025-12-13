@@ -10,7 +10,7 @@ impl<T: reader::Handle> reader::HandleOutput for Dump<T> {
 
     fn acquired(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
         let title = match &unpack {
-            Unpack::Packet(Packet { data, next: _ }) => {
+            Unpack::Packet(Packet { data }) => {
                 let message = mtproto::Message::unpack(&buffer[data.clone()]);
 
                 &format!("READER: acquired {message}")

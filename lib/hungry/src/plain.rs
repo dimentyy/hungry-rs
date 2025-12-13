@@ -5,7 +5,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{Envelope, mtproto, reader, tl, writer};
+use crate::{mtproto, reader, tl, writer, Envelope};
 
 #[derive(Debug)]
 pub enum Error {
@@ -53,7 +53,7 @@ pub async fn send<
     transport: Envelope<T>,
     mtp: mtproto::PlainEnvelope,
     message_id: i64,
-) -> Result<F::Response, Error> {
+) -> Result<(i64, F::Response), Error> {
     assert!(buffer.spare_capacity_len() >= func.serialized_len());
 
     tl::ser::into(buffer, func);
@@ -64,8 +64,8 @@ pub async fn send<
 
     let (buffer, unpack) = r.await?;
 
-    let (data, next) = match unpack {
-        Unpack::Packet(Packet { data, next }) => (data, next),
+    let data = match unpack {
+        Unpack::Packet(Packet { data }) => data,
         Unpack::QuickAck(quick_ack) => {
             return Err(Error::QuickAck(quick_ack));
         }
@@ -78,8 +78,12 @@ pub async fn send<
         }
     };
 
-    match tl::de::checked(&buffer[data.start + mtproto::PlainMessage::HEADER_LEN..data.end]) {
-        Ok(response) => Ok(response),
-        Err(source) => Err(Error::Deserialization { source, buffer }),
-    }
+    let buf = &buffer[data.start + mtproto::PlainMessage::HEADER_LEN..data.end];
+
+    let response = match tl::de::checked(buf) {
+        Ok(response) => response,
+        Err(source) => return Err(Error::Deserialization { source, buffer }),
+    };
+
+    Ok((message.message_id, response))
 }

@@ -70,10 +70,9 @@ impl TransportRead for FullRead {
 
         self.seq += 1;
 
-        ControlFlow::Break(Ok(Unpack::Packet(Packet {
-            data: 8..len - 4,
-            next: len,
-        })))
+        let data = 8..len - 4;
+
+        ControlFlow::Break(Ok(Unpack::Packet(Packet { data })))
     }
 }
 
