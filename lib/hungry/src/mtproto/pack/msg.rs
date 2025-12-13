@@ -1,8 +1,8 @@
 use crate::tl;
 
-use tl::ConstSerializedLen;
 use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
 use tl::ser::Serialize;
+use tl::ConstSerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {
@@ -40,6 +40,7 @@ impl DeserializeInfallible for Msg {
 /// messages at the same time, using HTTP or even TCP or UDP protocol.
 /// A container may only be accepted or rejected by the other party as a whole.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/service_messages#containers
 pub struct MsgContainer<'a> {
     buf: &'a mut Buf<'a>,

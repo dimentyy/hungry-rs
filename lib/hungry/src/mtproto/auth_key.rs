@@ -9,6 +9,7 @@ use crate::{crypto, mtproto};
 /// (including the internal header and the padding bytes for MTProto),
 /// prepended by a 32-byte fragment of the authorization key.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#message-key-msg-key
 pub type MsgKey = crate::tl::Int128;
 
@@ -16,6 +17,7 @@ pub type MsgKey = crate::tl::Int128;
 /// created upon user registration directly on the client device by
 /// exchanging Diffie-Hellman keys, and never transmitted over a network.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 #[must_use]
 #[derive(Clone)]
@@ -72,6 +74,7 @@ impl AuthKey {
     /// The 64 higher-order bits of the SHA1 hash of the authorization key.
     /// It must not be confused with auth_key_hash during the key exchange.
     ///
+    /// ---
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
     #[inline]
     #[must_use]
@@ -81,6 +84,7 @@ impl AuthKey {
 
     /// The 64 lower-order bits of the SHA1 hash of the authorization key.
     ///
+    /// ---
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
     #[inline]
     #[must_use]
@@ -90,6 +94,7 @@ impl AuthKey {
 
     /// Compute [`MsgKey`].
     ///
+    /// ---
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     #[must_use]
     pub fn compute_msg_key(
@@ -118,6 +123,7 @@ impl AuthKey {
 
     /// Compute [`AesIgeKey`] and [`AesIgeIv`].
     ///
+    /// ---
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     ///
     /// [`AesIgeKey`]: crypto::AesIgeKey

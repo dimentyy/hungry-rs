@@ -22,6 +22,7 @@ use std::{fmt, time};
 /// **msg_id** passed by the client must not be empty and must present
 /// a fractional part of the time point when the message was created.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#message-identifier-msg-id
 #[must_use]
 #[derive(Default)]

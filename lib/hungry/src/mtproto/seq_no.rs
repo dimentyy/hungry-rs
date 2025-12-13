@@ -21,6 +21,7 @@
 ///
 /// [content-related »]: https://core.telegram.org/mtproto/description#content-related-message
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
 #[must_use]
 #[derive(Debug, Default)]

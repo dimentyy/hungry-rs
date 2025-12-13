@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::mtproto;
+
 /// Represents either [`PlainMessage`] or [`EncryptedMessage`] deserialized via [`unpack`] method.
 ///
 /// [`unpack`]: Message::unpack
@@ -20,6 +22,7 @@ impl fmt::Display for Message {
 
 /// Represents an unencrypted message containing only its ID and length.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#unencrypted-message
 #[derive(Debug)]
 pub struct PlainMessage {
@@ -50,11 +53,12 @@ impl PlainMessage {
 
 /// Represents an encrypted message containing its `auth_key_id` and `msg_key`.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#encrypted-message
 #[derive(Debug)]
 pub struct EncryptedMessage {
     pub auth_key_id: std::num::NonZeroI64,
-    pub msg_key: crate::mtproto::MsgKey,
+    pub msg_key: mtproto::MsgKey,
 }
 
 impl fmt::Display for EncryptedMessage {
@@ -81,13 +85,14 @@ impl EncryptedMessage {
 
 /// Represent the data inside an [`EncryptedMessage`] after applying [`decrypt`] method.
 ///
+/// ---
 /// https://core.telegram.org/mtproto/description#encrypted-message-encrypted-data
 ///
 /// [`decrypt`]: EncryptedMessage::decrypt
 #[derive(Debug)]
 pub struct DecryptedMessage {
     pub salt: i64,
-    pub session_id: i64,
+    pub session_id: mtproto::Session,
 }
 
 impl fmt::Display for DecryptedMessage {
