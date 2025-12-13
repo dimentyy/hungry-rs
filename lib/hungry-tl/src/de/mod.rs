@@ -15,6 +15,10 @@ pub fn checked<T: Deserialize>(buf: &[u8]) -> Result<T, Error> {
     T::deserialize_checked(&mut Buf::new(buf))
 }
 
+pub fn infallible<T: DeserializeInfallible>(buf: &[u8]) -> T {
+    Buf::new(buf).infallible()
+}
+
 pub trait Deserialize: Sized {
     const MINIMUM_SERIALIZED_LEN: usize;
 

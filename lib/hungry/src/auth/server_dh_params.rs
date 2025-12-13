@@ -27,8 +27,6 @@ impl ServerDhParams {
     pub fn set_client_dh_params(mut self, b: &[u8; 256], retry_id: i64) -> auth::SetClientDhParams {
         let one = Integer::from(1);
 
-        crate::utils::dump(b, "b").unwrap();
-
         let b = Integer::from_digits(b, integer::Order::MsfBe);
 
         // * g_b := pow(g, b) mod dh_prime

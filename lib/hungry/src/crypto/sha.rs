@@ -1,3 +1,5 @@
+// STATUS: stable.
+
 macro_rules! sha1 (
     ( $( $x:expr ),* $(,)? ) => ({
         use sha1::digest::Digest;

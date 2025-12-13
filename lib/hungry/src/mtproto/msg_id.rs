@@ -23,6 +23,7 @@ use std::{fmt, time};
 /// a fractional part of the time point when the message was created.
 ///
 /// https://core.telegram.org/mtproto/description#message-identifier-msg-id
+#[must_use]
 #[derive(Default)]
 pub struct MsgIds {
     last: i64,
@@ -38,7 +39,6 @@ impl fmt::Debug for MsgIds {
 
 impl MsgIds {
     #[inline]
-    #[must_use]
     pub const fn new() -> Self {
         Self { last: 0 }
     }

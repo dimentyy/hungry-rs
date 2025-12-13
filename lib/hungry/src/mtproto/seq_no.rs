@@ -22,6 +22,7 @@
 /// [content-related »]: https://core.telegram.org/mtproto/description#content-related-message
 ///
 /// https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
+#[must_use]
 #[derive(Debug, Default)]
 pub struct SeqNos {
     current: i32,
@@ -29,7 +30,6 @@ pub struct SeqNos {
 
 impl SeqNos {
     #[inline]
-    #[must_use]
     pub const fn new() -> Self {
         Self { current: 0 }
     }

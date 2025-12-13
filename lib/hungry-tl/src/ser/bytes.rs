@@ -3,7 +3,8 @@ use std::ptr;
 use crate::ser::Serialize;
 
 #[inline(always)]
-pub fn bytes_len(len: usize) -> usize {
+#[must_use]
+pub const fn bytes_len(len: usize) -> usize {
     if len <= 253 {
         (len + 4) & !3
     } else {
@@ -11,7 +12,21 @@ pub fn bytes_len(len: usize) -> usize {
     }
 }
 
-pub unsafe fn prepare_bytes(mut buf: *mut u8, len: usize) -> usize {
+#[must_use]
+pub fn prepare_bytes(buf: &mut [u8], len: usize) -> (&mut [u8], &mut [u8]) {
+    let ser_len = bytes_len(len);
+
+    assert!(buf.len() >= ser_len);
+
+    let index = unsafe { prepare_bytes_unchecked(buf.as_mut_ptr(), len) };
+
+    let (bytes, extra) = buf.split_at_mut(ser_len);
+
+    (&mut bytes[index..index + len], extra)
+}
+
+#[must_use]
+pub unsafe fn prepare_bytes_unchecked(mut buf: *mut u8, len: usize) -> usize {
     unsafe {
         if len <= 253 {
             *buf = len as u8;
