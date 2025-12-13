@@ -1,17 +1,12 @@
-use crate::{BareVec, VECTOR, ser::Serialize};
+use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR, ser::Serialize};
 
-#[inline]
-fn bare_vec_serialized_len<T: Serialize>(vec: &[T]) -> usize {
-    vec.iter().map(|x| x.serialized_len()).sum::<usize>()
+fn bare_vec_serialized_len<T: SerializedLen>(vec: &[T]) -> usize {
+    u32::SERIALIZED_LEN + vec.iter().map(|x| x.serialized_len()).sum::<usize>()
 }
 
-#[inline]
-unsafe fn bare_vec_serialize_unchecked<T: Serialize>(
-    vec: &Vec<T>,
-    mut buf: *mut u8,
-) -> *mut u8 {
+unsafe fn bare_vec_serialize_unchecked<T: Serialize>(vec: &[T], mut buf: *mut u8) -> *mut u8 {
     unsafe {
-        buf = (vec.len() as i32).serialize_unchecked(buf);
+        buf = (vec.len() as u32).serialize_unchecked(buf);
         for x in vec {
             buf = x.serialize_unchecked(buf)
         }
@@ -19,25 +14,29 @@ unsafe fn bare_vec_serialize_unchecked<T: Serialize>(
     }
 }
 
-impl<T: Serialize> Serialize for BareVec<T> {
-    #[inline]
+impl<T: Serialize> SerializedLen for BareVec<T> {
+    #[inline(always)]
     fn serialized_len(&self) -> usize {
         bare_vec_serialized_len(&self.0)
     }
+}
 
-    #[inline]
+impl<T: Serialize> Serialize for BareVec<T> {
+    #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
         unsafe { bare_vec_serialize_unchecked(&self.0, buf) }
     }
 }
 
-impl<T: Serialize> Serialize for Vec<T> {
-    #[inline]
+impl<T: Serialize> SerializedLen for Vec<T> {
+    #[inline(always)]
     fn serialized_len(&self) -> usize {
-        4 + bare_vec_serialized_len(self)
+        u32::SERIALIZED_LEN + bare_vec_serialized_len(self)
     }
+}
 
-    #[inline]
+impl<T: Serialize> Serialize for Vec<T> {
+    #[inline(always)]
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             buf = VECTOR.serialize_unchecked(buf);

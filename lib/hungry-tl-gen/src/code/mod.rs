@@ -1,3 +1,4 @@
+mod const_serialized_len;
 mod de;
 mod debug;
 mod enum_body;
@@ -8,7 +9,6 @@ mod into_enum;
 mod name;
 mod name_for_id;
 mod ser;
-mod serialized_len;
 mod struct_body;
 mod typ;
 mod x;
@@ -20,6 +20,7 @@ use indexmap::IndexMap;
 use crate::meta::{Data, Enum, Func, Name, Temp, Type};
 use crate::{Cfg, F};
 
+use const_serialized_len::write_const_serialized_len;
 use de::write_deserializable;
 use debug::write_debug;
 use enum_body::{write_enum_body, write_enum_variant};
@@ -29,8 +30,7 @@ use identifiable::write_identifiable;
 use into_enum::write_into_enum;
 use name::write_name;
 use name_for_id::write_name_for_id;
-use ser::write_serialize;
-use serialized_len::write_serialized_len;
+use ser::{write_serialize, write_serialized_len};
 use struct_body::write_struct_body;
 use typ::write_typ;
 use x::X;
@@ -183,10 +183,12 @@ fn write_type(cfg: &Cfg, data: &Data, temp: &Temp, x: &Type) -> Result<()> {
         write_into_enum(f, cfg, data, x);
     }
     write_identifiable(f, cfg, &x.combinator)?;
-    write_serialize(f, cfg, data, X::Type(x))?;
     if x.combinator.args.is_empty() {
-        write_serialized_len(f, &x.combinator.name.actual, 0)?;
+        write_const_serialized_len(f, &x.combinator.name.actual, 0)?;
+    } else {
+        write_serialized_len(f, cfg, data, X::Type(x))?;
     }
+    write_serialize(f, cfg, data, X::Type(x))?;
     write_deserializable(f, cfg, data, X::Type(x))?;
 
     f.flush()
@@ -203,6 +205,11 @@ fn write_func(cfg: &Cfg, data: &Data, temp: &Temp, x: &Func) -> Result<()> {
     }
     write_identifiable(f, cfg, &x.combinator)?;
     write_function(f, cfg, data, x)?;
+    if x.combinator.args.is_empty() {
+        write_const_serialized_len(f, &x.combinator.name.actual, 4)?;
+    } else {
+        write_serialized_len(f, cfg, data, X::Func(x))?;
+    }
     write_serialize(f, cfg, data, X::Func(x))?;
 
     f.flush()
@@ -217,6 +224,7 @@ fn write_enum(cfg: &Cfg, data: &Data, temp: &Temp, x: &Enum) -> Result<()> {
     if cfg.impl_debug {
         write_debug(f, cfg, data, X::Enum(x))?;
     }
+    write_serialized_len(f, cfg, data, X::Enum(x))?;
     write_serialize(f, cfg, data, X::Enum(x))?;
     write_deserializable(f, cfg, data, X::Enum(x))?;
 

@@ -1,13 +1,13 @@
-use std::io::{Write, Result};
-use crate::config::Cfg;
-use crate::F;
+use std::io::{Result, Write};
+
 use crate::meta::{Data, GenericArg};
+use crate::{Cfg, F};
 
 pub(super) fn write_generics(
     f: &mut F,
     _cfg: &Cfg,
     generic_args: &[GenericArg],
-    min: bool
+    min: bool,
 ) -> Result<()> {
     let mut iter = generic_args.iter();
 

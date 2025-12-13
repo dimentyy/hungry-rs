@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::io::{Result, Write};
 
+use crate::code::generic::write_generics;
 use crate::code::{X, write_enum_variant, write_escaped, write_name};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
 use crate::{Cfg, F};
-use crate::code::generic::write_generics;
 
 fn write_after_f(f: &mut F) -> Result<()> {
     f.write_all(b"f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        ")

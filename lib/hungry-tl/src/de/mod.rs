@@ -5,7 +5,7 @@ mod error;
 mod primitives;
 mod vec;
 
-use crate::SerializedLen;
+use crate::ConstSerializedLen;
 
 pub use buf::Buf;
 pub use error::Error;
@@ -31,11 +31,11 @@ pub trait Deserialize: Sized {
     unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
 }
 
-pub trait DeserializeUnchecked: SerializedLen + Sized {
+pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
     unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error>;
 }
 
-pub trait DeserializeInfallible: SerializedLen + Sized {
+pub trait DeserializeInfallible: ConstSerializedLen + Sized {
     unsafe fn deserialize_infallible(buf: *const u8) -> Self;
 }
 

@@ -1,8 +1,8 @@
 use crate::tl;
 
+use tl::ConstSerializedLen;
 use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
 use tl::ser::Serialize;
-use tl::SerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {
@@ -10,12 +10,11 @@ pub struct Msg {
     pub seq_no: i32,
 }
 
-impl Serialize for Msg {
-    #[inline]
-    fn serialized_len(&self) -> usize {
-        12
-    }
+impl ConstSerializedLen for Msg {
+    const SERIALIZED_LEN: usize = i64::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+}
 
+impl Serialize for Msg {
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             buf = self.msg_id.serialize_unchecked(buf);
@@ -23,10 +22,6 @@ impl Serialize for Msg {
             buf
         }
     }
-}
-
-impl SerializedLen for Msg {
-    const SERIALIZED_LEN: usize = 12;
 }
 
 impl DeserializeInfallible for Msg {

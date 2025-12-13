@@ -24,7 +24,7 @@ impl<'a> Buf<'a> {
     pub fn len(&self) -> usize {
         self.len
     }
-    
+
     #[inline]
     pub fn truncate(&mut self, len: usize) {
         if self.len > len {
@@ -73,7 +73,7 @@ impl<'a> Buf<'a> {
 
         Ok(ptr)
     }
-    
+
     pub fn infallible<T: DeserializeInfallible>(&mut self) -> T {
         let ptr = self
             .advance(T::SERIALIZED_LEN)

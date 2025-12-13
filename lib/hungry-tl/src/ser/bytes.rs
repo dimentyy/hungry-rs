@@ -1,5 +1,6 @@
 use std::ptr;
 
+use crate::SerializedLen;
 use crate::ser::Serialize;
 
 #[inline(always)]
@@ -57,12 +58,14 @@ pub unsafe fn prepare_bytes_unchecked(mut buf: *mut u8, len: usize) -> usize {
     }
 }
 
-impl Serialize for [u8] {
-    #[inline]
+impl SerializedLen for [u8] {
+    #[inline(always)]
     fn serialized_len(&self) -> usize {
         bytes_len(self.len())
     }
+}
 
+impl Serialize for [u8] {
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             if self.len() <= 253 {
@@ -99,25 +102,29 @@ impl Serialize for [u8] {
     }
 }
 
-impl Serialize for Vec<u8> {
-    #[inline]
+impl SerializedLen for Vec<u8> {
+    #[inline(always)]
     fn serialized_len(&self) -> usize {
         self.as_slice().serialized_len()
     }
+}
 
-    #[inline]
+impl Serialize for Vec<u8> {
+    #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
         unsafe { self.as_slice().serialize_unchecked(buf) }
     }
 }
 
-impl Serialize for String {
-    #[inline]
+impl SerializedLen for String {
+    #[inline(always)]
     fn serialized_len(&self) -> usize {
         self.as_bytes().serialized_len()
     }
+}
 
-    #[inline]
+impl Serialize for String {
+    #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
         unsafe { self.as_bytes().serialize_unchecked(buf) }
     }

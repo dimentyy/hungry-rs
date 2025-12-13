@@ -5,12 +5,7 @@ use crate::{Int128, Int256, ser::Serialize};
 macro_rules! big_int {
     ( $( $typ:ty => $len:expr ),+ $(,)? ) => { $(
         impl Serialize for $typ {
-            #[inline]
-            fn serialized_len(&self) -> usize {
-                $len
-            }
-
-            #[inline]
+            #[inline(always)]
             unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
                 unsafe {
                     ptr::copy_nonoverlapping(

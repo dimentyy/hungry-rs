@@ -1,6 +1,6 @@
 use std::io::{Result, Write};
 
-use crate::code::{write_escaped, write_typ, write_generics};
+use crate::code::{write_escaped, write_generics, write_typ};
 use crate::meta::{Data, Func, Typ};
 use crate::{Cfg, F};
 
@@ -13,7 +13,7 @@ pub(super) fn write_function(f: &mut F, cfg: &Cfg, data: &Data, x: &Func) -> Res
     f.write_all(b" {\n    type Response = ")?;
 
     write_typ(f, cfg, data, &x.combinator.generic_args, &x.response, false)?;
-    
+
     if matches!(x.response, Typ::Generic { .. }) {
         f.write_all(b"::Response")?;
     }

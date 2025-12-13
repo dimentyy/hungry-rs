@@ -44,19 +44,32 @@ pub trait Function: Identifiable + ser::Serialize + fmt::Debug {
     type Response: de::Deserialize;
 }
 
-pub trait SerializedLen {
+pub trait ConstSerializedLen {
+    /// The constant number of bytes required to serialize any instance.
     const SERIALIZED_LEN: usize;
 }
 
-macro_rules! impl_serialized_len {
+pub trait SerializedLen {
+    /// Returns the exact number of bytes required to serialize the instance.
+    fn serialized_len(&self) -> usize;
+}
+
+impl<T: ConstSerializedLen> SerializedLen for T {
+    #[inline(always)]
+    fn serialized_len(&self) -> usize {
+        Self::SERIALIZED_LEN
+    }
+}
+
+macro_rules! impl_const_serialized_len {
     ( $( $typ:ty => $len:expr ),+ $(,)? ) => { $(
-        impl SerializedLen for $typ {
+        impl ConstSerializedLen for $typ {
             const SERIALIZED_LEN: usize = $len;
         }
     )+ };
 }
 
-impl_serialized_len!(
+impl_const_serialized_len!(
     u32 => 4,
     i32 => 4,
     i64 => 8,

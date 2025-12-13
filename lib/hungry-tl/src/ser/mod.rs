@@ -5,12 +5,11 @@ mod vec;
 
 use ::bytes::BytesMut;
 
+use crate::SerializedLen;
+
 pub use bytes::{bytes_len, prepare_bytes};
 
-pub trait Serialize {
-    /// Returns the exact number of bytes required to serialize the instance.
-    fn serialized_len(&self) -> usize;
-
+pub trait Serialize: SerializedLen {
     /// Serializes the instance into `buf` without checking its capacity.
     ///
     /// # Safety

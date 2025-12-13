@@ -1,8 +1,8 @@
 use std::io::{Result, Write};
 
+use crate::code::{X, write_escaped, write_generics};
 use crate::meta::Combinator;
 use crate::{Cfg, F};
-use crate::code::{write_generics, write_escaped, X};
 
 pub(super) fn write_identifiable(f: &mut F, cfg: &Cfg, x: &Combinator) -> Result<()> {
     f.write_all(b"\nimpl")?;

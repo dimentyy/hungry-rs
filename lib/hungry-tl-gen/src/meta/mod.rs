@@ -7,7 +7,6 @@ mod typ;
 
 use crate::read;
 
-
 pub(crate) use data::{Data, Enum, Func, Type};
 pub(crate) use temp::Temp;
 
