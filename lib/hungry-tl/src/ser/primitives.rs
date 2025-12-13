@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::{BOOL_FALSE, BOOL_TRUE, ser::Serialize};
+use crate::{FALSE, TRUE, ser::Serialize};
 
 impl Serialize for u32 {
     #[inline(always)]
@@ -45,6 +45,6 @@ impl Serialize for f64 {
 impl Serialize for bool {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { if *self { BOOL_TRUE } else { BOOL_FALSE }.serialize_unchecked(buf) }
+        unsafe { if *self { TRUE } else { FALSE }.serialize_unchecked(buf) }
     }
 }

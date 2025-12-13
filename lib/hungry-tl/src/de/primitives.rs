@@ -1,5 +1,5 @@
 use crate::de::{DeserializeInfallible, DeserializeUnchecked, Error};
-use crate::{BOOL_FALSE, BOOL_TRUE};
+use crate::{FALSE, TRUE};
 
 impl DeserializeInfallible for u32 {
     #[inline]
@@ -33,8 +33,8 @@ impl DeserializeUnchecked for bool {
     #[inline]
     unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error> {
         match unsafe { u32::deserialize_infallible(buf) } {
-            BOOL_TRUE => Ok(true),
-            BOOL_FALSE => Ok(false),
+            TRUE => Ok(true),
+            FALSE => Ok(false),
             id => Err(Error::UnexpectedConstructor { id }),
         }
     }

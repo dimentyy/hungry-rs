@@ -16,8 +16,25 @@ pub mod mtproto {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/mtproto/mod.rs"));
 }
 
-pub const BOOL_TRUE: u32 = 0x997275b5;
-pub const BOOL_FALSE: u32 = 0xbc799737;
+/// Identifier of the boolean type constructor `true`:
+///
+/// ```tl
+/// boolTrue#997275b5 = Bool;
+/// ```
+pub const TRUE: u32 = 0x997275b5;
+
+/// Identifier of the boolean type constructor `false`:
+///
+/// ```tl
+/// boolFalse#bc799737 = Bool;
+/// ```
+pub const FALSE: u32 = 0xbc799737;
+
+/// Identifier of the `vector` constructor:
+/// 
+/// ```tl
+/// vector#1cb5c415 {t:Type} # [ t ] = Vector t;
+/// ```
 pub const VECTOR: u32 = 0x1cb5c415;
 
 /// Equivalent to the following TL constructor:
@@ -34,7 +51,7 @@ pub type Int128 = [u8; 16];
 /// ```
 pub type Int256 = [u8; 32];
 
-/// The bare constructor of the `Vector`:
+/// Equivalent to the bare constructor `vector`:
 ///
 /// ``` tl
 /// vector {t:Type} # [ t ] = Vector t;
