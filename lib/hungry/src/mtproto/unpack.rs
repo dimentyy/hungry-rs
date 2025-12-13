@@ -33,9 +33,9 @@ impl EncryptedMessage {
     pub fn decrypt(self, auth_key: &AuthKey, buffer: &mut [u8]) -> DecryptedMessage {
         assert!(buffer.len() >= 40);
 
-        let (aes_key, aes_iv) = auth_key.compute_aes_params(&self.msg_key, Side::Server);
+        let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&self.msg_key, Side::Server);
 
-        crypto::aes_ige_decrypt(buffer, &aes_key, &aes_iv);
+        crypto::aes_ige_decrypt(buffer, &aes_key, &mut aes_iv);
 
         let salt = i64::from_le_bytes(*buffer[0..8].arr());
         let session_id = i64::from_le_bytes(*buffer[8..16].arr());

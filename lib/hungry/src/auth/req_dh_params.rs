@@ -93,7 +93,7 @@ impl ReqDhParams<'_> {
         // here, tmp_aes_key is a 256-bit key, and tmp_aes_iv is a 256-bit initialization vector.
         // The same as in all the other instances that use AES encryption, the encrypted data is
         // padded with random bytes to a length divisible by 16 immediately prior to encryption.
-        crypto::aes_ige_decrypt(encrypted_answer, &tmp_aes_key, &tmp_aes_iv);
+        crypto::aes_ige_decrypt(encrypted_answer, &tmp_aes_key, &mut tmp_aes_iv.clone());
         let answer_with_hash = server_dh_params.encrypted_answer;
 
         // * new_nonce_hash := 128 lower-order bits of SHA1 (new_nonce);

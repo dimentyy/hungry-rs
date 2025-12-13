@@ -79,7 +79,7 @@ impl RsaKey {
 
         // aes_encrypted := AES256_IGE(data_with_hash, temp_key, 0);
         // -- AES256-IGE encryption with zero IV.
-        crypto::aes_ige_encrypt(&mut data_with_hash, temp_key, &[0u8; 32]);
+        crypto::aes_ige_encrypt(&mut data_with_hash, temp_key, &mut [0u8; 32]);
         let aes_encrypted = data_with_hash;
 
         // temp_key_xor := temp_key XOR SHA256(aes_encrypted);

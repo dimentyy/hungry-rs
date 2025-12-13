@@ -62,11 +62,11 @@ pub fn pack_encrypted(
             + random_padding_len,
     );
 
-    let (aes_key, aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
+    let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
 
     crypto::aes_ige_encrypt(
         &mut buffer[EncryptedMessage::HEADER_LEN..],
         &aes_key,
-        &aes_iv,
+        &mut aes_iv,
     );
 }

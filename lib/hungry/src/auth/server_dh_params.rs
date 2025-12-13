@@ -24,7 +24,7 @@ impl ServerDhParams {
         self.server_time
     }
 
-    pub fn set_client_dh_params(self, b: &[u8; 256], retry_id: i64) -> auth::SetClientDhParams {
+    pub fn set_client_dh_params(mut self, b: &[u8; 256], retry_id: i64) -> auth::SetClientDhParams {
         let one = Integer::from(1);
 
         crate::utils::dump(b, "b").unwrap();
@@ -60,7 +60,7 @@ impl ServerDhParams {
         unsafe { data_with_hash.set_len((data_with_hash.len() + 15) & !15) };
 
         // * encrypted_data := AES256_ige_encrypt(data_with_hash, tmp_aes_key, tmp_aes_iv);
-        crypto::aes_ige_encrypt(&mut data_with_hash, &self.tmp_aes_key, &self.tmp_aes_iv);
+        crypto::aes_ige_encrypt(&mut data_with_hash, &self.tmp_aes_key, &mut self.tmp_aes_iv);
         let encrypted_data = data_with_hash;
 
         let func = funcs::SetClientDhParams {

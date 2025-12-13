@@ -1,21 +1,18 @@
-use std::mem;
+// STATUS: stable.
 
 use aes::cipher::generic_array::GenericArray;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit};
 use aes::Aes256;
 
-use crate::utils::SliceExt;
-
 pub type AesIgeKey = [u8; 32];
 pub type AesIgeIv = [u8; 32];
 
-pub fn aes_ige_decrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &AesIgeIv) {
+pub fn aes_ige_decrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
     assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(GenericArray::from_slice(key));
 
-    let mut iv1: [u8; 16] = *iv[0..16].arr();
-    let mut iv2: [u8; 16] = *iv[16..32].arr();
+    let (iv1, iv2) = iv.split_at_mut(16);
 
     let mut next_iv1 = [0u8; 16];
 
@@ -36,20 +33,19 @@ pub fn aes_ige_decrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &AesIgeIv) {
         }
 
         // iv1 = next iv1 (ciphertext)
-        mem::swap(&mut iv1, &mut next_iv1);
+        iv1.copy_from_slice(&next_iv1);
 
         // iv2 = block (plaintext)
         iv2.copy_from_slice(block);
     }
 }
 
-pub fn aes_ige_encrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &AesIgeIv) {
+pub fn aes_ige_encrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
     assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(GenericArray::from_slice(key));
 
-    let mut iv1: [u8; 16] = *iv[0..16].arr();
-    let mut iv2: [u8; 16] = *iv[16..32].arr();
+    let (iv1, iv2) = iv.split_at_mut(16);
 
     let mut next_iv2 = [0u8; 16];
 
@@ -73,6 +69,6 @@ pub fn aes_ige_encrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &AesIgeIv) {
         iv1.copy_from_slice(block);
 
         // iv2 = next iv2 (plaintext)
-        mem::swap(&mut iv2, &mut next_iv2);
+        iv2.copy_from_slice(&next_iv2);
     }
 }

@@ -6,7 +6,6 @@ use hungry::{Envelope, mtproto, tl};
 
 use tl::de::Deserialize;
 use tl::mtproto::enums::SetClientDhParamsAnswer;
-use tl::ser::Serialize;
 
 const ADDR: &str = "149.154.167.40:443";
 
