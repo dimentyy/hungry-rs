@@ -11,15 +11,15 @@ fn hex_byte(x: u8) -> [u8; 2] {
 }
 
 /// Buffered `bytes` hex formatter.
-pub(crate) struct HexBytesFmt<'a>(pub(crate) &'a [u8]);
+pub(crate) struct HexBytesFmt<T: AsRef<[u8]>>(pub(crate) T);
 
-impl fmt::Debug for HexBytesFmt<'_> {
+impl<T: AsRef<[u8]>> fmt::Debug for HexBytesFmt<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("x\"")?;
 
         let mut buf = [0; 128];
 
-        for chunk in self.0.chunks(64) {
+        for chunk in self.0.as_ref().chunks(64) {
             let mut i = 0;
 
             for &x in chunk.iter() {

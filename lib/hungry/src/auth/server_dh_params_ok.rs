@@ -1,8 +1,9 @@
+use rug::{Integer, integer::Order::MsfBe};
+
 use crate::{auth, crypto, tl};
-use hungry_tl::ser::SerializeInto;
-use rug::{integer, Integer};
 
 use tl::mtproto::{funcs, types};
+use tl::ser::SerializeInto;
 use tl::{Int128, Int256};
 
 #[must_use]
@@ -27,7 +28,7 @@ impl ServerDhParamsOk {
     pub fn set_client_dh_params(mut self, b: &[u8; 256], retry_id: i64) -> auth::SetClientDhParams {
         let one = Integer::from(1);
 
-        let b = Integer::from_digits(b, integer::Order::MsfBe);
+        let b = Integer::from_digits(b, MsfBe);
 
         // * g_b := pow(g, b) mod dh_prime
         let g_b = Integer::from(self.g).pow_mod(&b, &self.dh_prime).unwrap();
@@ -40,7 +41,7 @@ impl ServerDhParamsOk {
             nonce: self.nonce,
             server_nonce: self.server_nonce,
             retry_id,
-            g_b: g_b.to_digits(integer::Order::MsfBe),
+            g_b: g_b.to_digits(MsfBe),
         });
 
         // TODO: random padding

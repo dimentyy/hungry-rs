@@ -5,9 +5,8 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{mtproto, reader, tl, writer, Envelope};
+use crate::{Envelope, mtproto, reader, tl, writer};
 
-use tl::de::{Buf, Deserialize};
 use tl::ser::SerializeInto;
 
 #[derive(Debug)]
@@ -83,7 +82,7 @@ pub async fn send<
 
     let buf = &buffer[data.start + mtproto::PlainMessage::HEADER_LEN..data.end];
 
-    let response = match F::Response::deserialize(&mut Buf::new(buf)) {
+    let response = match tl::de(buf) {
         Ok(response) => response,
         Err(source) => return Err(Error::Deserialization { source, buffer }),
     };

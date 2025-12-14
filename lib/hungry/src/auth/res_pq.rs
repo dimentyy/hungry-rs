@@ -35,14 +35,14 @@ impl ResPq {
             panic!("invalid fingerprint of the provided `key`")
         }
 
-        let pq_inner_data = tl::boxed(dbg!(types::PQInnerData {
+        let pq_inner_data = tl::boxed(types::PQInnerData {
             pq: self.pq.clone(),
             p: self.p.clone(),
             q: self.q.clone(),
             nonce: self.nonce,
             server_nonce: self.server_nonce,
             new_nonce,
-        }));
+        });
 
         random_padding_bytes.ser(&pq_inner_data);
 

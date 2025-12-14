@@ -23,6 +23,8 @@
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
+pub type SeqNo = i32;
+
 #[must_use]
 #[derive(Debug, Default)]
 pub struct SeqNos {
@@ -37,13 +39,13 @@ impl SeqNos {
 
     #[inline]
     #[must_use]
-    pub const fn non_content_related(&self) -> i32 {
+    pub const fn non_content_related(&self) -> SeqNo {
         self.current * 2
     }
 
     #[inline]
     #[must_use]
-    pub const fn get_content_related(&mut self) -> i32 {
+    pub const fn get_content_related(&mut self) -> SeqNo {
         self.current += 1;
         (self.current * 2) - 1
     }

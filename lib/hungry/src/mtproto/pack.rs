@@ -1,13 +1,11 @@
 use bytes::BytesMut;
 
+use crate::crypto;
 use crate::mtproto::{
-    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedMessage, Envelope,
+    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedMessage, Envelope, Msg,
     PlainEnvelope, Side,
 };
 use crate::utils::SliceExt;
-use crate::{crypto, mtproto};
-
-pub mod msg;
 
 pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, msg_id: i64) {
     let excess = envelope.adapt(buffer);
@@ -27,7 +25,7 @@ pub fn pack_encrypted(
     mut envelope: Envelope,
     auth_key: &AuthKey,
     message: DecryptedMessage,
-    msg: mtproto::Msg,
+    msg: Msg,
 ) {
     let excess = envelope.adapt(buffer);
     let (h, f) = envelope.buffers();

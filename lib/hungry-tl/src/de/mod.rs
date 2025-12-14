@@ -5,17 +5,21 @@ mod error;
 mod primitives;
 mod vec;
 
-use crate::ConstSerializedLen;
+use crate::{ConstSerializedLen, SerializedLen};
 
 pub use buf::Buf;
 pub use error::Error;
-pub use vec::{deserialize_vec_infallible, deserialize_vec_unchecked};
 
-pub trait Deserialize: Sized {
+pub trait Deserialize: SerializedLen + Sized {
+    /// # Safety
+    ///
+    /// * The [`serialized_len`] of the instance _should_ be checked afterward.
+    ///
+    /// [`serialized_len`]: SerializedLen::serialized_len
     fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
 }
 
-pub trait DeserializeHybrid: Sized {
+pub trait DeserializeHybrid: SerializedLen + Sized {
     const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize;
 
     unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error>;

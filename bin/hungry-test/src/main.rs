@@ -4,8 +4,6 @@ use hungry::reader::{Dump, Parted, Reserve, Split};
 use hungry::tl::mtproto::enums::ServerDhParams;
 use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
-use tl::de::Deserialize;
-use tl::mtproto::enums::SetClientDhParamsAnswer;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -27,8 +25,8 @@ impl<'a> Plain<'a> {
         &mut self,
         func: &F,
     ) -> Result<F::Response, hungry::plain::Error> {
-        let transport_envelope = Envelope::split(&mut self.buffer);
-        let mtp_envelope = Envelope::split(&mut self.buffer);
+        let transport_envelope = Envelope::split(self.buffer);
+        let mtp_envelope = Envelope::split(self.buffer);
 
         let (_message_id, response) = hungry::plain::send(
             self.reader,
@@ -141,10 +139,14 @@ async fn async_main() -> anyhow::Result<()> {
 
     let response = dbg!(plain.send(func).await?);
 
-    let dh_gen_ok = match response {
-        SetClientDhParamsAnswer::DhGenOk(x) => x,
-        SetClientDhParamsAnswer::DhGenRetry(_) => todo!(),
-        SetClientDhParamsAnswer::DhGenFail(_) => todo!(),
+    let dh_gen_ok = {
+        use tl::mtproto::enums::SetClientDhParamsAnswer::*;
+
+        match response {
+            DhGenOk(x) => x,
+            DhGenRetry(_) => todo!(),
+            DhGenFail(_) => todo!(),
+        }
     };
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
@@ -209,12 +211,12 @@ async fn async_main() -> anyhow::Result<()> {
 
         let mut buf = tl::de::Buf::new(buffer);
 
-        let _message = mtproto::Msg::deserialize(&mut buf)?;
-        let bytes = i32::deserialize(&mut buf)? as usize;
+        let _message = buf.de::<mtproto::Msg>()?;
+        let bytes = buf.de::<i32>()? as usize;
 
         assert!(buffer.len() - 20 >= bytes);
 
-        let id = u32::deserialize(&mut buf)?;
+        let id = buf.de::<u32>()?;
 
         match id {
             0x73f1f8dc => {}
@@ -228,24 +230,23 @@ async fn async_main() -> anyhow::Result<()> {
         let container = mtproto::MsgContainer::new(&mut buf)?;
 
         for message in container {
-            let (message, mut buf) = message?;
+            let (_message, mut buf) = message?;
 
-            let id = u32::deserialize(&mut buf)?;
+            let id = buf.de::<u32>()?;
 
             match id {
                 0x9ec20908 => {
-                    let session =
-                        tl::mtproto::types::NewSessionCreated::deserialize(&mut buf)?;
+                    let session = buf.de::<tl::mtproto::types::NewSessionCreated>()?;
 
                     dbg!(session);
                 }
                 0xae500895 => {
-                    let salts = tl::mtproto::types::FutureSalts::deserialize(&mut buf)?;
+                    let salts = buf.de::<tl::mtproto::types::FutureSalts>()?;
 
                     dbg!(salts);
                 }
                 0x62d6b459 => {
-                    let ack = tl::mtproto::types::MsgsAck::deserialize(&mut buf)?;
+                    let ack = buf.de::<tl::mtproto::types::MsgsAck>()?;
 
                     dbg!(ack);
                 }

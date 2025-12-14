@@ -1,10 +1,15 @@
+use std::ptr;
+
+use crate::ser::SerializeUnchecked;
+use crate::{Int128, Int256};
+
 macro_rules! big_int {
     ( $( $typ:ty => $len:expr ),+ $(,)? ) => { $(
-        impl crate::ser::SerializeUnchecked for $typ {
+        impl SerializeUnchecked for $typ {
             #[inline(always)]
             unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
                 unsafe {
-                    std::ptr::copy_nonoverlapping(self.as_ptr(), buf, $len);
+                    ptr::copy_nonoverlapping(self.as_ptr(), buf, $len);
 
                     buf.add($len)
                 }
@@ -14,6 +19,6 @@ macro_rules! big_int {
 }
 
 big_int!(
-    crate::Int128 => 16,
-    crate::Int256 => 32,
+    Int128 => 16,
+    Int256 => 32,
 );

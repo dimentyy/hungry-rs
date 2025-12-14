@@ -51,14 +51,6 @@ pub type Int128 = [u8; 16];
 /// ```
 pub type Int256 = [u8; 32];
 
-/// Equivalent to the bare constructor `vector`:
-///
-/// ``` tl
-/// vector {t:Type} # [ t ] = Vector t;
-/// ```
-#[derive(Clone, Eq, PartialEq)]
-pub struct BareVec<T>(pub Vec<T>);
-
 /// # bytes
 ///
 /// Basic bare type. It is an alias of the string type,
@@ -77,6 +69,14 @@ pub struct BareVec<T>(pub Vec<T>);
 /// ---
 /// https://core.telegram.org/type/bytes
 pub type Bytes = Vec<u8>;
+
+/// Equivalent to the bare constructor `vector`:
+///
+/// ``` tl
+/// vector {t:Type} # [ t ] = Vector t;
+/// ```
+#[derive(Clone, Default, Eq, PartialEq)]
+pub struct BareVec<T>(pub Vec<T>);
 
 impl<T: fmt::Debug> fmt::Debug for BareVec<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -151,3 +151,7 @@ impl_const_serialized_len!(
     Int128 => 16,
     Int256 => 32,
 );
+
+pub fn de<X: de::Deserialize>(buf: &[u8]) -> Result<X, de::Error> {
+    de::Buf::new(buf).de()
+}

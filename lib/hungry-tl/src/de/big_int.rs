@@ -1,6 +1,9 @@
+use crate::de::DeserializeInfallible;
+use crate::{Int128, Int256};
+
 macro_rules! big_int {
     ( $( $typ:ty => $len:expr ),+ $(,)? ) => { $(
-        impl crate::de::DeserializeInfallible for $typ {
+        impl DeserializeInfallible for $typ {
             #[inline(always)]
             unsafe fn deserialize_infallible(buf: *const u8) -> Self {
                 unsafe { (buf as *const [u8; $len]).read_unaligned() }
@@ -10,6 +13,6 @@ macro_rules! big_int {
 }
 
 big_int!(
-    crate::Int128 => 16,
-    crate::Int256 => 32,
+    Int128 => 16,
+    Int256 => 32,
 );

@@ -1,12 +1,12 @@
 use std::marker::PhantomData;
 use std::slice;
 
-use crate::de::Error;
+use crate::de::{Deserialize, Error};
 
 #[derive(Clone)]
 pub struct Buf<'a> {
-    pub(super) ptr: *const u8,
-    pub(super) len: usize,
+    pub(crate) ptr: *const u8,
+    pub(crate) len: usize,
     _marker: PhantomData<&'a ()>,
 }
 
@@ -72,5 +72,16 @@ impl<'a> Buf<'a> {
         unsafe { self.advance_unchecked(n) };
 
         Ok(ptr)
+    }
+
+    pub fn de<X: Deserialize>(&mut self) -> Result<X, Error> {
+        let len = self.len;
+
+        let x = X::deserialize(self)?;
+
+        // TODO: proper checks
+        assert_eq!(x.serialized_len(), len - self.len);
+
+        Ok(x)
     }
 }

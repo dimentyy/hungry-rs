@@ -1,13 +1,13 @@
-use crate::tl;
+use crate::{mtproto, tl};
 
-use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
-use tl::ser::SerializeUnchecked;
 use tl::ConstSerializedLen;
+use tl::de::{Buf, DeserializeInfallible, Error};
+use tl::ser::SerializeUnchecked;
 
 #[derive(Debug)]
 pub struct Msg {
-    pub msg_id: i64,
-    pub seq_no: i32,
+    pub msg_id: mtproto::MsgId,
+    pub seq_no: mtproto::SeqNo,
 }
 
 impl ConstSerializedLen for Msg {
@@ -49,7 +49,7 @@ pub struct MsgContainer<'a> {
 
 impl<'a> MsgContainer<'a> {
     pub fn new(buf: &'a mut Buf<'a>) -> Result<Self, Error> {
-        let len = u32::deserialize(buf)? as usize;
+        let len = buf.de::<u32>()? as usize;
 
         Ok(Self { buf, len })
     }

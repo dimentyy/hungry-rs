@@ -1,6 +1,9 @@
+use std::ptr;
+
+use crate::Bytes;
 use crate::de::{Buf, DeserializeHybrid, DeserializeInfallible, Error};
 
-impl DeserializeHybrid for crate::Bytes {
+impl DeserializeHybrid for Bytes {
     const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
 
     unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
@@ -18,8 +21,10 @@ impl DeserializeHybrid for crate::Bytes {
             };
 
             let mut vec = Vec::with_capacity(len);
-            std::ptr::copy_nonoverlapping(src, vec.as_mut_ptr(), len);
+
+            ptr::copy_nonoverlapping(src, vec.as_mut_ptr(), len);
             vec.set_len(len);
+
             Ok(vec)
         }
     }
@@ -29,7 +34,7 @@ impl DeserializeHybrid for String {
     const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
 
     unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
-        match String::from_utf8(unsafe { crate::Bytes::deserialize_hybrid(buf)? }) {
+        match String::from_utf8(unsafe { Bytes::deserialize_hybrid(buf)? }) {
             Ok(s) => Ok(s),
             Err(_) => Err(Error::InvalidUtf8String),
         }

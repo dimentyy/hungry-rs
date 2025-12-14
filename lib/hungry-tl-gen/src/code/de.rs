@@ -15,7 +15,9 @@ fn write_empty(f: &mut F, name: &str) -> Result<()> {
 fn write_pre_de(f: &mut F, name: &str) -> Result<()> {
     f.write_all(b"\nimpl crate::de::Deserialize for ")?;
     f.write_all(name.as_bytes())?;
-    f.write_all(b" {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n")
+    f.write_all(
+        b" {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n",
+    )
 }
 
 fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
@@ -49,9 +51,7 @@ fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
         })?;
     }
 
-    f.write_all(
-        b"            _ => Err(crate::de::Error::UnexpectedConstructor),\n        }",
-    )
+    f.write_all(b"            _ => Err(crate::de::Error::UnexpectedConstructor),\n        }")
 }
 
 fn write_struct_finish(f: &mut F, cfg: &Cfg, x: &Combinator, ok: bool) -> Result<()> {

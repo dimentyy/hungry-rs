@@ -11,15 +11,7 @@ fn write_after_f(f: &mut F) -> Result<()> {
 }
 
 fn write_struct_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Result<()> {
-    if x.args.is_empty() {
-        f.write_all(b"_")?;
-    }
-
     write_after_f(f)?;
-
-    if x.args.is_empty() {
-        return f.write_all(b"Ok(())\n");
-    }
 
     f.write_all(b"f.debug_struct(\"")?;
     f.write_all(x.name.actual.as_bytes())?;
@@ -39,14 +31,14 @@ fn write_struct_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Resu
         if optional {
             match typ {
                 Typ::Int128 | Typ::Int256 => {
-                    f.write_all(b"&if let Some(x) = &self.")?;
+                    f.write_all(b"&self.")?;
                     write_escaped(f, &arg.name)?;
-                    f.write_all(b" { Some(crate::hex::HexIntFmt(x)) } else { None })\n")?;
+                    f.write_all(b".as_ref().map(crate::hex::HexIntFmt))\n")?;
                 }
                 Typ::Bytes => {
-                    f.write_all(b"&if let Some(x) = &self.")?;
+                    f.write_all(b"&self.")?;
                     write_escaped(f, &arg.name)?;
-                    f.write_all(b" { Some(crate::hex::HexBytesFmt(x)) } else { None })\n")?;
+                    f.write_all(b".as_ref().map(crate::hex::HexBytesFmt))\n")?;
                 }
                 _ => {
                     f.write_all(b"&self.")?;

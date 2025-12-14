@@ -6,7 +6,7 @@ mod vec;
 use crate::SerializedLen;
 
 pub use bytes::{bytes_len, prepare_bytes};
-pub use vec::{bare_vec_serialized_len, serialize_bare_vec_unchecked};
+pub use vec::{bare_vec_serialize_unchecked, bare_vec_serialized_len};
 
 pub trait SerializeUnchecked: SerializedLen {
     /// Serializes the instance into `buf` without checking its capacity.

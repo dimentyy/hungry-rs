@@ -24,6 +24,8 @@ use std::{fmt, time};
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#message-identifier-msg-id
+pub type MsgId = i64;
+
 #[must_use]
 #[derive(Default)]
 pub struct MsgIds {
@@ -46,12 +48,12 @@ impl MsgIds {
 
     #[inline]
     #[must_use]
-    pub const fn last(&self) -> i64 {
+    pub const fn last(&self) -> MsgId {
         self.last
     }
 
     #[must_use]
-    pub const fn get(&mut self, unix_time: time::Duration) -> i64 {
+    pub const fn get(&mut self, unix_time: time::Duration) -> MsgId {
         let secs = unix_time.as_secs() as i64;
         let subsec_nanos = unix_time.subsec_nanos() as i64;
 
@@ -69,7 +71,7 @@ impl MsgIds {
     }
 
     #[must_use]
-    pub fn get_using_system_time(&mut self) -> i64 {
+    pub fn get_using_system_time(&mut self) -> MsgId {
         let unix_time = time::SystemTime::now()
             .duration_since(time::UNIX_EPOCH)
             .expect("system clock time to be after the Unix epoch");

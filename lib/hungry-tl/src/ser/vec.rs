@@ -1,20 +1,24 @@
-use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR, ser::SerializeUnchecked};
+use crate::ser::SerializeUnchecked;
+use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR};
 
 pub fn bare_vec_serialized_len<T: SerializedLen>(vec: &[T]) -> usize {
-    u32::SERIALIZED_LEN + vec.iter().map(|x| x.serialized_len()).sum::<usize>()
+    u32::SERIALIZED_LEN + vec.iter().map(SerializedLen::serialized_len).sum::<usize>()
 }
 
-pub unsafe fn serialize_bare_vec_unchecked<T: SerializeUnchecked>(vec: &[T], mut buf: *mut u8) -> *mut u8 {
+pub unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
+    arr: &[T],
+    mut buf: *mut u8,
+) -> *mut u8 {
     unsafe {
-        buf = (vec.len() as u32).serialize_unchecked(buf);
-        for x in vec {
+        buf = (arr.len() as u32).serialize_unchecked(buf);
+        for x in arr {
             buf = x.serialize_unchecked(buf)
         }
         buf
     }
 }
 
-impl<T: SerializeUnchecked> SerializedLen for BareVec<T> {
+impl<T: SerializedLen> SerializedLen for BareVec<T> {
     #[inline(always)]
     fn serialized_len(&self) -> usize {
         bare_vec_serialized_len(&self.0)
@@ -24,11 +28,11 @@ impl<T: SerializeUnchecked> SerializedLen for BareVec<T> {
 impl<T: SerializeUnchecked> SerializeUnchecked for BareVec<T> {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { serialize_bare_vec_unchecked(&self.0, buf) }
+        unsafe { bare_vec_serialize_unchecked(&self.0, buf) }
     }
 }
 
-impl<T: SerializeUnchecked> SerializedLen for Vec<T> {
+impl<T: SerializedLen> SerializedLen for Vec<T> {
     #[inline(always)]
     fn serialized_len(&self) -> usize {
         u32::SERIALIZED_LEN + bare_vec_serialized_len(self)
@@ -40,7 +44,7 @@ impl<T: SerializeUnchecked> SerializeUnchecked for Vec<T> {
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             buf = VECTOR.serialize_unchecked(buf);
-            serialize_bare_vec_unchecked(self, buf)
+            bare_vec_serialize_unchecked(self, buf)
         }
     }
 }
