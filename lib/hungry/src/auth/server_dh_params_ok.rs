@@ -1,9 +1,8 @@
-use rug::{Integer, integer};
-
 use crate::{auth, crypto, tl};
+use hungry_tl::ser::SerializeInto;
+use rug::{integer, Integer};
 
 use tl::mtproto::{funcs, types};
-use tl::ser::Serialize;
 use tl::{Int128, Int256};
 
 #[must_use]
@@ -51,7 +50,7 @@ impl ServerDhParamsOk {
         let mut data_with_hash = Vec::with_capacity(500);
         unsafe { data_with_hash.set_len(20) };
 
-        client_dh_inner_data.serialize_into(&mut data_with_hash);
+        data_with_hash.ser(&client_dh_inner_data);
 
         let data_sha1 = crypto::sha1!(&data_with_hash[20..]);
         data_with_hash[..20].copy_from_slice(&data_sha1);

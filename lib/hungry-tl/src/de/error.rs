@@ -1,19 +1,10 @@
 use std::fmt;
-use std::str::Utf8Error;
-use std::string::FromUtf8Error;
 
 #[derive(Clone, Debug)]
 pub enum Error {
-    UnexpectedConstructor { id: u32 },
+    UnexpectedConstructor,
     UnexpectedEndOfBuffer,
-    InvalidUtf8String(Utf8Error),
-}
-
-impl From<FromUtf8Error> for Error {
-    #[inline]
-    fn from(value: FromUtf8Error) -> Self {
-        Self::InvalidUtf8String(value.utf8_error())
-    }
+    InvalidUtf8String,
 }
 
 impl fmt::Display for Error {
@@ -21,9 +12,9 @@ impl fmt::Display for Error {
         f.write_str("deserialization error: ")?;
 
         match self {
-            Error::UnexpectedConstructor { id } => write!(f, "unexpected constructor {id:08x}"),
+            Error::UnexpectedConstructor => write!(f, "unexpected constructor"),
             Error::UnexpectedEndOfBuffer => write!(f, "unexpected end of buffer"),
-            Error::InvalidUtf8String(err) => write!(f, "{err}"),
+            Error::InvalidUtf8String => write!(f, "invalid utf-8 string"),
         }
     }
 }

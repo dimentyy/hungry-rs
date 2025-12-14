@@ -3,10 +3,10 @@ use std::fmt;
 use crate::utils::SliceExt;
 use crate::{auth, crypto, tl};
 
-use rug::{Integer, integer};
+use rug::{integer, Integer};
 
-use tl::Int256;
 use tl::mtproto::{enums, funcs, types};
+use tl::Int256;
 
 #[derive(Debug)]
 pub enum ServerDhParamsOkError {
@@ -159,7 +159,7 @@ impl ReqDhParams<'_> {
         // such that the length be divisible by 16;
         let mut buf = tl::de::Buf::new(&answer_with_hash[20..]);
 
-        let answer = tl::de::Deserialize::deserialize_checked(&mut buf)?;
+        let answer = tl::de::Deserialize::deserialize(&mut buf)?;
 
         let len = (answer_with_hash.len() - 20 - buf.len());
         let answer_sha1 = crypto::sha1!(&answer_with_hash[20..20 + len]);

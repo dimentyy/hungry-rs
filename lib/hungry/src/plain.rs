@@ -5,7 +5,10 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{Envelope, mtproto, reader, tl, writer};
+use crate::{mtproto, reader, tl, writer, Envelope};
+
+use tl::de::{Buf, Deserialize};
+use tl::ser::SerializeInto;
 
 #[derive(Debug)]
 pub enum Error {
@@ -56,7 +59,7 @@ pub async fn send<
 ) -> Result<(i64, F::Response), Error> {
     assert!(buffer.spare_capacity_len() >= func.serialized_len());
 
-    tl::ser::into(buffer, func);
+    buffer.ser(func);
 
     w.single_plain(buffer, transport, mtp, message_id)
         .await
@@ -80,7 +83,7 @@ pub async fn send<
 
     let buf = &buffer[data.start + mtproto::PlainMessage::HEADER_LEN..data.end];
 
-    let response = match tl::de::checked(buf) {
+    let response = match F::Response::deserialize(&mut Buf::new(buf)) {
         Ok(response) => response,
         Err(source) => return Err(Error::Deserialization { source, buffer }),
     };

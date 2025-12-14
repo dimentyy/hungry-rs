@@ -4,7 +4,7 @@ use crate::mtproto::Msg;
 use crate::tl;
 use crate::utils::BytesMutExt;
 
-use tl::ser::Serialize;
+use tl::ser::{SerializeInto, SerializeUnchecked};
 
 pub struct MsgContainer {
     header: BytesMut,
@@ -27,7 +27,7 @@ impl MsgContainer {
         }
     }
 
-    pub fn push<X: Serialize>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
+    pub fn push<X: SerializeUnchecked>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
         let len = x.serialized_len();
 
         if self.buffer.spare_capacity_len() < 16 + len {
@@ -36,17 +36,17 @@ impl MsgContainer {
 
         self.length += 1;
 
-        message.serialize_into(&mut self.buffer);
-        (len as i32).serialize_into(&mut self.buffer);
-        x.serialize_into(&mut self.buffer);
+        self.buffer.ser(&message);
+        self.buffer.ser(&(len as i32));
+        self.buffer.ser(x);
 
         Ok(())
     }
 
     #[must_use]
     pub fn finalize(mut self) -> BytesMut {
-        0x73f1f8dc_u32.serialize_into(&mut self.buffer);
-        (self.length as i32).serialize_into(&mut self.buffer);
+        self.buffer.ser(&0x73f1f8dc_u32);
+        self.buffer.ser(&(self.length as i32));
 
         self.buffer.unsplit_reverse(self.header);
 

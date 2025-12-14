@@ -1,7 +1,7 @@
 use crate::{auth, crypto, tl};
 
 use tl::mtproto::{funcs, types};
-use tl::ser::Serialize;
+use tl::ser::SerializeInto;
 use tl::{Int128, Int256};
 
 #[must_use]
@@ -44,7 +44,7 @@ impl ResPq {
             new_nonce,
         }));
 
-        pq_inner_data.serialize_into(&mut random_padding_bytes);
+        random_padding_bytes.ser(&pq_inner_data);
 
         let data_with_padding = random_padding_bytes;
 

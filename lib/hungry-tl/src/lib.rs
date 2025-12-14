@@ -59,6 +59,25 @@ pub type Int256 = [u8; 32];
 #[derive(Clone, Eq, PartialEq)]
 pub struct BareVec<T>(pub Vec<T>);
 
+/// # bytes
+///
+/// Basic bare type. It is an alias of the string type,
+/// with the difference that the value may contain arbitrary
+/// byte sequences, including invalid UTF-8 sequences.
+///
+/// When computing crc32 for a constructor or method it is
+/// necessary to replace all byte types with string types.
+///
+/// ---
+/// Represents the following built-in TL definition:
+/// ```tl
+/// double ? = Double;
+/// ```
+///
+/// ---
+/// https://core.telegram.org/type/bytes
+pub type Bytes = Vec<u8>;
+
 impl<T: fmt::Debug> fmt::Debug for BareVec<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
@@ -85,7 +104,7 @@ pub trait IntoEnum {
     fn into_enum(self) -> Self::Enum;
 }
 
-#[inline]
+#[inline(always)]
 pub fn boxed<T: IntoEnum>(variant: T) -> T::Enum {
     variant.into_enum()
 }
@@ -94,7 +113,7 @@ pub trait Identifiable {
     const CONSTRUCTOR_ID: u32;
 }
 
-pub trait Function: Identifiable + ser::Serialize + fmt::Debug {
+pub trait Function: Identifiable + ser::SerializeUnchecked + fmt::Debug {
     type Response: de::Deserialize;
 }
 

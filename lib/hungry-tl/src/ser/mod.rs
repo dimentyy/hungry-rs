@@ -3,42 +3,43 @@ mod bytes;
 mod primitives;
 mod vec;
 
-use ::bytes::BytesMut;
-
 use crate::SerializedLen;
 
 pub use bytes::{bytes_len, prepare_bytes};
 pub use vec::{bare_vec_serialized_len, serialize_bare_vec_unchecked};
 
-pub trait Serialize: SerializedLen {
+pub trait SerializeUnchecked: SerializedLen {
     /// Serializes the instance into `buf` without checking its capacity.
     ///
     /// # Safety
     ///
     /// * `buf` must have at least [`serialized_len`] bytes of capacity.
+    /// * `buf` must be properly aligned for 4-byte (32-bit) writes.
     ///
-    /// [`serialized_len`]: Serialize::serialized_len
+    /// [`serialized_len`]: SerializedLen::serialized_len
     unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8;
-
-    #[inline]
-    fn serialize_into<I: SerializeInto>(&self, into: &mut I) {
-        into.serialize(self)
-    }
 }
 
-#[inline]
-pub fn into<I: SerializeInto, X: Serialize>(into: &mut I, x: &X) {
-    into.serialize(x)
-}
+fn invalid_ret(type_name: &str, buf: *mut u8, len: usize, end: *mut u8, ret: *mut u8) -> ! {
+    let off = unsafe { ret.offset_from(end) };
 
-fn invalid_ret() -> ! {
-    panic!()
+    panic!(
+        "`Serialize` implementation for `{type_name}` is invalid: \
+        expected `serialize_unchecked` to return {end:?} \
+        ({buf:?} + {len:#x}), got {ret:?} off by {off}",
+    );
 }
 
 #[inline(always)]
-fn check_ret<X: Serialize + ?Sized>(x: &X, buf: *mut u8, len: usize) {
-    if unsafe { buf.add(len) != x.serialize_unchecked(buf) } {
-        invalid_ret()
+fn check_ret<X: SerializeUnchecked + ?Sized>(x: &X, buf: *mut u8, len: usize) {
+    unsafe {
+        let end = buf.add(len);
+
+        let ret = x.serialize_unchecked(buf);
+
+        if ret != end {
+            invalid_ret(std::any::type_name::<X>(), buf, len, end, ret)
+        }
     }
 }
 
@@ -50,7 +51,7 @@ fn buf_too_small(required: usize, available: usize) -> ! {
 }
 
 #[inline(always)]
-fn check_len<X: Serialize + ?Sized>(x: &X, cap: usize) -> usize {
+fn check_len<X: SerializeUnchecked + ?Sized>(x: &X, cap: usize) -> usize {
     let len = x.serialized_len();
 
     if len > cap {
@@ -61,11 +62,11 @@ fn check_len<X: Serialize + ?Sized>(x: &X, cap: usize) -> usize {
 }
 
 pub trait SerializeInto {
-    fn serialize<X: Serialize + ?Sized>(&mut self, x: &X);
+    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X);
 }
 
 impl SerializeInto for [u8] {
-    fn serialize<X: Serialize + ?Sized>(&mut self, x: &X) {
+    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
         let len = check_len(x, self.len());
 
         let buf = self.as_mut_ptr();
@@ -75,7 +76,7 @@ impl SerializeInto for [u8] {
 }
 
 impl<const N: usize> SerializeInto for [u8; N] {
-    fn serialize<X: Serialize + ?Sized>(&mut self, x: &X) {
+    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
         let len = check_len(x, N);
 
         let buf = self.as_mut_ptr();
@@ -84,38 +85,26 @@ impl<const N: usize> SerializeInto for [u8; N] {
     }
 }
 
-impl SerializeInto for Vec<u8> {
-    fn serialize<X: Serialize + ?Sized>(&mut self, x: &X) {
-        let len = x.serialized_len();
+macro_rules! impl_heap {
+    ( $( $typ:ty ),+ $( , )? ) => { $(
+        impl SerializeInto for $typ {
+            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
+                let len = x.serialized_len();
 
-        let cap = self.capacity() - self.len();
+                let cap = self.capacity() - self.len();
 
-        if len > cap {
-            self.reserve(len - cap);
+                if len > cap {
+                    self.reserve(len - cap);
+                }
+
+                let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;
+
+                check_ret(x, buf, len);
+
+                unsafe { self.set_len(self.len() + len) };
+            }
         }
-
-        let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;
-
-        check_ret(x, buf, len);
-
-        unsafe { self.set_len(self.len() + len) };
-    }
+    )+ };
 }
 
-impl SerializeInto for BytesMut {
-    fn serialize<X: Serialize + ?Sized>(&mut self, x: &X) {
-        let len = x.serialized_len();
-
-        let cap = self.capacity() - self.len();
-
-        if len > cap {
-            self.reserve(len - cap);
-        }
-
-        let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;
-
-        check_ret(x, buf, len);
-
-        unsafe { self.set_len(self.len() + len) };
-    }
-}
+impl_heap!(Vec<u8>, ::bytes::BytesMut);

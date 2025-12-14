@@ -1,38 +1,37 @@
-use std::ptr;
+use crate::de::{Buf, DeserializeHybrid, DeserializeInfallible, Error};
 
-use crate::de::{Buf, Deserialize, Error};
+impl DeserializeHybrid for crate::Bytes {
+    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
 
-impl Deserialize for Vec<u8> {
-    const MINIMUM_SERIALIZED_LEN: usize = 4;
-
-    #[inline]
-    unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
         unsafe {
             let len = *buf.ptr;
 
-            let (ptr, len) = if len <= 253 {
+            let (src, len) = if len <= 253 {
                 let len = len as usize;
 
                 (buf.advance((len + 4) & !3)?.add(1), len)
             } else {
-                let len = (u32::from_le((buf.ptr as *const u32).read_unaligned()) >> 8) as usize;
+                let len = (u32::deserialize_infallible(buf.ptr) >> 8) as usize;
 
                 (buf.advance((len + 7) & !3)?.add(4), len)
             };
 
             let mut vec = Vec::with_capacity(len);
-            ptr::copy_nonoverlapping(ptr, vec.as_mut_ptr(), len);
+            std::ptr::copy_nonoverlapping(src, vec.as_mut_ptr(), len);
             vec.set_len(len);
             Ok(vec)
         }
     }
 }
 
-impl Deserialize for String {
-    const MINIMUM_SERIALIZED_LEN: usize = Vec::<u8>::MINIMUM_SERIALIZED_LEN;
+impl DeserializeHybrid for String {
+    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
 
-    #[inline]
-    unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        Ok(String::from_utf8(unsafe { Vec::<u8>::deserialize(buf)? })?)
+    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
+        match String::from_utf8(unsafe { crate::Bytes::deserialize_hybrid(buf)? }) {
+            Ok(s) => Ok(s),
+            Err(_) => Err(Error::InvalidUtf8String),
+        }
     }
 }

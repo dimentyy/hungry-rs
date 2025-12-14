@@ -11,24 +11,14 @@ pub use buf::Buf;
 pub use error::Error;
 pub use vec::{deserialize_vec_infallible, deserialize_vec_unchecked};
 
-pub fn checked<T: Deserialize>(buf: &[u8]) -> Result<T, Error> {
-    T::deserialize_checked(&mut Buf::new(buf))
-}
-
-pub fn infallible<T: DeserializeInfallible>(buf: &[u8]) -> T {
-    Buf::new(buf).infallible()
-}
-
 pub trait Deserialize: Sized {
-    const MINIMUM_SERIALIZED_LEN: usize;
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
+}
 
-    #[inline]
-    fn deserialize_checked(buf: &mut Buf) -> Result<Self, Error> {
-        buf.check_len(Self::MINIMUM_SERIALIZED_LEN)?;
-        unsafe { Self::deserialize(buf) }
-    }
+pub trait DeserializeHybrid: Sized {
+    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize;
 
-    unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
+    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error>;
 }
 
 pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
@@ -39,17 +29,25 @@ pub trait DeserializeInfallible: ConstSerializedLen + Sized {
     unsafe fn deserialize_infallible(buf: *const u8) -> Self;
 }
 
-impl<T: DeserializeUnchecked> Deserialize for T {
-    const MINIMUM_SERIALIZED_LEN: usize = T::SERIALIZED_LEN;
+impl<T: DeserializeHybrid> Deserialize for T {
+    #[inline(always)]
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+        buf.check_len(Self::HYBRID_DESERIALIZATION_UNCHECKED_UNTIL)?;
+        unsafe { Self::deserialize_hybrid(buf) }
+    }
+}
 
-    #[inline]
-    unsafe fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+impl<T: DeserializeUnchecked> DeserializeHybrid for T {
+    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = T::SERIALIZED_LEN;
+
+    #[inline(always)]
+    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
         unsafe { Self::deserialize_unchecked(buf.advance_unchecked(T::SERIALIZED_LEN)) }
     }
 }
 
 impl<T: DeserializeInfallible> DeserializeUnchecked for T {
-    #[inline]
+    #[inline(always)]
     unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error> {
         Ok(unsafe { Self::deserialize_infallible(buf) })
     }

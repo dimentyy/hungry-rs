@@ -209,12 +209,12 @@ async fn async_main() -> anyhow::Result<()> {
 
         let mut buf = tl::de::Buf::new(buffer);
 
-        let _message: mtproto::Msg = buf.infallible();
-        let bytes = i32::deserialize_checked(&mut buf)? as usize;
+        let _message = mtproto::Msg::deserialize(&mut buf)?;
+        let bytes = i32::deserialize(&mut buf)? as usize;
 
         assert!(buffer.len() - 20 >= bytes);
 
-        let id = u32::deserialize_checked(&mut buf)?;
+        let id = u32::deserialize(&mut buf)?;
 
         match id {
             0x73f1f8dc => {}
@@ -230,22 +230,22 @@ async fn async_main() -> anyhow::Result<()> {
         for message in container {
             let (message, mut buf) = message?;
 
-            let id = u32::deserialize_checked(&mut buf)?;
+            let id = u32::deserialize(&mut buf)?;
 
             match id {
                 0x9ec20908 => {
                     let session =
-                        tl::mtproto::types::NewSessionCreated::deserialize_checked(&mut buf)?;
+                        tl::mtproto::types::NewSessionCreated::deserialize(&mut buf)?;
 
                     dbg!(session);
                 }
                 0xae500895 => {
-                    let salts = tl::mtproto::types::FutureSalts::deserialize_checked(&mut buf)?;
+                    let salts = tl::mtproto::types::FutureSalts::deserialize(&mut buf)?;
 
                     dbg!(salts);
                 }
                 0x62d6b459 => {
-                    let ack = tl::mtproto::types::MsgsAck::deserialize_checked(&mut buf)?;
+                    let ack = tl::mtproto::types::MsgsAck::deserialize(&mut buf)?;
 
                     dbg!(ack);
                 }

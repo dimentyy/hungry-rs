@@ -1,8 +1,8 @@
 use crate::tl;
 
-use tl::ConstSerializedLen;
 use tl::de::{Buf, Deserialize, DeserializeInfallible, Error};
-use tl::ser::Serialize;
+use tl::ser::SerializeUnchecked;
+use tl::ConstSerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {
@@ -14,7 +14,7 @@ impl ConstSerializedLen for Msg {
     const SERIALIZED_LEN: usize = i64::SERIALIZED_LEN + i32::SERIALIZED_LEN;
 }
 
-impl Serialize for Msg {
+impl SerializeUnchecked for Msg {
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             buf = self.msg_id.serialize_unchecked(buf);
@@ -49,7 +49,7 @@ pub struct MsgContainer<'a> {
 
 impl<'a> MsgContainer<'a> {
     pub fn new(buf: &'a mut Buf<'a>) -> Result<Self, Error> {
-        let len = u32::deserialize_checked(buf)? as usize;
+        let len = u32::deserialize(buf)? as usize;
 
         Ok(Self { buf, len })
     }

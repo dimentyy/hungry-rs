@@ -12,18 +12,16 @@ fn write_empty(f: &mut F, name: &str) -> Result<()> {
     )
 }
 
-fn write_pre_de(f: &mut F, name: &str, len: usize) -> Result<()> {
+fn write_pre_de(f: &mut F, name: &str) -> Result<()> {
     f.write_all(b"\nimpl crate::de::Deserialize for ")?;
     f.write_all(name.as_bytes())?;
-    f.write_all(b" {\n    const MINIMUM_SERIALIZED_LEN: usize = ")?;
-    write!(f, "{len}")?;
-    f.write_all(b";\n\n    unsafe fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n")
+    f.write_all(b" {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n")
 }
 
 fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
-    write_pre_de(f, &x.name.actual, 0)?;
+    write_pre_de(f, &x.name.actual)?;
 
-    f.write_all(b"        match u32::deserialize_checked(buf)? {\n")?;
+    f.write_all(b"        match u32::deserialize(buf)? {\n")?;
 
     for variant in &x.variants {
         let x = &data.types[*variant];
@@ -45,14 +43,14 @@ fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
             true,
         )?;
         f.write_all(if x.recursive {
-            b"::deserialize_checked(buf)?))),\n"
+            b"::deserialize(buf)?))),\n"
         } else {
-            b"::deserialize_checked(buf)?)),\n"
+            b"::deserialize(buf)?)),\n"
         })?;
     }
 
     f.write_all(
-        b"            id => Err(crate::de::Error::UnexpectedConstructor { id }),\n        }",
+        b"            _ => Err(crate::de::Error::UnexpectedConstructor),\n        }",
     )
 }
 
@@ -83,7 +81,7 @@ fn write_type_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
         return write_empty(f, &x.combinator.name.actual);
     }
 
-    write_pre_de(f, &x.combinator.name.actual, 0)?;
+    write_pre_de(f, &x.combinator.name.actual)?;
 
     for arg in &x.combinator.args {
         f.write_all(b"        let ")?;
@@ -95,7 +93,7 @@ fn write_type_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
 
         match &arg.typ {
             ArgTyp::Flags { .. } => {
-                f.write_all(b"u32::deserialize_checked(buf)?;\n")?;
+                f.write_all(b"u32::deserialize(buf)?;\n")?;
             }
             ArgTyp::Typ { typ, flag } => {
                 if let Some(flag) = flag {
@@ -106,10 +104,10 @@ fn write_type_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
                     write!(f, "{}", flag.bit)?;
                     f.write_all(b") != 0 { Some(")?;
                     write_typ(f, cfg, data, &x.combinator.generic_args, typ, true)?;
-                    f.write_all(b"::deserialize_checked(buf)?) } else { None };\n")?;
+                    f.write_all(b"::deserialize(buf)?) } else { None };\n")?;
                 } else {
                     write_typ(f, cfg, data, &x.combinator.generic_args, typ, true)?;
-                    f.write_all(b"::deserialize_checked(buf)?;\n")?;
+                    f.write_all(b"::deserialize(buf)?;\n")?;
                 }
             }
             ArgTyp::True { flag } => {

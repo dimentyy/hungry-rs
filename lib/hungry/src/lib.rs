@@ -2,6 +2,7 @@
 #![deny(unused_imports)]
 
 mod envelope;
+mod gzip_packed;
 mod msg_container;
 
 pub mod auth;

@@ -198,7 +198,7 @@ pub(super) fn write_serialize(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result
         X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, false)?,
         _ => {}
     }
-    f.write_all(b" crate::ser::Serialize for ")?;
+    f.write_all(b" crate::ser::SerializeUnchecked for ")?;
     f.write_all(x.name().actual.as_bytes())?;
     match x {
         X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, true)?,

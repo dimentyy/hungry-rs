@@ -1,7 +1,7 @@
 use std::ptr;
 
-use crate::SerializedLen;
-use crate::ser::Serialize;
+use crate::ser::SerializeUnchecked;
+use crate::{Bytes, SerializedLen};
 
 #[inline(always)]
 #[must_use]
@@ -65,7 +65,7 @@ impl SerializedLen for [u8] {
     }
 }
 
-impl Serialize for [u8] {
+impl SerializeUnchecked for [u8] {
     unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
         unsafe {
             if self.len() <= 253 {
@@ -102,30 +102,25 @@ impl Serialize for [u8] {
     }
 }
 
-impl SerializedLen for Vec<u8> {
-    #[inline(always)]
-    fn serialized_len(&self) -> usize {
-        self.as_slice().serialized_len()
-    }
+macro_rules! impls {
+    ( $( $typ:ty : $fwd:ident ),+ $( , )? ) => { $(
+        impl SerializedLen for $typ {
+            #[inline(always)]
+            fn serialized_len(&self) -> usize {
+                self.$fwd().serialized_len()
+            }
+        }
+
+        impl SerializeUnchecked for $typ {
+            #[inline(always)]
+            unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
+                unsafe { self.$fwd().serialize_unchecked(buf) }
+            }
+        }
+    )+ };
 }
 
-impl Serialize for Vec<u8> {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { self.as_slice().serialize_unchecked(buf) }
-    }
-}
-
-impl SerializedLen for String {
-    #[inline(always)]
-    fn serialized_len(&self) -> usize {
-        self.as_bytes().serialized_len()
-    }
-}
-
-impl Serialize for String {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { self.as_bytes().serialize_unchecked(buf) }
-    }
-}
+impls!(
+    Bytes: as_slice,
+    String: as_bytes,
+);
