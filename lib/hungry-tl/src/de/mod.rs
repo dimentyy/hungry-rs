@@ -30,7 +30,7 @@ pub trait DeserializeInfallible: ConstSerializedLen + Sized {
 impl<T: DeserializeUnchecked> Deserialize for T {
     #[inline(always)]
     fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        unsafe { Self::deserialize_unchecked(buf.advance_unchecked(T::SERIALIZED_LEN)) }
+        unsafe { Self::deserialize_unchecked(buf.advance(T::SERIALIZED_LEN)?) }
     }
 }
 
