@@ -19,12 +19,6 @@ pub trait Deserialize: SerializedLen + Sized {
     fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
 }
 
-pub trait DeserializeHybrid: SerializedLen + Sized {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize;
-
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error>;
-}
-
 pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
     unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error>;
 }
@@ -33,19 +27,9 @@ pub trait DeserializeInfallible: ConstSerializedLen + Sized {
     unsafe fn deserialize_infallible(buf: *const u8) -> Self;
 }
 
-impl<T: DeserializeHybrid> Deserialize for T {
+impl<T: DeserializeUnchecked> Deserialize for T {
     #[inline(always)]
     fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        buf.check_len(Self::HYBRID_DESERIALIZATION_UNCHECKED_UNTIL)?;
-        unsafe { Self::deserialize_hybrid(buf) }
-    }
-}
-
-impl<T: DeserializeUnchecked> DeserializeHybrid for T {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = T::SERIALIZED_LEN;
-
-    #[inline(always)]
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
         unsafe { Self::deserialize_unchecked(buf.advance_unchecked(T::SERIALIZED_LEN)) }
     }
 }

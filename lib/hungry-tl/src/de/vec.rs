@@ -1,4 +1,4 @@
-use crate::de::{Buf, Deserialize, DeserializeHybrid, DeserializeInfallible, Error};
+use crate::de::{Buf, Deserialize, DeserializeInfallible, Error};
 use crate::{BareVec, VECTOR};
 
 pub unsafe fn deserialize_vec<T: Deserialize>(buf: &mut Buf) -> Result<Vec<T>, Error> {
@@ -13,11 +13,11 @@ pub unsafe fn deserialize_vec<T: Deserialize>(buf: &mut Buf) -> Result<Vec<T>, E
     Ok(vec)
 }
 
-impl<T: Deserialize> DeserializeHybrid for Vec<T> {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4 + 4;
-
+impl<T: Deserialize> Deserialize for Vec<T> {
     #[inline(always)]
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+        buf.check_len(8)?;
+
         unsafe {
             let id = u32::deserialize_infallible(buf.advance_unchecked(4));
 
@@ -30,11 +30,11 @@ impl<T: Deserialize> DeserializeHybrid for Vec<T> {
     }
 }
 
-impl<T: Deserialize> DeserializeHybrid for BareVec<T> {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
-
+impl<T: Deserialize> Deserialize for BareVec<T> {
     #[inline(always)]
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+        buf.check_len(4)?;
+
         unsafe { deserialize_vec(buf) }.map(BareVec)
     }
 }

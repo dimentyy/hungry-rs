@@ -1,12 +1,12 @@
 use std::ptr;
 
 use crate::Bytes;
-use crate::de::{Buf, DeserializeHybrid, DeserializeInfallible, Error};
+use crate::de::{Buf, Deserialize, DeserializeInfallible, Error};
 
-impl DeserializeHybrid for Bytes {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
+impl Deserialize for Bytes {
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+        buf.check_len(4)?;
 
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
         unsafe {
             let len = *buf.ptr;
 
@@ -30,11 +30,9 @@ impl DeserializeHybrid for Bytes {
     }
 }
 
-impl DeserializeHybrid for String {
-    const HYBRID_DESERIALIZATION_UNCHECKED_UNTIL: usize = 4;
-
-    unsafe fn deserialize_hybrid(buf: &mut Buf) -> Result<Self, Error> {
-        match String::from_utf8(unsafe { Bytes::deserialize_hybrid(buf)? }) {
+impl Deserialize for String {
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
+        match String::from_utf8(Bytes::deserialize(buf)?) {
             Ok(s) => Ok(s),
             Err(_) => Err(Error::InvalidUtf8String),
         }
