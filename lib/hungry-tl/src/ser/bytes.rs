@@ -1,4 +1,6 @@
-use std::ptr;
+use std::hint::assert_unchecked;
+use std::mem::transmute;
+use std::ptr::NonNull;
 
 use crate::ser::SerializeUnchecked;
 use crate::{Bytes, SerializedLen};
@@ -19,7 +21,7 @@ pub fn prepare_bytes(buf: &mut [u8], len: usize) -> (&mut [u8], &mut [u8]) {
 
     assert!(buf.len() >= ser_len);
 
-    let index = unsafe { prepare_bytes_unchecked(buf.as_mut_ptr(), len) };
+    let index = unsafe { prepare_bytes_unchecked(NonNull::new(buf.as_mut_ptr()).unwrap(), len) };
 
     let (bytes, extra) = buf.split_at_mut(ser_len);
 
@@ -27,17 +29,17 @@ pub fn prepare_bytes(buf: &mut [u8], len: usize) -> (&mut [u8], &mut [u8]) {
 }
 
 #[must_use]
-pub unsafe fn prepare_bytes_unchecked(mut buf: *mut u8, len: usize) -> usize {
+pub unsafe fn prepare_bytes_unchecked(mut buf: NonNull<u8>, len: usize) -> usize {
     unsafe {
         if len <= 253 {
-            *buf = len as u8;
+            buf.write(len as u8);
 
             if len & 1 == 0 {
-                *buf.add(len + 1) = 0;
+                buf.add(len + 1).write(0);
             }
 
             if len & 2 == 0 {
-                *(buf.add((len & !1) + 2) as *mut u16) = 0;
+                transmute::<_, NonNull<u16>>(buf.add((len & !1) + 2)).write(0);
             }
 
             return 1;
@@ -47,11 +49,11 @@ pub unsafe fn prepare_bytes_unchecked(mut buf: *mut u8, len: usize) -> usize {
 
         #[allow(clippy::identity_op)]
         if (len | 0) & 1 == 1 {
-            *buf.add(len) = 0;
+            buf.add(len).write(0);
         }
 
         if len & 2 == 0 {
-            *(buf.add((len + 1) & !1) as *mut u16) = 0;
+            transmute::<_, NonNull<u16>>(buf.add((len + 1) & !1)).write(0);
         }
 
         4
@@ -66,19 +68,25 @@ impl SerializedLen for [u8] {
 }
 
 impl SerializeUnchecked for [u8] {
-    unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
+    unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
         unsafe {
-            if self.len() <= 253 {
-                *buf = self.len() as u8;
+            let ptr = self.as_ptr();
 
-                ptr::copy_nonoverlapping(self.as_ptr(), buf.add(1), self.len());
+            assert_unchecked(!ptr.is_null());
+
+            let ptr = NonNull::new_unchecked(ptr as *mut u8);
+
+            if self.len() <= 253 {
+                buf.write(self.len() as u8);
+
+                buf.add(1).copy_from_nonoverlapping(ptr, self.len());
 
                 if self.len() & 1 == 0 {
-                    *buf.add(self.len() + 1) = 0;
+                    buf.add(self.len() + 1).write(0);
                 }
 
                 if self.len() & 2 == 0 {
-                    *(buf.add((self.len() & !1) + 2) as *mut u16) = 0;
+                    transmute::<_, NonNull<u16>>(buf.add((self.len() & !1) + 2)).write(0);
                 }
 
                 return buf.add((self.len() & !3) + 4);
@@ -86,15 +94,15 @@ impl SerializeUnchecked for [u8] {
 
             buf = (((self.len() as u32) << 8) | 254).serialize_unchecked(buf);
 
-            ptr::copy_nonoverlapping(self.as_ptr(), buf, self.len());
+            buf.add(4).copy_from_nonoverlapping(ptr, self.len());
 
             #[allow(clippy::identity_op)]
             if (self.len() | 0) & 1 == 1 {
-                *buf.add(self.len()) = 0;
+                buf.add(self.len()).write(0);
             }
 
             if self.len() & 2 == 0 {
-                *(buf.add((self.len() + 1) & !1) as *mut u16) = 0;
+                transmute::<_, NonNull<u16>>(buf.add((self.len() + 1) & !1)).write(0);
             }
 
             buf.add((self.len() + 3) & !3usize)
@@ -113,7 +121,7 @@ macro_rules! impls {
 
         impl SerializeUnchecked for $typ {
             #[inline(always)]
-            unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
+            unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8> {
                 unsafe { self.$fwd().serialize_unchecked(buf) }
             }
         }

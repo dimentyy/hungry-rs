@@ -8,7 +8,7 @@ fn write_empty(f: &mut F, name: &str) -> Result<()> {
     f.write_all(b"\nimpl crate::de::DeserializeInfallible for ")?;
     f.write_all(name.as_bytes())?;
     f.write_all(
-        b" {\n    unsafe fn deserialize_infallible(_buf: *const u8) -> Self {\n        Self {}",
+        b" {\n    unsafe fn deserialize_infallible(_buf: std::ptr::NonNull<u8>) -> Self {\n        Self {}",
     )
 }
 
@@ -51,7 +51,7 @@ fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
         })?;
     }
 
-    f.write_all(b"            _ => Err(crate::de::Error::UnexpectedConstructor),\n        }")
+    f.write_all(b"            _ => Err(crate::de::Error::unexpected_constructor()),\n        }")
 }
 
 fn write_struct_finish(f: &mut F, cfg: &Cfg, x: &Combinator, ok: bool) -> Result<()> {

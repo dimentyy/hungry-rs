@@ -205,7 +205,7 @@ pub(super) fn write_serialize(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result
         _ => {}
     }
     f.write_all(
-        b" {\n    unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {\n        ",
+        b" {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        ",
     )?;
     match x {
         X::Type(x) => write_structure_ser(f, cfg, data, false, &x.combinator)?,

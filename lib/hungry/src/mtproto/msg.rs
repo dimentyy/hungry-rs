@@ -1,8 +1,10 @@
+use std::ptr::NonNull;
+
 use crate::{mtproto, tl};
 
-use tl::ConstSerializedLen;
 use tl::de::{Buf, DeserializeInfallible, Error};
 use tl::ser::SerializeUnchecked;
+use tl::ConstSerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {
@@ -15,7 +17,7 @@ impl ConstSerializedLen for Msg {
 }
 
 impl SerializeUnchecked for Msg {
-    unsafe fn serialize_unchecked(&self, mut buf: *mut u8) -> *mut u8 {
+    unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
         unsafe {
             buf = self.msg_id.serialize_unchecked(buf);
             buf = self.seq_no.serialize_unchecked(buf);
@@ -25,7 +27,7 @@ impl SerializeUnchecked for Msg {
 }
 
 impl DeserializeInfallible for Msg {
-    unsafe fn deserialize_infallible(buf: *const u8) -> Self {
+    unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self {
         unsafe {
             Self {
                 msg_id: i64::deserialize_infallible(buf),

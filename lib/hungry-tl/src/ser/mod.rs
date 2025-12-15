@@ -3,6 +3,8 @@ mod bytes;
 mod primitives;
 mod vec;
 
+use std::ptr::NonNull;
+
 use crate::SerializedLen;
 
 pub use bytes::{bytes_len, prepare_bytes};
@@ -17,10 +19,16 @@ pub trait SerializeUnchecked: SerializedLen {
     /// * `buf` must be properly aligned for 4-byte (32-bit) writes.
     ///
     /// [`serialized_len`]: SerializedLen::serialized_len
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8;
+    unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8>;
 }
 
-fn invalid_ret(type_name: &str, buf: *mut u8, len: usize, end: *mut u8, ret: *mut u8) -> ! {
+fn invalid_ret(
+    type_name: &str,
+    buf: NonNull<u8>,
+    len: usize,
+    end: NonNull<u8>,
+    ret: NonNull<u8>,
+) -> ! {
     let off = unsafe { ret.offset_from(end) };
 
     panic!(
@@ -31,7 +39,7 @@ fn invalid_ret(type_name: &str, buf: *mut u8, len: usize, end: *mut u8, ret: *mu
 }
 
 #[inline(always)]
-fn check_ret<X: SerializeUnchecked + ?Sized>(x: &X, buf: *mut u8, len: usize) {
+fn check_ret<X: SerializeUnchecked + ?Sized>(x: &X, buf: NonNull<u8>, len: usize) {
     unsafe {
         let end = buf.add(len);
 
@@ -69,7 +77,7 @@ impl SerializeInto for [u8] {
     fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
         let len = check_len(x, self.len());
 
-        let buf = self.as_mut_ptr();
+        let buf = NonNull::new(self.as_mut_ptr()).unwrap();
 
         check_ret(x, buf, len);
     }
@@ -79,7 +87,7 @@ impl<const N: usize> SerializeInto for [u8; N] {
     fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
         let len = check_len(x, N);
 
-        let buf = self.as_mut_ptr();
+        let buf = NonNull::new(self.as_mut_ptr()).unwrap();
 
         check_ret(x, buf, len);
     }
@@ -97,7 +105,7 @@ macro_rules! impl_heap {
                     self.reserve(len - cap);
                 }
 
-                let buf = self.spare_capacity_mut().as_mut_ptr() as *mut u8;
+                let buf = NonNull::new(self.spare_capacity_mut().as_mut_ptr() as *mut u8).unwrap();
 
                 check_ret(x, buf, len);
 

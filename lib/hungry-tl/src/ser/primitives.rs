@@ -1,50 +1,34 @@
-use std::mem;
+use std::mem::transmute;
+use std::ptr::NonNull;
 
 use crate::ser::SerializeUnchecked;
+use crate::{FALSE, TRUE};
 
-impl SerializeUnchecked for u32 {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe {
-            *(buf as *mut Self) = self.to_le();
+macro_rules! impls {
+    ( $self:ident, $buf:ident; $( $typ:ty : $add:expr => $ser:expr ),+ $( , )? ) => { $(
+        impl SerializeUnchecked for $typ {
+            #[inline(always)]
+            unsafe fn serialize_unchecked(&$self, $buf: NonNull<u8>) -> NonNull<u8> {
+                unsafe {
+                    $ser;
 
-            buf.add(4)
+                    $buf.add($add)
+                }
+            }
         }
-    }
+    )+ };
 }
 
-impl SerializeUnchecked for i32 {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe {
-            *(buf as *mut Self) = self.to_le();
-
-            buf.add(4)
-        }
-    }
-}
-
-impl SerializeUnchecked for i64 {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe {
-            (buf as *mut Self).write_unaligned(self.to_le());
-
-            buf.add(8)
-        }
-    }
-}
-
-impl SerializeUnchecked for f64 {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { mem::transmute::<&f64, &i64>(self).serialize_unchecked(buf) }
-    }
-}
+impls!(self, buf;
+    u32: 4 => transmute::<_, NonNull<_>>(buf).write(self.to_le()),
+    i32: 4 => transmute::<_, NonNull<_>>(buf).write(self.to_le()),
+    i64: 8 => transmute::<_, NonNull<_>>(buf).write_unaligned(self.to_le()),
+    f64: 8 => transmute::<_, NonNull<_>>(buf).write_unaligned(self.to_bits().to_le()),
+);
 
 impl SerializeUnchecked for bool {
     #[inline(always)]
-    unsafe fn serialize_unchecked(&self, buf: *mut u8) -> *mut u8 {
-        unsafe { if *self { crate::TRUE } else { crate::FALSE }.serialize_unchecked(buf) }
+    unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8> {
+        unsafe { if *self { TRUE } else { FALSE }.serialize_unchecked(buf) }
     }
 }

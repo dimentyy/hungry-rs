@@ -5,7 +5,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{Envelope, mtproto, reader, tl, writer};
+use crate::{mtproto, reader, tl, writer, Envelope};
 
 use tl::ser::SerializeInto;
 
@@ -59,6 +59,8 @@ pub async fn send<
     assert!(buffer.spare_capacity_len() >= func.serialized_len());
 
     buffer.ser(func);
+
+    crate::utils::dump(&buffer, "SER").unwrap();
 
     w.single_plain(buffer, transport, mtp, message_id)
         .await

@@ -5,10 +5,11 @@ mod error;
 mod primitives;
 mod vec;
 
+use std::ptr::NonNull;
 use crate::{ConstSerializedLen, SerializedLen};
 
 pub use buf::Buf;
-pub use error::Error;
+pub use error::{Error, UnexpectedConstructorError, EndOfBufferError};
 
 pub trait Deserialize: SerializedLen + Sized {
     /// # Safety
@@ -20,23 +21,23 @@ pub trait Deserialize: SerializedLen + Sized {
 }
 
 pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
-    unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error>;
+    unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError>;
 }
 
 pub trait DeserializeInfallible: ConstSerializedLen + Sized {
-    unsafe fn deserialize_infallible(buf: *const u8) -> Self;
+    unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self;
 }
 
 impl<T: DeserializeUnchecked> Deserialize for T {
     #[inline(always)]
     fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        unsafe { Self::deserialize_unchecked(buf.advance(T::SERIALIZED_LEN)?) }
+        Ok(unsafe { Self::deserialize_unchecked(buf.advance(T::SERIALIZED_LEN)?)? })
     }
 }
 
 impl<T: DeserializeInfallible> DeserializeUnchecked for T {
     #[inline(always)]
-    unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error> {
+    unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError> {
         Ok(unsafe { Self::deserialize_infallible(buf) })
     }
 }

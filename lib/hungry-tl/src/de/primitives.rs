@@ -1,31 +1,34 @@
-use crate::de::{DeserializeInfallible, DeserializeUnchecked, Error};
+use std::mem::transmute;
+use std::ptr::NonNull;
+
+use crate::de::{DeserializeInfallible, DeserializeUnchecked, UnexpectedConstructorError};
 use crate::{FALSE, TRUE};
 
 macro_rules! impls {
     ( $buf:ident; $( $typ:ty: $val:expr ),+ $( , )? ) => { $(
         impl DeserializeInfallible for $typ {
             #[inline(always)]
-            unsafe fn deserialize_infallible($buf: *const u8) -> Self {
-                $val
+            unsafe fn deserialize_infallible($buf: NonNull<u8>) -> Self {
+                unsafe { $val }
             }
         }
     )+ };
 }
 
 impls!(buf;
-    u32: Self::from_le(unsafe { *(buf as *const Self) }),
-    i32: Self::from_le(unsafe { *(buf as *const Self) }),
-    i64: Self::from_le(unsafe { (buf as *const Self).read_unaligned() }),
-    f64: Self::from_bits(unsafe { i64::deserialize_infallible(buf) } as u64)
+    u32: Self::from_le(transmute::<_, NonNull<_>>(buf).read()),
+    i32: Self::from_le(transmute::<_, NonNull<_>>(buf).read()),
+    i64: Self::from_le(transmute::<_, NonNull<_>>(buf).read_unaligned()),
+    f64: Self::from_bits(i64::deserialize_infallible(buf) as u64)
 );
 
 impl DeserializeUnchecked for bool {
     #[inline(always)]
-    unsafe fn deserialize_unchecked(buf: *const u8) -> Result<Self, Error> {
+    unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError> {
         match unsafe { u32::deserialize_infallible(buf) } {
             TRUE => Ok(true),
             FALSE => Ok(false),
-            _ => Err(Error::UnexpectedConstructor),
+            _ => Err(UnexpectedConstructorError {}),
         }
     }
 }

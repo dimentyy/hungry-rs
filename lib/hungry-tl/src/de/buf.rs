@@ -1,11 +1,12 @@
 use std::marker::PhantomData;
-use std::slice;
+use std::ptr::NonNull;
+use std::{hint, slice};
 
-use crate::de::{Deserialize, Error};
+use crate::de::{Deserialize, EndOfBufferError, Error};
 
 #[derive(Clone)]
 pub struct Buf<'a> {
-    pub(crate) ptr: *const u8,
+    pub(crate) ptr: NonNull<u8>,
     pub(crate) len: usize,
     _marker: PhantomData<&'a ()>,
 }
@@ -14,7 +15,7 @@ impl<'a> Buf<'a> {
     #[inline(always)]
     pub fn new(slice: &'a [u8]) -> Self {
         Self {
-            ptr: slice.as_ptr(),
+            ptr: NonNull::new(slice.as_ptr() as *mut u8).unwrap(),
             len: slice.len(),
             _marker: PhantomData,
         }
@@ -39,32 +40,20 @@ impl<'a> Buf<'a> {
 
     #[inline(always)]
     pub fn as_slice(&self) -> &'a [u8] {
-        unsafe { slice::from_raw_parts(self.ptr, self.len) }
+        unsafe { slice::from_raw_parts(self.ptr.as_ptr(), self.len) }
     }
 
     #[inline(always)]
-    pub unsafe fn advance_unchecked(&mut self, n: usize) -> *const u8 {
-        let ptr = self.ptr;
-
-        unsafe {
-            self.ptr = self.ptr.add(n);
-            self.len = self.len.unchecked_sub(n);
-        }
-
-        ptr
-    }
-
-    #[inline(always)]
-    pub fn check_len(&mut self, n: usize) -> Result<(), Error> {
+    pub fn check_len(&mut self, n: usize) -> Result<(), EndOfBufferError> {
         if self.len < n {
-            return Err(Error::UnexpectedEndOfBuffer);
+            return Err(EndOfBufferError {});
         }
 
         Ok(())
     }
 
     #[inline]
-    pub fn advance(&mut self, n: usize) -> Result<*const u8, Error> {
+    pub fn advance(&mut self, n: usize) -> Result<NonNull<u8>, EndOfBufferError> {
         self.check_len(n)?;
 
         let ptr = self.ptr;
@@ -72,6 +61,20 @@ impl<'a> Buf<'a> {
         unsafe { self.advance_unchecked(n) };
 
         Ok(ptr)
+    }
+
+    #[inline(always)]
+    pub unsafe fn advance_unchecked(&mut self, n: usize) -> NonNull<u8> {
+        unsafe {
+            hint::assert_unchecked(self.len >= n);
+
+            let ptr = self.ptr;
+
+            self.len = self.len.unchecked_sub(n);
+            self.ptr = self.ptr.add(n);
+
+            ptr
+        }
     }
 
     pub fn de<X: Deserialize>(&mut self) -> Result<X, Error> {

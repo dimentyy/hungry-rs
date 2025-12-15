@@ -22,7 +22,7 @@ impl<T: Deserialize> Deserialize for Vec<T> {
             let id = u32::deserialize_infallible(buf.advance_unchecked(4));
 
             if id != VECTOR {
-                return Err(Error::UnexpectedConstructor);
+                return Err(Error::unexpected_constructor());
             }
 
             deserialize_vec(buf)
