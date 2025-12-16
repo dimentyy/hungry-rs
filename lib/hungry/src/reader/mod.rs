@@ -148,11 +148,11 @@ impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
             // SAFETY: data is initialized up to additional `n` bytes.
             unsafe { self.buffer.set_len(self.buffer.len() + n) };
 
-            if n >= len {
-                assert_eq!(n, len);
-
-                return Poll::Ready(Ok(()));
+            if n < len {
+                continue;
             }
+
+            return Poll::Ready(Ok(()));
         }
     }
 }
