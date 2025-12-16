@@ -7,7 +7,7 @@ use bytes::BytesMut;
 use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
-use crate::{mtproto, writer, Envelope};
+use crate::{Envelope, mtproto, writer};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     error: Option<io::Error>,

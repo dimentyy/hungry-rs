@@ -2,9 +2,9 @@ use std::ptr::NonNull;
 
 use crate::{mtproto, tl};
 
+use tl::ConstSerializedLen;
 use tl::de::{Buf, DeserializeInfallible, Error};
 use tl::ser::SerializeUnchecked;
-use tl::ConstSerializedLen;
 
 #[derive(Debug)]
 pub struct Msg {

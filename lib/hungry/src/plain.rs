@@ -5,7 +5,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{mtproto, reader, tl, writer, Envelope};
+use crate::{Envelope, mtproto, reader, tl, writer};
 
 use tl::ser::SerializeInto;
 
