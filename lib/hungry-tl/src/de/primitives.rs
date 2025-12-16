@@ -1,4 +1,3 @@
-use std::mem::transmute;
 use std::ptr::NonNull;
 
 use crate::de::{DeserializeInfallible, DeserializeUnchecked, UnexpectedConstructorError};
@@ -16,9 +15,9 @@ macro_rules! impls {
 }
 
 impls!(buf;
-    u32: Self::from_le(transmute::<_, NonNull<_>>(buf).read()),
-    i32: Self::from_le(transmute::<_, NonNull<_>>(buf).read()),
-    i64: Self::from_le(transmute::<_, NonNull<_>>(buf).read_unaligned()),
+    u32: Self::from_le(buf.cast().read()),
+    i32: Self::from_le(buf.cast().read()),
+    i64: Self::from_le(buf.cast().read_unaligned()),
     f64: Self::from_bits(i64::deserialize_infallible(buf) as u64)
 );
 

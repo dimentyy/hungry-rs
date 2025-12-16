@@ -6,10 +6,11 @@ mod primitives;
 mod vec;
 
 use std::ptr::NonNull;
+
 use crate::{ConstSerializedLen, SerializedLen};
 
 pub use buf::Buf;
-pub use error::{Error, UnexpectedConstructorError, EndOfBufferError};
+pub use error::{EndOfBufferError, Error, UnexpectedConstructorError};
 
 pub trait Deserialize: SerializedLen + Sized {
     /// # Safety

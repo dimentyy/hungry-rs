@@ -1,4 +1,3 @@
-use std::mem::transmute;
 use std::ptr::NonNull;
 
 use crate::de::DeserializeInfallible;
@@ -9,7 +8,7 @@ macro_rules! big_int {
         impl DeserializeInfallible for $typ {
             #[inline(always)]
             unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self {
-                unsafe { transmute::<_, NonNull<[u8; $len]>>(buf).read_unaligned() }
+                unsafe { buf.cast::<[u8; $len]>().read_unaligned() }
             }
         }
     )+ };
