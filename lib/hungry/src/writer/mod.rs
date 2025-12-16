@@ -2,7 +2,7 @@ mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
-use std::pin::{Pin, pin};
+use std::pin::{pin, Pin};
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
@@ -10,7 +10,7 @@ use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
-use crate::{Envelope, mtproto};
+use crate::{mtproto, Envelope};
 
 pub use queued::QueuedWriter;
 
@@ -25,13 +25,23 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     }
 
     fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {
-        match NonZeroUsize::new(ready_ok!(pin!(&mut self.driver).poll_write(cx, buf))) {
-            None => Poll::Ready(Err(io::Error::new(
+        let n = ready_ok!(pin!(&mut self.driver).poll_write(cx, buf));
+
+        if n > buf.len() {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "number of bytes written exceeds buffer length",
+            )));
+        }
+
+        let Some(n) = NonZeroUsize::new(n) else {
+            return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::WriteZero,
                 "wrote 0 bytes",
-            ))),
-            Some(n) => Poll::Ready(Ok(n)),
-        }
+            )));
+        };
+
+        Poll::Ready(Ok(n))
     }
 
     pub fn single_plain<'a>(

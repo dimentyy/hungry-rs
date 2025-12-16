@@ -7,10 +7,10 @@ use bytes::BytesMut;
 use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
-use crate::utils::ready_ok;
-use crate::{Envelope, mtproto, writer};
+use crate::{mtproto, writer, Envelope};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
+    error: Option<io::Error>,
     driver: writer::Writer<W, T>,
     buffers: VecDeque<BytesMut>,
 }
@@ -19,6 +19,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use]
     pub fn new(driver: writer::Writer<W, T>) -> Self {
         Self {
+            error: None,
             driver,
             buffers: VecDeque::new(),
         }
@@ -68,23 +69,43 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<BytesMut>> {
+        if let Some(error) = self.error.take() {
+            return Poll::Ready(Err(error));
+        }
+
         let Some(buffer) = self.buffers.front_mut() else {
             return Poll::Pending;
         };
 
-        // Loop may not be used here because a written buffer will be lost due to an error.
-        // Storing io::Error in the Writer to return in the next poll would be an overkill.
-        let n = ready_ok!(self.driver.poll_checked(cx, buffer)).get();
+        let mut pos = 0;
 
-        let buffer = if n >= buffer.len() {
-            assert_eq!(n, buffer.len());
+        loop {
+            let ready = match self.driver.poll_checked(cx, &buffer[pos..]) {
+                Poll::Ready(ready) => ready,
+                Poll::Pending if pos == 0 => return Poll::Pending,
+                Poll::Pending => return Poll::Ready(Ok(buffer.split_to(pos))),
+            };
 
-            self.buffers.pop_front().unwrap()
-        } else {
-            buffer.split_to(n)
-        };
+            let n = match ready {
+                Ok(n) => n.get(),
+                Err(error) if pos == 0 => return Poll::Ready(Err(error)),
+                Err(error) => {
+                    self.error = Some(error);
 
-        Poll::Ready(Ok(buffer))
+                    return Poll::Ready(Ok(buffer.split_to(pos)));
+                }
+            };
+
+            pos += n;
+
+            if pos < buffer.len() {
+                continue;
+            }
+
+            assert_eq!(pos, buffer.len());
+
+            return Poll::Ready(Ok(self.buffers.pop_front().unwrap()));
+        }
     }
 }
 
