@@ -1,5 +1,4 @@
 use std::ptr::NonNull;
-use std::mem::transmute;
 
 use crate::ser::SerializeUnchecked;
 use crate::{Int128, Int256};
@@ -10,7 +9,7 @@ macro_rules! big_int {
             #[inline(always)]
             unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8> {
                 unsafe {
-                    transmute::<_, NonNull<[u8; $len]>>(buf).write_unaligned(*self);
+                    buf.as_ptr().copy_from_nonoverlapping(self.as_ptr(), $len);
 
                     buf.add($len)
                 }

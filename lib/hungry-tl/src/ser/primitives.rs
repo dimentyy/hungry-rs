@@ -1,4 +1,3 @@
-use std::mem::transmute;
 use std::ptr::NonNull;
 
 use crate::ser::SerializeUnchecked;
@@ -20,10 +19,10 @@ macro_rules! impls {
 }
 
 impls!(self, buf;
-    u32: 4 => transmute::<_, NonNull<_>>(buf).write(self.to_le()),
-    i32: 4 => transmute::<_, NonNull<_>>(buf).write(self.to_le()),
-    i64: 8 => transmute::<_, NonNull<_>>(buf).write_unaligned(self.to_le()),
-    f64: 8 => transmute::<_, NonNull<_>>(buf).write_unaligned(self.to_bits().to_le()),
+    u32: 4 => buf.cast().write(self.to_le()),
+    i32: 4 => buf.cast().write(self.to_le()),
+    i64: 8 => buf.cast().write_unaligned(self.to_le()),
+    f64: 8 => buf.cast().write_unaligned(self.to_bits().to_le()),
 );
 
 impl SerializeUnchecked for bool {

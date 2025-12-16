@@ -41,6 +41,10 @@ fn invalid_ret(
 #[inline(always)]
 fn check_ret<X: SerializeUnchecked + ?Sized>(x: &X, buf: NonNull<u8>, len: usize) {
     unsafe {
+        if !buf.cast::<u32>().is_aligned() {
+            todo!()
+        }
+
         let end = buf.add(len);
 
         let ret = x.serialize_unchecked(buf);

@@ -3,8 +3,14 @@ use std::ptr::NonNull;
 use crate::ser::SerializeUnchecked;
 use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR};
 
-pub fn bare_vec_serialized_len<T: SerializedLen>(vec: &[T]) -> usize {
-    u32::SERIALIZED_LEN + vec.iter().map(SerializedLen::serialized_len).sum::<usize>()
+pub fn bare_vec_serialized_len<T: SerializedLen>(arr: &[T]) -> usize {
+    let mut sum = u32::SERIALIZED_LEN;
+
+    for x in arr {
+        sum += x.serialized_len();
+    }
+
+    sum
 }
 
 pub unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
@@ -13,9 +19,11 @@ pub unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
 ) -> NonNull<u8> {
     unsafe {
         buf = (arr.len() as u32).serialize_unchecked(buf);
+
         for x in arr {
             buf = x.serialize_unchecked(buf)
         }
+
         buf
     }
 }
