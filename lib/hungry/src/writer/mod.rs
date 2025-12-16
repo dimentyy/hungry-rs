@@ -29,7 +29,9 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
 
         assert!(
             n <= buf.len(),
-            "`AsyncWrite` contract violation by `{}`: reported number of bytes written ({n}) exceeds the buffer length ({})",
+            "`tokio::io::AsyncWrite` contract violation by `{}`: \
+            reported number of bytes written ({n}) \
+            exceeds the buffer length ({})",
             std::any::type_name::<W>(),
             buf.len(),
         );

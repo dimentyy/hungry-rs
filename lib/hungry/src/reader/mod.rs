@@ -137,6 +137,14 @@ impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
                 )));
             }
 
+            assert!(
+                n <= len,
+                "`tokio::io::AsyncRead` contract violation by `{}`: \
+                reported number of bytes read ({n}) \
+                exceeds the buffer length ({len})",
+                std::any::type_name::<R>(),
+            );
+
             // SAFETY: data is initialized up to additional `n` bytes.
             unsafe { self.buffer.set_len(self.buffer.len() + n) };
 
