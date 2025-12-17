@@ -1,12 +1,9 @@
-mod dump;
 mod error;
-mod reserve;
-mod split;
 
 use std::io;
 use std::ops::ControlFlow;
 use std::pin::{Pin, pin};
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, ReadBuf};
@@ -14,102 +11,76 @@ use tokio::io::{AsyncRead, ReadBuf};
 use crate::transport::{Transport, TransportRead, Unpack};
 use crate::utils::ready_ok;
 
-pub use dump::Dump;
 pub use error::Error;
-pub use reserve::Reserve;
-pub use split::Split;
 
-pub trait ReserveReaderBuffer {
-    fn reserve(&mut self, buffer: &mut BytesMut, length: usize);
-}
-
-pub trait ProcessReaderPacket {
-    type Output;
-
-    fn process(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output;
-}
-
-pub trait HandleReader: ReserveReaderBuffer + ProcessReaderPacket + Unpin {}
-impl<T: ReserveReaderBuffer + ProcessReaderPacket + Unpin> HandleReader for T {}
-
-pub struct Parted<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> {
-    pub reserve: R,
-    pub process: P,
-}
-
-impl<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> ReserveReaderBuffer
-    for Parted<R, P>
-{
-    fn reserve(&mut self, buffer: &mut BytesMut, length: usize) {
-        self.reserve.reserve(buffer, length);
-    }
-}
-
-impl<R: ReserveReaderBuffer + Unpin, P: ProcessReaderPacket + Unpin> ProcessReaderPacket
-    for Parted<R, P>
-{
-    type Output = P::Output;
-
-    fn process(&mut self, buffer: &mut BytesMut, unpack: Unpack) -> Self::Output {
-        self.process.process(buffer, unpack)
-    }
-}
-
-pub struct Reader<R: AsyncRead + Unpin, T: Transport, H: HandleReader> {
+pub struct Reader<R: AsyncRead + Unpin, T: Transport> {
     driver: R,
     transport: T::Read,
-    handle: H,
     buffer: BytesMut,
-    length: usize,
+    pos: usize,
+    end: usize,
 }
 
-impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
-    pub(crate) fn new(driver: R, transport: T::Read, handle: H, buffer: BytesMut) -> Self {
+impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
+    pub(crate) fn new(driver: R, transport: T::Read, buffer: BytesMut) -> Self {
         assert!(buffer.is_empty());
 
         Self {
             driver,
             transport,
-            handle,
             buffer,
-            length: T::Read::DEFAULT_BUF_LEN,
+            pos: 0,
+            end: T::Read::DEFAULT_BUF_LEN,
         }
     }
 
+    pub fn buffer(&mut self) -> &mut BytesMut {
+        &mut self.buffer
+    }
+
+    fn reset(&mut self) {
+        self.pos = 0;
+
+        self.end = T::Read::DEFAULT_BUF_LEN;
+    }
+
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
+        assert_eq!(
+            self.buffer.len(),
+            self.pos,
+            "buffer length have been modified externally",
+        );
+
         loop {
-            if self.buffer.capacity() < self.length {
-                self.handle.reserve(&mut self.buffer, 0);
-                assert!(self.buffer.capacity() >= self.length);
+            if self.buffer.capacity() < self.end {
+                return Poll::Ready(ControlFlow::Break(self.end));
             }
 
-            ready_ok!(self.poll_read(cx, self.length));
+            if let Err(err) = ready!(self.poll_read(cx, self.end)) {
+                return Poll::Ready(ControlFlow::Continue(Err(Error::Io(err))));
+            }
 
             let unpack = match self.transport.unpack(self.buffer.as_mut()) {
                 ControlFlow::Continue(length) => {
-                    assert!(length > self.length);
+                    assert!(length > self.end);
 
-                    self.length = length;
+                    self.end = length;
 
                     continue;
                 }
                 ControlFlow::Break(Err(err)) => {
+                    self.reset();
+
                     self.buffer.clear();
 
-                    self.length = T::Read::DEFAULT_BUF_LEN;
-
-                    return Poll::Ready(Err(Error::Transport(err)));
+                    return Poll::Ready(ControlFlow::Continue(Err(Error::Transport(err))));
                 }
                 ControlFlow::Break(Ok(unpack)) => unpack,
             };
 
-            self.length = T::Read::DEFAULT_BUF_LEN;
+            self.reset();
 
-            let output = self.handle.process(&mut self.buffer, unpack);
-
-            assert!(self.buffer.is_empty());
-
-            return Poll::Ready(Ok(output));
+            return Poll::Ready(ControlFlow::Continue(Ok(unpack)));
         }
     }
 
@@ -117,8 +88,6 @@ impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
         assert!(length <= self.buffer.capacity());
 
         if self.buffer.len() >= length {
-            assert_eq!(self.buffer.len(), length);
-
             return Poll::Ready(Ok(()));
         }
 
@@ -145,8 +114,10 @@ impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
                 std::any::type_name::<R>(),
             );
 
-            // SAFETY: data is initialized up to additional `n` bytes.
-            unsafe { self.buffer.set_len(self.buffer.len() + n) };
+            self.pos += n;
+
+            // SAFETY: data is initialized up to `self.pos` bytes.
+            unsafe { self.buffer.set_len(self.pos) };
 
             if n < len {
                 continue;
@@ -157,8 +128,8 @@ impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Reader<R, T, H> {
     }
 }
 
-impl<R: AsyncRead + Unpin, T: Transport, H: HandleReader> Future for Reader<R, T, H> {
-    type Output = Result<H::Output, Error>;
+impl<R: AsyncRead + Unpin, T: Transport> Future for Reader<R, T> {
+    type Output = ControlFlow<usize, Result<Unpack, Error>>;
 
     #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

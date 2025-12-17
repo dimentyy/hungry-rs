@@ -1,6 +1,6 @@
-use std::{fmt, io};
-
 use bytes::BytesMut;
+use std::ops::ControlFlow;
+use std::{fmt, io};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
@@ -41,15 +41,9 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-pub async fn send<
-    T: Transport,
-    R: AsyncRead + Unpin,
-    H: reader::HandleReader<Output = <reader::Split as reader::ProcessReaderPacket>::Output>,
-    W: AsyncWrite + Unpin,
-    F: tl::Function,
->(
-    r: &mut reader::Reader<R, T, H>,
-    w: &mut writer::Writer<W, T>,
+pub async fn send<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: tl::Function>(
+    reader: &mut reader::Reader<R, T>,
+    writer: &mut writer::Writer<W, T>,
     func: &F,
     buffer: &mut BytesMut,
     transport: Envelope<T>,
@@ -62,18 +56,23 @@ pub async fn send<
 
     crate::utils::dump(&buffer, "SER").unwrap();
 
-    w.single_plain(buffer, transport, mtp, message_id)
+    writer
+        .single_plain(buffer, transport, mtp, message_id)
         .await
         .map_err(Error::Writer)?;
 
-    let (buffer, unpack) = r.await?;
+    let ControlFlow::Continue(unpack) = (&mut *reader).await else {
+        unimplemented!()
+    };
 
-    let data = match unpack {
+    let data = match unpack? {
         Unpack::Packet(Packet { data }) => data,
         Unpack::QuickAck(quick_ack) => {
             return Err(Error::QuickAck(quick_ack));
         }
     };
+
+    let buffer = reader.buffer().split();
 
     let message = match mtproto::Message::unpack(&buffer[data.clone()]) {
         mtproto::Message::Plain(message) => message,

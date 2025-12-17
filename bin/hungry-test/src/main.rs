@@ -1,6 +1,5 @@
 use bytes::BytesMut;
 
-use hungry::reader::{Dump, Parted, Reserve, Split};
 use hungry::tl::mtproto::enums::ServerDhParams;
 use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
@@ -12,11 +11,9 @@ type WriterDriver = tokio::net::tcp::OwnedWriteHalf;
 
 type Transport = hungry::transport::Full;
 
-type ReaderHandle = Dump<Parted<Reserve, Split>>;
-
 struct Plain<'a> {
     buffer: &'a mut BytesMut,
-    reader: &'a mut hungry::reader::Reader<ReaderDriver, Transport, ReaderHandle>,
+    reader: &'a mut hungry::reader::Reader<ReaderDriver, Transport>,
     writer: &'a mut hungry::writer::Writer<WriterDriver, Transport>,
 }
 
@@ -70,14 +67,9 @@ async fn async_main() -> anyhow::Result<()> {
     let stream = tokio::net::TcpStream::connect(ADDR).await?;
     let (r, w) = stream.into_split();
 
-    let handle = Dump(Parted {
-        reserve: Reserve,
-        process: Split,
-    });
-
     let buffer = BytesMut::with_capacity(1024 * 1024);
 
-    let (mut reader, mut writer) = hungry::new(transport, r, handle, buffer, w);
+    let (mut reader, mut writer) = hungry::new(transport, r, buffer, w);
 
     let mut buffer = BytesMut::with_capacity(1024 * 1024);
 
@@ -183,12 +175,14 @@ async fn async_main() -> anyhow::Result<()> {
         .await?;
 
     loop {
-        let (mut buffer, unpack) = (&mut reader).await?;
+        let unpack = (&mut reader).await.continue_value().unwrap()?;
 
         let data = match unpack {
             Unpack::Packet(Packet { data }) => data,
             Unpack::QuickAck(_) => todo!(),
         };
+
+        let mut buffer = reader.buffer().split();
 
         let encrypted = match mtproto::Message::unpack(&buffer[data.clone()]) {
             mtproto::Message::Plain(_) => todo!(),
