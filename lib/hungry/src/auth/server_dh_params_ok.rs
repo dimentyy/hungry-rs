@@ -62,6 +62,9 @@ impl ServerDhParamsOk {
         // TODO: allow custom random padding.
         getrandom::fill_uninit(data_with_hash.spare_capacity_mut()).unwrap();
 
+        // SAFETY: spare capacity was filled with random bytes.
+        unsafe { data_with_hash.set_len(data_with_hash.capacity()) };
+
         // * encrypted_data := AES256_ige_encrypt(data_with_hash, tmp_aes_key, tmp_aes_iv);
         crypto::aes_ige_encrypt(&mut data_with_hash, &self.tmp_aes_key, &mut self.tmp_aes_iv);
         let encrypted_data = data_with_hash;
