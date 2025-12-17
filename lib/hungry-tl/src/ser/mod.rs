@@ -77,25 +77,31 @@ pub trait SerializeInto {
     fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X);
 }
 
-impl SerializeInto for [u8] {
-    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
-        let len = check_len(x, self.len());
+macro_rules! impl_arrays {
+    ( $( $typ:ty ),+ $( , )? ) => { $(
+        impl SerializeInto for [$typ] {
+            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
+                let len = check_len(x, self.len());
 
-        let buf = NonNull::new(self.as_mut_ptr()).unwrap();
+                let buf = unsafe { NonNull::new_unchecked(self.as_mut_ptr().cast()) };
 
-        check_ret(x, buf, len);
-    }
+                check_ret(x, buf, len);
+            }
+        }
+
+        impl<const N: usize> SerializeInto for [$typ; N] {
+            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
+                let len = check_len(x, N);
+
+                let buf = unsafe { NonNull::new_unchecked(self.as_mut_ptr().cast()) };
+
+                check_ret(x, buf, len);
+            }
+        }
+    )+ };
 }
 
-impl<const N: usize> SerializeInto for [u8; N] {
-    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
-        let len = check_len(x, N);
-
-        let buf = NonNull::new(self.as_mut_ptr()).unwrap();
-
-        check_ret(x, buf, len);
-    }
-}
+impl_arrays!(u8, std::mem::MaybeUninit<u8>);
 
 macro_rules! impl_heap {
     ( $( $typ:ty ),+ $( , )? ) => { $(

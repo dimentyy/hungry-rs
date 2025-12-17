@@ -1,6 +1,7 @@
-use rug::{Integer, integer::Order::MsfBe};
-
 use crate::{auth, crypto, tl};
+use bytes::BytesMut;
+use hungry_tl::SerializedLen;
+use rug::{Integer, integer::Order::MsfBe};
 
 use tl::mtproto::{funcs, types};
 use tl::ser::SerializeInto;
@@ -44,11 +45,13 @@ impl ServerDhParamsOk {
             g_b: g_b.to_digits(MsfBe),
         });
 
-        // TODO: random padding
-        //
+        let serialized_len = client_dh_inner_data.serialized_len();
+
         // * data_with_hash := SHA1(data) + data + (0-15 random bytes);
         // such that length be divisible by 16;
-        let mut data_with_hash = Vec::with_capacity(500);
+        let mut data_with_hash = Vec::with_capacity((20 + serialized_len + 15) & !15);
+
+        // SAFETY: uninitialized data is not read.
         unsafe { data_with_hash.set_len(20) };
 
         data_with_hash.ser(&client_dh_inner_data);
@@ -56,7 +59,8 @@ impl ServerDhParamsOk {
         let data_sha1 = crypto::sha1!(&data_with_hash[20..]);
         data_with_hash[..20].copy_from_slice(&data_sha1);
 
-        unsafe { data_with_hash.set_len((data_with_hash.len() + 15) & !15) };
+        // TODO: allow custom random padding.
+        getrandom::fill_uninit(data_with_hash.spare_capacity_mut()).unwrap();
 
         // * encrypted_data := AES256_ige_encrypt(data_with_hash, tmp_aes_key, tmp_aes_iv);
         crypto::aes_ige_encrypt(&mut data_with_hash, &self.tmp_aes_key, &mut self.tmp_aes_iv);

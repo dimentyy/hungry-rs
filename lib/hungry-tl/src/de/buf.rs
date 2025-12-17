@@ -14,8 +14,14 @@ pub struct Buf<'a> {
 impl<'a> Buf<'a> {
     #[inline(always)]
     pub fn new(slice: &'a [u8]) -> Self {
+        let ptr = unsafe { NonNull::new_unchecked(slice.as_ptr().cast_mut()) };
+        
+        if !ptr.cast::<u32>().is_aligned() {
+            todo!()
+        }
+
         Self {
-            ptr: NonNull::new(slice.as_ptr() as *mut u8).unwrap(),
+            ptr,
             len: slice.len(),
             _marker: PhantomData,
         }
