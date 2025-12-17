@@ -21,9 +21,7 @@ pub(crate) use unsplit_checked;
 
 pub(crate) trait BytesMutExt {
     fn end_ptr(&self) -> *const u8;
-
-    fn set_zero_len(&mut self);
-
+    
     unsafe fn set_full_len(&mut self);
 
     fn unsplit_reverse(&mut self, other: BytesMut);
@@ -43,11 +41,6 @@ impl BytesMutExt for BytesMut {
     #[inline]
     fn end_ptr(&self) -> *const u8 {
         self.as_ptr().wrapping_add(self.capacity())
-    }
-
-    #[inline]
-    fn set_zero_len(&mut self) {
-        unsafe { self.set_len(0) }
     }
 
     #[inline]

@@ -49,7 +49,7 @@ impl<S: EnvelopeSize> Envelope<S> {
         let header = buffer.split_to(S::HEADER);
         let footer = buffer.split_off(buffer.capacity() - S::FOOTER);
 
-        buffer.set_zero_len();
+        buffer.clear();
 
         Self {
             header,
@@ -89,7 +89,7 @@ impl<S: EnvelopeSize> Envelope<S> {
         self.footer = buffer.split_off(len);
 
         let mut excess = self.footer.split_off(S::FOOTER);
-        excess.set_zero_len();
+        excess.clear();
         Some(excess)
     }
 
@@ -106,7 +106,7 @@ impl<S: EnvelopeSize> Envelope<S> {
         buffer.unsplit(self.footer);
 
         if let Some(mut excess) = excess {
-            excess.set_zero_len();
+            excess.clear();
 
             unsplit_checked!(
                 buffer,
