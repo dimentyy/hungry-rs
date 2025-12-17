@@ -4,6 +4,7 @@
 mod envelope;
 mod gzip_packed;
 mod msg_container;
+mod sender;
 
 pub mod auth;
 pub mod crypto;
@@ -26,22 +27,16 @@ pub(crate) use envelope::envelopes;
 pub use envelope::{Envelope, EnvelopeSize};
 pub use msg_container::MsgContainer;
 
-pub fn new<
-    T: transport::Transport,
-    R: AsyncRead + Unpin,
-    H: reader::HandleReader,
-    W: AsyncWrite + Unpin,
->(
+pub fn new<T: transport::Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     transport: T,
     reader: R,
-    reader_handle: H,
     reader_buffer: BytesMut,
     writer: W,
-) -> (reader::Reader<R, T, H>, writer::Writer<W, T>) {
+) -> (reader::Reader<R, T>, writer::Writer<W, T>) {
     let (reader_transport, writer_transport) = transport.split();
 
     let writer = writer::Writer::new(writer, writer_transport);
-    let reader = reader::Reader::new(reader, reader_transport, reader_handle, reader_buffer);
+    let reader = reader::Reader::new(reader, reader_transport, reader_buffer);
 
     (reader, writer)
 }

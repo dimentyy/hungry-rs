@@ -34,7 +34,6 @@ impl From<transport::Error> for Error {
 }
 
 impl std::error::Error for Error {
-    #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(match self {
             Error::Io(err) => err,
