@@ -3,6 +3,7 @@ use bytes::BytesMut;
 use hungry::tl::mtproto::enums::ServerDhParams;
 use hungry::transport::{Packet, Unpack};
 use hungry::{Envelope, mtproto, tl};
+use hungry::writer::QueuedWriter;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -84,7 +85,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let req_pq = hungry::auth::start(nonce);
 
-    let func = dbg!(req_pq.func());
+    let func = req_pq.func();
 
     let tl::mtproto::enums::ResPq::ResPq(response) = dbg!(plain.send(func).await?);
 
@@ -111,9 +112,9 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    let func = dbg!(req_dh_params.func(key_aes_encrypted));
+    let func = req_dh_params.func(key_aes_encrypted);
 
-    let response = dbg!(plain.send(func).await?);
+    let response = plain.send(func).await?;
 
     let response = match response {
         ServerDhParams::ServerDhParamsFail(_) => todo!(),
@@ -127,9 +128,9 @@ async fn async_main() -> anyhow::Result<()> {
 
     let set_client_dh_params = server_dh_params_ok.set_client_dh_params(&b, 0);
 
-    let func = dbg!(set_client_dh_params.func());
+    let func = set_client_dh_params.func();
 
-    let response = dbg!(plain.send(func).await?);
+    let response = plain.send(func).await?;
 
     let dh_gen_ok = {
         use tl::mtproto::enums::SetClientDhParamsAnswer::*;
@@ -144,110 +145,37 @@ async fn async_main() -> anyhow::Result<()> {
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
     let session_id = rand::random();
 
-    let transport = Envelope::split(&mut buffer);
-    let mtp = Envelope::split(&mut buffer);
+    let mut sender = hungry::Sender::new(
+        reader,
+        QueuedWriter::new(writer),
 
-    let mut msg_ids = mtproto::MsgIds::new();
-    let mut seq_nos = mtproto::SeqNos::new();
+        auth_key,
 
-    let func = tl::mtproto::funcs::GetFutureSalts { num: 1 };
+        salt,
+        session_id
+    );
 
-    let message = mtproto::Msg {
-        msg_id: msg_ids.get(since_epoch()),
-        seq_no: seq_nos.get_content_related(),
+    let func = tl::api::funcs::InvokeWithLayer {
+        layer: 214,
+        query: tl::api::funcs::InitConnection {
+            api_id: 1,
+            device_model: "device_model".to_string(),
+            system_version: "system_version".to_string(),
+            app_version: "0.0.0".to_string(),
+            system_lang_code: "en".to_string(),
+            lang_pack: "".to_string(),
+            lang_code: "en".to_string(),
+            proxy: None,
+            params: None,
+            query: tl::api::funcs::help::GetNearestDc {},
+        }
     };
 
-    let mut msg_container = hungry::MsgContainer::new(buffer);
+    dbg!(sender.invoke(&func));
 
-    msg_container.push(message, &func).unwrap();
+    dbg!(sender.await?);
 
-    let mut buffer = msg_container.finalize();
-
-    let message = mtproto::DecryptedMessage { salt, session_id };
-
-    let msg = mtproto::Msg {
-        msg_id: msg_ids.get(since_epoch()),
-        seq_no: seq_nos.get_content_related(),
-    };
-
-    writer
-        .single(&mut buffer, transport, mtp, &auth_key, message, msg)
-        .await?;
-
-    loop {
-        let unpack = (&mut reader).await.continue_value().unwrap()?;
-
-        let data = match unpack {
-            Unpack::Packet(Packet { data }) => data,
-            Unpack::QuickAck(_) => todo!(),
-        };
-
-        let mut buffer = reader.buffer().split();
-
-        let encrypted = match mtproto::Message::unpack(&buffer[data.clone()]) {
-            mtproto::Message::Plain(_) => todo!(),
-            mtproto::Message::Encrypted(message) => message,
-        };
-
-        assert_eq!(&encrypted.auth_key_id.get().to_le_bytes(), auth_key.id());
-
-        let decrypted = encrypted.decrypt(
-            &auth_key,
-            &mut buffer[data.start + mtproto::EncryptedMessage::HEADER_LEN..data.end],
-        );
-
-        assert_eq!(decrypted.salt, salt);
-        assert_eq!(decrypted.session_id, session_id);
-
-        let buffer = &buffer[data.start
-            + mtproto::EncryptedMessage::HEADER_LEN
-            + mtproto::DecryptedMessage::HEADER_LEN..data.end];
-
-        let mut buf = tl::de::Buf::new(buffer);
-
-        let _message = buf.de::<mtproto::Msg>()?;
-        let bytes = buf.de::<i32>()? as usize;
-
-        assert!(buffer.len() - 20 >= bytes);
-
-        let id = buf.de::<u32>()?;
-
-        match id {
-            0x73f1f8dc => {}
-            0xf35c6d01 => {
-                println!("rpc result, todo");
-                continue;
-            }
-            _ => todo!(),
-        }
-
-        let container = mtproto::MsgContainer::new(&mut buf)?;
-
-        for message in container {
-            let (_message, mut buf) = message?;
-
-            let id = buf.de::<u32>()?;
-
-            match id {
-                0x9ec20908 => {
-                    let session = buf.de::<tl::mtproto::types::NewSessionCreated>()?;
-
-                    dbg!(session);
-                }
-                0xae500895 => {
-                    let salts = buf.de::<tl::mtproto::types::FutureSalts>()?;
-
-                    dbg!(salts);
-                }
-                0x62d6b459 => {
-                    let ack = buf.de::<tl::mtproto::types::MsgsAck>()?;
-
-                    dbg!(ack);
-                }
-                _ => todo!(),
-            }
-        }
-    }
+    Ok(())
 }
 
 fn since_epoch() -> std::time::Duration {

@@ -24,6 +24,7 @@ pub use hungry_tl as tl;
 
 pub(crate) use envelope::envelopes;
 
+pub use sender::Sender;
 pub use envelope::{Envelope, EnvelopeSize};
 pub use msg_container::MsgContainer;
 

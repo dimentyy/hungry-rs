@@ -18,13 +18,18 @@ impl MsgContainer {
         assert!(buffer.capacity() >= 8, "buffer does not enough capacity");
         assert!(buffer.is_empty(), "buffer is not empty");
 
-        let header = buffer.split_left(8);
+        let mut header = buffer.split_left(8);
+        header.clear();
 
         Self {
             header,
             buffer,
             length: 0,
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
     }
 
     pub fn push<X: SerializeUnchecked>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
@@ -45,10 +50,14 @@ impl MsgContainer {
 
     #[must_use]
     pub fn finalize(mut self) -> BytesMut {
-        self.buffer.ser(&0x73f1f8dc_u32);
-        self.buffer.ser(&(self.length as i32));
+        dbg!(self.header.len());
+
+        self.header.ser(&0x73f1f8dc_u32);
+        self.header.ser(&(self.length as u32));
 
         self.buffer.unsplit_reverse(self.header);
+
+        crate::utils::dump(&self.buffer, "CONTAINER").unwrap();
 
         self.buffer
     }

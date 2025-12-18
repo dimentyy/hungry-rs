@@ -25,6 +25,12 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
             buffers: VecDeque::new(),
         }
     }
+    
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.buffers.is_empty() || self.error.is_some()
+    }
 
     /// Returned buffer may be out-of-order due to multiple being queued at the same time.
     fn queue_impl(

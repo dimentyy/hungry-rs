@@ -27,7 +27,7 @@ pub enum Unpack {
     QuickAck(QuickAck),
 }
 
-pub trait Transport: EnvelopeSize {
+pub trait Transport: EnvelopeSize + Unpin {
     type Read: TransportRead<Transport = Self>;
     type Write: TransportWrite<Transport = Self>;
 

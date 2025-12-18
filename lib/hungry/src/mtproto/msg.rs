@@ -45,12 +45,12 @@ impl DeserializeInfallible for Msg {
 /// ---
 /// https://core.telegram.org/mtproto/service_messages#containers
 pub struct MsgContainer<'a> {
-    buf: &'a mut Buf<'a>,
+    buf: Buf<'a>,
     len: usize,
 }
 
 impl<'a> MsgContainer<'a> {
-    pub fn new(buf: &'a mut Buf<'a>) -> Result<Self, Error> {
+    pub fn new(mut buf: Buf<'a>) -> Result<Self, Error> {
         let len = buf.de::<u32>()? as usize;
 
         Ok(Self { buf, len })
