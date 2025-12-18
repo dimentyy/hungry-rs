@@ -24,9 +24,9 @@ impl ResPq {
         self,
         mut random_padding_bytes: [u8; 192],
         new_nonce: Int256,
-        key: &'_ crypto::RsaKey,
+        public_key: &'_ crypto::RsaKey,
     ) -> auth::ReqDhParams<'_> {
-        let public_key_fingerprint = key.fingerprint();
+        let public_key_fingerprint = public_key.fingerprint();
 
         if !self
             .server_public_key_fingerprints
@@ -67,7 +67,7 @@ impl ResPq {
             data_with_padding,
             data_pad_reversed,
             new_nonce,
-            key,
+            key: public_key,
             func,
         }
     }

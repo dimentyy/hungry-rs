@@ -1,14 +1,16 @@
-use bytes::BytesMut;
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io};
+
+use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::mtproto::{
-    AuthKey, DecryptedMessage, EncryptedEnvelope, Msg, MsgId, MsgIds, Salt, SeqNos, Session,
+    AuthKey, DecryptedMessage, EncryptedEnvelope, EncryptedMessage, Message, Msg, MsgId, MsgIds,
+    PlainMessage, Salt, SeqNos, Session,
 };
-use crate::reader::{Error as ReaderError, Reader};
+use crate::reader::{Error as ReaderError, Reader, ReaderDriver};
 use crate::transport::{Packet, Transport, Unpack};
 use crate::writer::QueuedWriter;
 use crate::{Envelope, MsgContainer, mtproto, tl};
@@ -19,7 +21,17 @@ pub const MAX_LEN: usize = 1024 * (1024 + 2);
 pub enum Error {
     Writer(io::Error),
     Reader(ReaderError),
+    PlainMessage(PlainMessage),
+    UnexpectedAuthKeyId(i64),
+    UnexpectedSessionId(Session),
     Deserialization(tl::de::Error),
+}
+
+impl From<tl::de::Error> for Error {
+    #[inline]
+    fn from(value: tl::de::Error) -> Self {
+        Self::Deserialization(value)
+    }
 }
 
 impl fmt::Display for Error {
@@ -28,9 +40,22 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
 
-pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
+        Some(match self {
+            Writer(err) => err,
+            Reader(err) => err,
+            PlainMessage(_) => return None,
+            UnexpectedAuthKeyId(_) => return None,
+            UnexpectedSessionId(_) => return None,
+            Deserialization(err) => err,
+        })
+    }
+}
+
+pub struct Sender<T: Transport, R: ReaderDriver, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
 
@@ -194,8 +219,50 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             }
             id => {
                 dbg!(tl::mtproto::types::name(id));
-            },
+            }
         }
+
+        Ok(())
+    }
+
+    fn handle_unpack(&mut self, unpack: Unpack) -> Result<(), Error> {
+        let data = match unpack {
+            Unpack::Packet(Packet { data }) => data,
+            Unpack::QuickAck(_) => unimplemented!(),
+        };
+
+        let mut buffer = self.reader.buffer().split();
+
+        let buf = &mut buffer[data];
+
+        let encrypted = match Message::unpack(buf) {
+            Message::Plain(message) => return Err(Error::PlainMessage(message)),
+            Message::Encrypted(message) => message,
+        };
+
+        let auth_key_id = encrypted.auth_key_id.get();
+
+        if auth_key_id != i64::from_le_bytes(*self.auth_key.id()) {
+            return Err(Error::UnexpectedAuthKeyId(auth_key_id));
+        }
+
+        let buf = &mut buf[EncryptedMessage::HEADER_LEN..];
+
+        let DecryptedMessage { salt, session_id } = encrypted.decrypt(&self.auth_key, buf);
+
+        // assert_eq!(decrypted.salt, self.salt);
+
+        if session_id != self.session_id {
+            return Err(Error::UnexpectedSessionId(session_id));
+        }
+
+        let mut buf = tl::de::Buf::new(&buf[DecryptedMessage::HEADER_LEN..]);
+
+        let _msg = buf.de::<Msg>()?;
+
+        let bytes = buf.de::<i32>()? as usize;
+
+        self.handle_msg(_msg, buf)?;
 
         Ok(())
     }
@@ -231,42 +298,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 Poll::Pending => break,
             };
 
-            let data = match unpack {
-                Unpack::Packet(Packet { data }) => data,
-                Unpack::QuickAck(_) => unimplemented!(),
-            };
-
-            let mut buffer = self.reader.buffer().split();
-
-            let encrypted = match mtproto::Message::unpack(&buffer[data.clone()]) {
-                mtproto::Message::Plain(_) => todo!(),
-                mtproto::Message::Encrypted(message) => message,
-            };
-
-            assert_eq!(
-                &encrypted.auth_key_id.get().to_le_bytes(),
-                self.auth_key.id()
-            );
-
-            let decrypted = encrypted.decrypt(
-                &self.auth_key,
-                &mut buffer[data.start + mtproto::EncryptedMessage::HEADER_LEN..data.end],
-            );
-
-            assert_eq!(decrypted.salt, self.salt);
-            assert_eq!(decrypted.session_id, self.session_id);
-
-            let buffer = &buffer[data.start
-                + mtproto::EncryptedMessage::HEADER_LEN
-                + mtproto::DecryptedMessage::HEADER_LEN..data.end];
-
-            let mut buf = tl::de::Buf::new(buffer);
-
-            let _msg = buf.de::<Msg>().map_err(Error::Deserialization)?;
-
-            let bytes = buf.de::<i32>().map_err(Error::Deserialization)? as usize;
-
-            self.handle_msg(_msg, buf).map_err(Error::Deserialization)?;
+            self.handle_unpack(unpack)?;
         }
 
         Poll::Pending

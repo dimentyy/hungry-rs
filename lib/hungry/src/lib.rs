@@ -24,11 +24,11 @@ pub use hungry_tl as tl;
 
 pub(crate) use envelope::envelopes;
 
-pub use sender::Sender;
 pub use envelope::{Envelope, EnvelopeSize};
 pub use msg_container::MsgContainer;
+pub use sender::Sender;
 
-pub fn new<T: transport::Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
+pub fn init<T: transport::Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     transport: T,
     reader: R,
     reader_buffer: BytesMut,

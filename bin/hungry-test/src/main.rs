@@ -1,11 +1,20 @@
 use bytes::BytesMut;
 
+use hungry::mtproto::{AuthKey, Salt};
+use hungry::reader::Reader;
 use hungry::tl::mtproto::enums::ServerDhParams;
-use hungry::transport::{Packet, Unpack};
-use hungry::{Envelope, mtproto, tl};
-use hungry::writer::QueuedWriter;
+use hungry::writer::{QueuedWriter, Writer};
+use hungry::{Envelope, tl};
 
 const ADDR: &str = "149.154.167.40:443";
+
+const N: &str = "253428894488404155649716895907134732068988477590847790525820265945460224638539\
+    4058588521595116849196570822264939918060381807420062046377613542488463216251240316379308392\
+    1641631564740959529419359595852941166848940585952337613333022396096584117954892216031229237\
+    3029437018775884567383353986024616752250817918203931537575049526362349513232378200365435810\
+    4782690612092797248736680529211579223142368426126233039432475078545094258975175539015664775\
+    1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
+    127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
 
 type ReaderDriver = tokio::net::tcp::OwnedReadHalf;
 type WriterDriver = tokio::net::tcp::OwnedWriteHalf;
@@ -49,35 +58,17 @@ fn main() -> anyhow::Result<()> {
     rt.block_on(async_main())
 }
 
-async fn async_main() -> anyhow::Result<()> {
-    const N: &str = "25342889448840415564971689590713473206898847759084779052582026594546022463853\
-        940585885215951168491965708222649399180603818074200620463776135424884632162512403163793083\
-        921641631564740959529419359595852941166848940585952337613333022396096584117954892216031229\
-        237302943701877588456738335398602461675225081791820393153757504952636234951323237820036543\
-        581047826906120927972487366805292115792231423684261262330394324750785450942589751755390156\
-        647751460719351439969059949569615302809050721500330239005077889855323917509948255722081644\
-        689442127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
-
-    let n = hungry::rug::Integer::from_str_radix(N, 10)?;
-    let e = hungry::rug::Integer::from(65537);
-
-    let key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
-
-    let transport = Transport::default();
-
-    let stream = tokio::net::TcpStream::connect(ADDR).await?;
-    let (r, w) = stream.into_split();
-
-    let buffer = BytesMut::with_capacity(1024 * 1024);
-
-    let (mut reader, mut writer) = hungry::new(transport, r, buffer, w);
-
+async fn generate_auth_key(
+    public_key: hungry::crypto::RsaKey,
+    reader: &mut Reader<ReaderDriver, Transport>,
+    writer: &mut Writer<WriterDriver, Transport>,
+) -> anyhow::Result<(AuthKey, Salt)> {
     let mut buffer = BytesMut::with_capacity(1024 * 1024);
 
     let mut plain = Plain {
         buffer: &mut buffer,
-        reader: &mut reader,
-        writer: &mut writer,
+        reader,
+        writer,
     };
 
     let mut nonce = tl::Int128::default();
@@ -97,7 +88,7 @@ async fn async_main() -> anyhow::Result<()> {
     let mut new_nonce = tl::Int256::default();
     rand::fill(&mut new_nonce);
 
-    let mut req_dh_params = res_pq.req_dh_params(random_padding_bytes, new_nonce, &key);
+    let mut req_dh_params = res_pq.req_dh_params(random_padding_bytes, new_nonce, &public_key);
 
     let mut temp_key = [0; 32];
     let mut key_aes_encrypted = [0; 256];
@@ -143,16 +134,34 @@ async fn async_main() -> anyhow::Result<()> {
     };
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
+
+    Ok((auth_key, salt))
+}
+
+async fn async_main() -> anyhow::Result<()> {
+    let n = hungry::rug::Integer::from_str_radix(N, 10)?;
+    let e = hungry::rug::Integer::from(65537);
+
+    let public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
+
+    let transport = Transport::default();
+
+    let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
+
+    let buffer = BytesMut::with_capacity(1024 * 1024);
+
+    let (mut reader, mut writer) = hungry::init(transport, r, buffer, w);
+
+    let (auth_key, salt) = generate_auth_key(public_key, &mut reader, &mut writer).await?;
+
     let session_id = rand::random();
 
     let mut sender = hungry::Sender::new(
         reader,
         QueuedWriter::new(writer),
-
         auth_key,
-
         salt,
-        session_id
+        session_id,
     );
 
     let func = tl::api::funcs::InvokeWithLayer {
@@ -168,7 +177,7 @@ async fn async_main() -> anyhow::Result<()> {
             proxy: None,
             params: None,
             query: tl::api::funcs::help::GetNearestDc {},
-        }
+        },
     };
 
     dbg!(sender.invoke(&func));
@@ -176,10 +185,4 @@ async fn async_main() -> anyhow::Result<()> {
     dbg!(sender.await?);
 
     Ok(())
-}
-
-fn since_epoch() -> std::time::Duration {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
 }

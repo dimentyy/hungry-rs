@@ -13,7 +13,10 @@ use crate::utils::ready_ok;
 
 pub use error::Error;
 
-pub struct Reader<R: AsyncRead + Unpin, T: Transport> {
+pub trait ReaderDriver: AsyncRead + Unpin {}
+impl<T: AsyncRead + Unpin> ReaderDriver for T {}
+
+pub struct Reader<R: ReaderDriver, T: Transport> {
     driver: R,
     transport: T::Read,
     buffer: BytesMut,
@@ -21,7 +24,7 @@ pub struct Reader<R: AsyncRead + Unpin, T: Transport> {
     end: usize,
 }
 
-impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
+impl<R: ReaderDriver, T: Transport> Reader<R, T> {
     pub(crate) fn new(driver: R, transport: T::Read, buffer: BytesMut) -> Self {
         assert!(buffer.is_empty());
 
@@ -128,7 +131,7 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     }
 }
 
-impl<R: AsyncRead + Unpin, T: Transport> Future for Reader<R, T> {
+impl<R: ReaderDriver, T: Transport> Future for Reader<R, T> {
     type Output = ControlFlow<usize, Result<Unpack, Error>>;
 
     #[inline]
