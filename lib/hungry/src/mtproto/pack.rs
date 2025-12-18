@@ -2,8 +2,8 @@ use bytes::BytesMut;
 
 use crate::crypto;
 use crate::mtproto::{
-    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedMessage, Envelope, Msg,
-    PlainEnvelope, Side,
+    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedEnvelope, EncryptedMessage,
+    Msg, PlainEnvelope, Side,
 };
 use crate::utils::SliceExt;
 
@@ -22,7 +22,7 @@ pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, msg_id: i6
 
 pub fn pack_encrypted(
     buffer: &mut BytesMut,
-    mut envelope: Envelope,
+    mut envelope: EncryptedEnvelope,
     auth_key: &AuthKey,
     message: DecryptedMessage,
     msg: Msg,

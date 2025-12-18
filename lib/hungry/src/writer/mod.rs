@@ -24,6 +24,10 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
         Self { driver, transport }
     }
 
+    pub fn driver(&mut self) -> &mut W {
+        &mut self.driver
+    }
+
     fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {
         let n = ready_ok!(pin!(&mut self.driver).poll_write(cx, buf));
 
@@ -62,7 +66,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
         &'a mut self,
         buffer: &'a mut BytesMut,
         transport: Envelope<T>,
-        mtp: mtproto::Envelope,
+        mtp: mtproto::EncryptedEnvelope,
         auth_key: &mtproto::AuthKey,
         message: mtproto::DecryptedMessage,
         msg: mtproto::Msg,

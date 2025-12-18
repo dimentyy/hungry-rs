@@ -72,7 +72,7 @@ envelopes! {
     pub PlainEnvelope => PlainEnvelopeSize:
         PlainMessage::HEADER_LEN,
         0;          // no padding
-    pub Envelope => EnvelopeSize:
+    pub EncryptedEnvelope => EnvelopeSize:
         EncryptedMessage::HEADER_LEN + DECRYPTED_MESSAGE_HEADER_SIZE,
         1024;       // padding (12..1024)
 }

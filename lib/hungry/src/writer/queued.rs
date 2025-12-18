@@ -7,6 +7,7 @@ use bytes::BytesMut;
 use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
+use crate::utils::BytesMutExt;
 use crate::{Envelope, mtproto, writer};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
@@ -26,18 +27,34 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     }
 
     /// Returned buffer may be out-of-order due to multiple being queued at the same time.
-    fn queue_impl(&mut self, mut buffer: BytesMut, envelope: Envelope<T>) -> Option<BytesMut> {
+    fn queue_impl(
+        &mut self,
+        mut buffer: BytesMut,
+        envelope: Envelope<T>,
+    ) -> (Option<BytesMut>, Option<BytesMut>) {
         let packed = self.driver.transport.pack(&mut buffer, envelope);
 
-        let result = if packed.start > 0 {
+        let header = if packed.start > 0 {
             Some(buffer.split_to(packed.start))
         } else {
             None
         };
 
-        self.buffers.push_back(buffer);
+        let footer = if buffer.has_spare_capacity() {
+            Some(buffer.split_off(buffer.len()))
+        } else {
+            None
+        };
 
-        result
+        if let Some(back) = self.buffers.back_mut()
+            && back.can_unsplit(&buffer)
+        {
+            back.unsplit(buffer);
+        } else {
+            self.buffers.push_back(buffer);
+        }
+
+        (header, footer)
     }
 
     #[must_use = "the `BytesMut` must be reused to avoid unnecessary memory reallocation"]
@@ -47,7 +64,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         transport: Envelope<T>,
         mtp: mtproto::PlainEnvelope,
         message_id: i64,
-    ) -> Option<BytesMut> {
+    ) -> (Option<BytesMut>, Option<BytesMut>) {
         mtproto::pack_plain(&mut buffer, mtp, message_id);
 
         self.queue_impl(buffer, transport)
@@ -58,11 +75,11 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         &mut self,
         mut buffer: BytesMut,
         transport: Envelope<T>,
-        mtp: mtproto::Envelope,
+        mtp: mtproto::EncryptedEnvelope,
         auth_key: &mtproto::AuthKey,
         message: mtproto::DecryptedMessage,
         msg: mtproto::Msg,
-    ) -> Option<BytesMut> {
+    ) -> (Option<BytesMut>, Option<BytesMut>) {
         mtproto::pack_encrypted(&mut buffer, mtp, auth_key, message, msg);
 
         self.queue_impl(buffer, transport)
