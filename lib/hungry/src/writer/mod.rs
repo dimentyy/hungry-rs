@@ -2,7 +2,7 @@ mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
-use std::pin::{Pin, pin};
+use std::pin::pin;
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
@@ -103,7 +103,7 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
         self.pos
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         loop {
             let buf = &self.buffer[self.pos..];
 
@@ -115,14 +115,5 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
 
             self.pos += n.get();
         }
-    }
-}
-
-impl<'a, W: AsyncWrite + Unpin, T: Transport> Future for Single<'a, W, T> {
-    type Output = io::Result<()>;
-
-    #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.get_mut().poll(cx)
     }
 }

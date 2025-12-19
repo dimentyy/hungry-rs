@@ -1,10 +1,13 @@
+use std::ptr::NonNull;
+
 use bytes::BytesMut;
 
 use crate::mtproto::Msg;
 use crate::tl;
 use crate::utils::BytesMutExt;
 
-use tl::ser::{SerializeInto, SerializeUnchecked};
+use tl::ser::SerializeUnchecked;
+use tl::{ConstSerializedLen, Identifiable};
 
 pub struct MsgContainer {
     header: BytesMut,
@@ -12,13 +15,23 @@ pub struct MsgContainer {
     length: usize,
 }
 
+impl Identifiable for MsgContainer {
+    const CONSTRUCTOR_ID: u32 = 0x73f1f8dc;
+}
+
 impl MsgContainer {
+    const HEADER_LEN: usize = u32::SERIALIZED_LEN + u32::SERIALIZED_LEN;
+    const MSG_LEN: usize = Msg::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+
     #[must_use]
     pub fn new(mut buffer: BytesMut) -> Self {
-        assert!(buffer.capacity() >= 8, "buffer does not enough capacity");
+        assert!(
+            buffer.capacity() >= Self::HEADER_LEN,
+            "buffer does not enough capacity"
+        );
         assert!(buffer.is_empty(), "buffer is not empty");
 
-        let mut header = buffer.split_left(8);
+        let mut header = buffer.split_left(Self::HEADER_LEN);
         header.clear();
 
         Self {
@@ -28,6 +41,14 @@ impl MsgContainer {
         }
     }
 
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.length == 0
     }
@@ -35,30 +56,38 @@ impl MsgContainer {
     pub fn push<X: SerializeUnchecked>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
         let len = x.serialized_len();
 
-        if self.buffer.spare_capacity_len() < 16 + len {
+        if self.buffer.spare_capacity_len() < Self::MSG_LEN + len {
             return Err(message);
         }
 
         self.length += 1;
 
-        self.buffer.ser(&message);
-        self.buffer.ser(&(len as i32));
-        self.buffer.ser(x);
+        unsafe {
+            let mut buf = NonNull::new_unchecked(self.buffer.as_mut_ptr().add(self.buffer.len()));
+
+            buf = message.serialize_unchecked(buf);
+            buf = (len as i32).serialize_unchecked(buf);
+            x.serialize_unchecked(buf);
+
+            self.buffer.set_len(self.buffer.len() + Self::MSG_LEN + len);
+        }
 
         Ok(())
     }
 
     #[must_use]
     pub fn finalize(mut self) -> BytesMut {
-        dbg!(self.header.len());
+        unsafe {
+            let mut buf = NonNull::new_unchecked(self.header.as_mut_ptr());
 
-        self.header.ser(&0x73f1f8dc_u32);
-        self.header.ser(&(self.length as u32));
+            buf = Self::CONSTRUCTOR_ID.serialize_unchecked(buf);
+            (self.length as u32).serialize_unchecked(buf);
 
-        self.buffer.unsplit_reverse(self.header);
+            self.header.set_len(Self::HEADER_LEN);
+        }
 
-        crate::utils::dump(&self.buffer, "CONTAINER").unwrap();
+        self.header.unsplit(self.buffer);
 
-        self.buffer
+        self.header
     }
 }

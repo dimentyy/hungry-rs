@@ -1,5 +1,4 @@
 use std::ops::ControlFlow;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{fmt, io};
 
@@ -267,7 +266,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
         if self.writer.is_empty() {
             let (msg_container, mtp, transport) = self.msg_container.take().unwrap();
             if !msg_container.is_empty() {
@@ -302,13 +301,5 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
 
         Poll::Pending
-    }
-}
-
-impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Future for Sender<T, R, W> {
-    type Output = Result<(), Error>;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.get_mut().poll(cx)
     }
 }

@@ -1,6 +1,8 @@
-use bytes::BytesMut;
+use std::future::poll_fn;
 use std::ops::ControlFlow;
 use std::{fmt, io};
+
+use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
@@ -54,14 +56,13 @@ pub async fn send<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: 
 
     buffer.ser(func);
 
-    crate::utils::dump(&buffer, "SER").unwrap();
+    let mut w = writer.single_plain(buffer, transport, mtp, message_id);
 
-    writer
-        .single_plain(buffer, transport, mtp, message_id)
-        .await
-        .map_err(Error::Writer)?;
+    poll_fn(|cx| w.poll(cx)).await.map_err(Error::Writer)?;
 
-    let ControlFlow::Continue(unpack) = (&mut *reader).await else {
+    let r = poll_fn(|cx| reader.poll(cx)).await;
+
+    let ControlFlow::Continue(unpack) = r else {
         unimplemented!()
     };
 

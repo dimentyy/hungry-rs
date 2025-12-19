@@ -1,3 +1,4 @@
+use std::future::poll_fn;
 use bytes::BytesMut;
 
 use hungry::mtproto::{AuthKey, Salt};
@@ -78,7 +79,9 @@ async fn generate_auth_key(
 
     let func = req_pq.func();
 
-    let tl::mtproto::enums::ResPq::ResPq(response) = dbg!(plain.send(func).await?);
+    let tl::mtproto::enums::ResPq::ResPq(response) = plain.send(func).await?;
+
+    println!("ResPq");
 
     let res_pq = req_pq.res_pq(&response)?;
 
@@ -114,6 +117,8 @@ async fn generate_auth_key(
 
     let server_dh_params_ok = req_dh_params.server_dh_params_ok(&response)?;
 
+    println!("ServerDhParamsOk");
+
     let mut b = [0; 256];
     rand::fill(&mut b);
 
@@ -134,6 +139,8 @@ async fn generate_auth_key(
     };
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
+
+    println!("DhGenOk");
 
     Ok((auth_key, salt))
 }
@@ -182,7 +189,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     dbg!(sender.invoke(&func));
 
-    dbg!(sender.await?);
+    poll_fn(|cx| sender.poll(cx)).await?;
 
     Ok(())
 }

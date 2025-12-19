@@ -2,7 +2,7 @@ mod error;
 
 use std::io;
 use std::ops::ControlFlow;
-use std::pin::{Pin, pin};
+use std::pin::pin;
 use std::task::{Context, Poll, ready};
 
 use bytes::BytesMut;
@@ -47,7 +47,10 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         self.end = T::Read::DEFAULT_BUF_LEN;
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<<Self as Future>::Output> {
+    pub fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<ControlFlow<usize, Result<Unpack, Error>>> {
         assert_eq!(
             self.buffer.len(),
             self.pos,
@@ -128,14 +131,5 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
 
             return Poll::Ready(Ok(()));
         }
-    }
-}
-
-impl<R: ReaderDriver, T: Transport> Future for Reader<R, T> {
-    type Output = ControlFlow<usize, Result<Unpack, Error>>;
-
-    #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.get_mut().poll(cx)
     }
 }
