@@ -157,6 +157,56 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg_id
     }
 
+    pub fn poll<'a>(
+        &'a mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<SenderResult<'a, T, R, W>, Error>> {
+        if self.writer.is_empty() {
+            let (msg_container, mtp, transport) = self.msg_container.take().unwrap();
+            if !msg_container.is_empty() {
+                self.queue(msg_container, mtp, transport);
+            }
+            self.insert_msg_container(BytesMut::with_capacity(MAX_LEN));
+        }
+
+        loop {
+            match self.writer.poll(cx) {
+                Poll::Ready(Ok(buffer)) => self.buffers.push(buffer),
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(Error::Writer(err))),
+                Poll::Pending => break,
+            }
+        }
+
+        loop {
+            let unpack = match self.reader.poll(cx) {
+                Poll::Ready(ControlFlow::Continue(Ok(unpack))) => unpack,
+                Poll::Ready(ControlFlow::Continue(Err(err))) => {
+                    return Poll::Ready(Err(Error::Reader(err)));
+                }
+                Poll::Ready(ControlFlow::Break(cap)) => {
+                    let buf = self.reader.buffer();
+                    buf.reserve(cap - buf.capacity());
+                    continue;
+                }
+                Poll::Pending => break,
+            };
+
+            return Poll::Ready(Ok(SenderResult {
+                sender: self,
+                unpack,
+            }));
+        }
+
+        Poll::Pending
+    }
+}
+
+pub struct SenderResult<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
+    sender: &'a mut Sender<T, R, W>,
+    unpack: Unpack,
+}
+
+impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult<'a, T, R, W> {
     fn handle_container(&mut self, buf: tl::de::Buf<'_>) -> Result<(), tl::de::Error> {
         let container = mtproto::MsgContainer::new(buf)?;
 
@@ -224,13 +274,13 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    fn handle_unpack(&mut self, unpack: Unpack) -> Result<(), Error> {
-        let data = match unpack {
-            Unpack::Packet(Packet { data }) => data,
+    pub fn handle(mut self) -> Result<(), Error> {
+        let data = match &self.unpack {
+            Unpack::Packet(Packet { data }) => data.clone(),
             Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let mut buffer = self.reader.buffer().split();
+        let mut buffer = self.sender.reader.buffer().split();
 
         let buf = &mut buffer[data];
 
@@ -241,17 +291,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let auth_key_id = encrypted.auth_key_id.get();
 
-        if auth_key_id != i64::from_le_bytes(*self.auth_key.id()) {
+        if auth_key_id != i64::from_le_bytes(*self.sender.auth_key.id()) {
             return Err(Error::UnexpectedAuthKeyId(auth_key_id));
         }
 
         let buf = &mut buf[EncryptedMessage::HEADER_LEN..];
 
-        let DecryptedMessage { salt, session_id } = encrypted.decrypt(&self.auth_key, buf);
+        let DecryptedMessage { salt, session_id } = encrypted.decrypt(&self.sender.auth_key, buf);
 
         // assert_eq!(decrypted.salt, self.salt);
 
-        if session_id != self.session_id {
+        if session_id != self.sender.session_id {
             return Err(Error::UnexpectedSessionId(session_id));
         }
 
@@ -264,42 +314,5 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         self.handle_msg(_msg, buf)?;
 
         Ok(())
-    }
-
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Error>> {
-        if self.writer.is_empty() {
-            let (msg_container, mtp, transport) = self.msg_container.take().unwrap();
-            if !msg_container.is_empty() {
-                self.queue(msg_container, mtp, transport);
-            }
-            self.insert_msg_container(BytesMut::with_capacity(MAX_LEN));
-        }
-
-        loop {
-            match self.writer.poll(cx) {
-                Poll::Ready(Ok(buffer)) => self.buffers.push(buffer),
-                Poll::Ready(Err(err)) => return Poll::Ready(Err(Error::Writer(err))),
-                Poll::Pending => break,
-            }
-        }
-
-        loop {
-            let unpack = match self.reader.poll(cx) {
-                Poll::Ready(ControlFlow::Continue(Ok(unpack))) => unpack,
-                Poll::Ready(ControlFlow::Continue(Err(err))) => {
-                    return Poll::Ready(Err(Error::Reader(err)));
-                }
-                Poll::Ready(ControlFlow::Break(cap)) => {
-                    let buf = self.reader.buffer();
-                    buf.reserve(cap - buf.capacity());
-                    continue;
-                }
-                Poll::Pending => break,
-            };
-
-            self.handle_unpack(unpack)?;
-        }
-
-        Poll::Pending
     }
 }

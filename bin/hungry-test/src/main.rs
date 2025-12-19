@@ -1,11 +1,14 @@
 use std::future::poll_fn;
+use std::pin::pin;
+use std::task::Poll;
 use bytes::BytesMut;
-
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use hungry::mtproto::{AuthKey, Salt};
 use hungry::reader::Reader;
 use hungry::tl::mtproto::enums::ServerDhParams;
 use hungry::writer::{QueuedWriter, Writer};
 use hungry::{Envelope, tl};
+use hungry::transport::Full;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -171,10 +174,13 @@ async fn async_main() -> anyhow::Result<()> {
         session_id,
     );
 
+    let func = tl::mtproto::funcs::Ping { ping_id: 123 };
+    dbg!(sender.invoke(&func));
+
     let func = tl::api::funcs::InvokeWithLayer {
         layer: 214,
         query: tl::api::funcs::InitConnection {
-            api_id: 1,
+            api_id: 4,
             device_model: "device_model".to_string(),
             system_version: "system_version".to_string(),
             app_version: "0.0.0".to_string(),
@@ -186,10 +192,23 @@ async fn async_main() -> anyhow::Result<()> {
             query: tl::api::funcs::help::GetNearestDc {},
         },
     };
-
     dbg!(sender.invoke(&func));
 
-    poll_fn(|cx| sender.poll(cx)).await?;
+    loop {
+        dbg!(poll_fn(|cx| {
+            let result = match sender.poll(cx) {
+                Poll::Ready(Ok(result)) => result,
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+                Poll::Pending => return Poll::Pending,
+            };
+
+            result.handle()?;
+
+            cx.waker().wake_by_ref();
+
+            Poll::Pending
+        }).await)?;
+    }
 
     Ok(())
 }

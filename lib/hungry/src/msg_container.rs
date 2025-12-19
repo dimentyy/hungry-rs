@@ -60,8 +60,6 @@ impl MsgContainer {
             return Err(message);
         }
 
-        self.length += 1;
-
         unsafe {
             let mut buf = NonNull::new_unchecked(self.buffer.as_mut_ptr().add(self.buffer.len()));
 
@@ -71,6 +69,8 @@ impl MsgContainer {
 
             self.buffer.set_len(self.buffer.len() + Self::MSG_LEN + len);
         }
+
+        self.length += 1;
 
         Ok(())
     }
