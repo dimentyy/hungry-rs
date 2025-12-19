@@ -196,13 +196,20 @@ async fn async_main() -> anyhow::Result<()> {
 
     loop {
         dbg!(poll_fn(|cx| {
-            let result = match sender.poll(cx) {
+            let mut result = match sender.poll(cx) {
                 Poll::Ready(Ok(result)) => result,
                 Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
                 Poll::Pending => return Poll::Pending,
             };
 
-            result.handle()?;
+            // for result in result {
+            //     match result {
+            //         Ok(_) => {}
+            //         Err(err) => todo!(),
+            //     }
+            // }
+
+            result.next().unwrap().unwrap();
 
             cx.waker().wake_by_ref();
 

@@ -11,7 +11,7 @@ use crate::mtproto::{
 };
 use crate::reader::{Error as ReaderError, Reader, ReaderDriver};
 use crate::transport::{Packet, Transport, Unpack};
-use crate::writer::QueuedWriter;
+use crate::writer::{QueuedWriter, WriterDriver};
 use crate::{Envelope, MsgContainer, mtproto, tl};
 
 pub const MAX_LEN: usize = 1024 * (1024 + 2);
@@ -20,17 +20,6 @@ pub const MAX_LEN: usize = 1024 * (1024 + 2);
 pub enum Error {
     Writer(io::Error),
     Reader(ReaderError),
-    PlainMessage(PlainMessage),
-    UnexpectedAuthKeyId(i64),
-    UnexpectedSessionId(Session),
-    Deserialization(tl::de::Error),
-}
-
-impl From<tl::de::Error> for Error {
-    #[inline]
-    fn from(value: tl::de::Error) -> Self {
-        Self::Deserialization(value)
-    }
 }
 
 impl fmt::Display for Error {
@@ -46,6 +35,36 @@ impl std::error::Error for Error {
         Some(match self {
             Writer(err) => err,
             Reader(err) => err,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum ReceivedError {
+    PlainMessage(PlainMessage),
+    UnexpectedAuthKeyId(i64),
+    UnexpectedSessionId(Session),
+    Deserialization(tl::de::Error),
+}
+
+impl From<tl::de::Error> for ReceivedError {
+    #[inline]
+    fn from(value: tl::de::Error) -> Self {
+        Self::Deserialization(value)
+    }
+}
+
+impl fmt::Display for ReceivedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for ReceivedError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use ReceivedError::*;
+
+        Some(match self {
             PlainMessage(_) => return None,
             UnexpectedAuthKeyId(_) => return None,
             UnexpectedSessionId(_) => return None,
@@ -160,7 +179,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     pub fn poll<'a>(
         &'a mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<SenderResult<'a, T, R, W>, Error>> {
+    ) -> Poll<Result<Received<'a, T, R, W>, Error>> {
         if self.writer.is_empty() {
             let (msg_container, mtp, transport) = self.msg_container.take().unwrap();
             if !msg_container.is_empty() {
@@ -191,7 +210,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 Poll::Pending => break,
             };
 
-            return Poll::Ready(Ok(SenderResult {
+            return Poll::Ready(Ok(Received {
                 sender: self,
                 unpack,
             }));
@@ -201,12 +220,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 }
 
-pub struct SenderResult<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
+pub struct Received<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     sender: &'a mut Sender<T, R, W>,
     unpack: Unpack,
 }
 
-impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult<'a, T, R, W> {
+impl<'a, T: Transport, R: ReaderDriver, W: WriterDriver> Received<'a, T, R, W> {
     fn handle_container(&mut self, buf: tl::de::Buf<'_>) -> Result<(), tl::de::Error> {
         let container = mtproto::MsgContainer::new(buf)?;
 
@@ -274,7 +293,7 @@ impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult
         Ok(())
     }
 
-    pub fn handle(mut self) -> Result<(), Error> {
+    fn handle(&mut self) -> Result<(), ReceivedError> {
         let data = match &self.unpack {
             Unpack::Packet(Packet { data }) => data.clone(),
             Unpack::QuickAck(_) => unimplemented!(),
@@ -285,14 +304,14 @@ impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult
         let buf = &mut buffer[data];
 
         let encrypted = match Message::unpack(buf) {
-            Message::Plain(message) => return Err(Error::PlainMessage(message)),
+            Message::Plain(message) => return Err(ReceivedError::PlainMessage(message)),
             Message::Encrypted(message) => message,
         };
 
         let auth_key_id = encrypted.auth_key_id.get();
 
         if auth_key_id != i64::from_le_bytes(*self.sender.auth_key.id()) {
-            return Err(Error::UnexpectedAuthKeyId(auth_key_id));
+            return Err(ReceivedError::UnexpectedAuthKeyId(auth_key_id));
         }
 
         let buf = &mut buf[EncryptedMessage::HEADER_LEN..];
@@ -302,7 +321,7 @@ impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult
         // assert_eq!(decrypted.salt, self.salt);
 
         if session_id != self.sender.session_id {
-            return Err(Error::UnexpectedSessionId(session_id));
+            return Err(ReceivedError::UnexpectedSessionId(session_id));
         }
 
         let mut buf = tl::de::Buf::new(&buf[DecryptedMessage::HEADER_LEN..]);
@@ -314,5 +333,18 @@ impl<'a, T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> SenderResult
         self.handle_msg(_msg, buf)?;
 
         Ok(())
+    }
+}
+
+impl<'a, T: Transport, R: ReaderDriver, W: WriterDriver> Iterator for Received<'a, T, R, W> {
+    type Item = Result<(), ReceivedError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.handle() {
+            Ok(_) => {}
+            Err(err) => return Some(Err(err)),
+        }
+
+        Some(Ok(()))
     }
 }

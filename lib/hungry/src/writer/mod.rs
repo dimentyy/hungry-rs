@@ -14,12 +14,15 @@ use crate::{Envelope, mtproto};
 
 pub use queued::QueuedWriter;
 
-pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
+pub trait WriterDriver: AsyncWrite + Unpin {}
+impl<T: AsyncWrite + Unpin> WriterDriver for T {}
+
+pub struct Writer<W: WriterDriver, T: Transport> {
     driver: W,
     transport: T::Write,
 }
 
-impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
+impl<W: WriterDriver, T: Transport> Writer<W, T> {
     pub(crate) fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
     }
@@ -91,13 +94,13 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     }
 }
 
-pub struct Single<'a, W: AsyncWrite + Unpin, T: Transport> {
+pub struct Single<'a, W: WriterDriver, T: Transport> {
     writer: &'a mut Writer<W, T>,
     buffer: &'a mut BytesMut,
     pos: usize,
 }
 
-impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
+impl<'a, W: WriterDriver, T: Transport> Single<'a, W, T> {
     #[inline]
     pub fn pos(self) -> usize {
         self.pos
