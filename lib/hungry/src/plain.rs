@@ -1,20 +1,22 @@
+use std::fmt;
 use std::future::poll_fn;
 use std::ops::ControlFlow;
-use std::{fmt, io};
 
 use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use crate::reader::{Reader, ReaderError};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::utils::BytesMutExt;
-use crate::{Envelope, mtproto, reader, tl, writer};
+use crate::writer::{Writer, WriterError};
+use crate::{Envelope, mtproto, tl};
 
 use tl::ser::SerializeInto;
 
 #[derive(Debug)]
 pub enum Error {
-    Reader(reader::Error),
-    Writer(io::Error),
+    Reader(ReaderError),
+    Writer(WriterError),
     QuickAck(QuickAck),
     EncryptedMessage(mtproto::EncryptedMessage),
     Deserialization {
@@ -23,9 +25,15 @@ pub enum Error {
     },
 }
 
-impl From<reader::Error> for Error {
-    fn from(value: reader::Error) -> Self {
+impl From<ReaderError> for Error {
+    fn from(value: ReaderError) -> Self {
         Self::Reader(value)
+    }
+}
+
+impl From<WriterError> for Error {
+    fn from(value: WriterError) -> Self {
+        Self::Writer(value)
     }
 }
 
@@ -44,8 +52,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub async fn send<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: tl::Function>(
-    reader: &mut reader::Reader<R, T>,
-    writer: &mut writer::Writer<W, T>,
+    reader: &mut Reader<R, T>,
+    writer: &mut Writer<W, T>,
     func: &F,
     buffer: &mut BytesMut,
     transport: Envelope<T>,

@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
 use std::io;
-use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
@@ -8,24 +7,25 @@ use tokio::io::AsyncWrite;
 
 use crate::transport::{Transport, TransportWrite};
 use crate::utils::BytesMutExt;
-use crate::{Envelope, mtproto, writer};
+use crate::writer::{Writer, WriterError};
+use crate::{Envelope, mtproto};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     error: Option<io::Error>,
-    driver: writer::Writer<W, T>,
+    driver: Writer<W, T>,
     buffers: VecDeque<BytesMut>,
 }
 
 impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use]
-    pub fn new(driver: writer::Writer<W, T>) -> Self {
+    pub fn new(driver: Writer<W, T>) -> Self {
         Self {
             error: None,
             driver,
             buffers: VecDeque::new(),
         }
     }
-    
+
     #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -91,9 +91,9 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         self.queue_impl(buffer, transport)
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<BytesMut>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<BytesMut, WriterError>> {
         if let Some(error) = self.error.take() {
-            return Poll::Ready(Err(error));
+            return Poll::Ready(Err(WriterError::Io(error)));
         }
 
         let Some(buffer) = self.buffers.front_mut() else {
@@ -111,7 +111,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
             let n = match ready {
                 Ok(n) => n.get(),
-                Err(error) if pos == 0 => return Poll::Ready(Err(error)),
+                Err(error) if pos == 0 => return Poll::Ready(Err(WriterError::Io(error))),
                 Err(error) => {
                     self.error = Some(error);
 
@@ -129,14 +129,5 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
             return Poll::Ready(Ok(self.buffers.pop_front().unwrap()));
         }
-    }
-}
-
-impl<W: AsyncWrite + Unpin, T: Transport> Future for QueuedWriter<W, T> {
-    type Output = io::Result<BytesMut>;
-
-    #[inline]
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.get_mut().poll(cx)
     }
 }

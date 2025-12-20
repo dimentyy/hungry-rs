@@ -1,7 +1,7 @@
 use std::fmt;
 
-#[derive(Clone, Debug)]
-pub enum Error {
+#[derive(Debug)]
+pub enum TransportError {
     QuickAck,
     Status(i32),
     BadLen(i32),
@@ -9,9 +9,9 @@ pub enum Error {
     BadSeq { received: i32, expected: i32 },
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for TransportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
+        use TransportError::*;
 
         f.write_str("transport error: ")?;
 
@@ -31,4 +31,4 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for TransportError {}

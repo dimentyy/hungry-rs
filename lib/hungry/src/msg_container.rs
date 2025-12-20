@@ -53,6 +53,12 @@ impl MsgContainer {
         self.length == 0
     }
 
+    #[inline]
+    #[must_use]
+    pub fn spare_capacity(&self) -> Option<usize> {
+        self.buffer.spare_capacity_len().checked_sub(Self::MSG_LEN)
+    }
+
     pub fn push<X: SerializeUnchecked>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
         let len = x.serialized_len();
 

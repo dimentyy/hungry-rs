@@ -7,7 +7,7 @@ use bytes::BytesMut;
 
 use crate::{Envelope, EnvelopeSize};
 
-pub use error::Error;
+pub use error::TransportError;
 pub use full::Full;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -40,7 +40,7 @@ pub trait TransportRead: Unpin {
 
     const DEFAULT_BUF_LEN: usize;
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, Error>, usize>;
+    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, TransportError>, usize>;
 }
 
 pub trait TransportWrite: Unpin {

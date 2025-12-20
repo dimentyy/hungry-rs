@@ -1,4 +1,5 @@
 mod queued;
+mod error;
 
 use std::io;
 use std::num::NonZeroUsize;
@@ -13,6 +14,7 @@ use crate::utils::ready_ok;
 use crate::{Envelope, mtproto};
 
 pub use queued::QueuedWriter;
+pub use error::WriterError;
 
 pub trait WriterDriver: AsyncWrite + Unpin {}
 impl<T: AsyncWrite + Unpin> WriterDriver for T {}
@@ -106,7 +108,7 @@ impl<'a, W: WriterDriver, T: Transport> Single<'a, W, T> {
         self.pos
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), WriterError>> {
         loop {
             let buf = &self.buffer[self.pos..];
 

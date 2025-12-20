@@ -3,7 +3,7 @@
 /// # Message Sequence Number (msg_seqno)
 ///
 /// A 32-bit number equal to twice the number of [content-related »] messages
-/// created by the sender prior to this message and subsequently incremented
+/// created by the _sender prior to this message and subsequently incremented
 /// by one if the current message is a content-related message.
 ///
 /// The seqno of a content-related message is thus `msg.seqNo = (current_seqno*2)+1`

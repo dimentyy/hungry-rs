@@ -11,7 +11,7 @@ use tokio::io::{AsyncRead, ReadBuf};
 use crate::transport::{Transport, TransportRead, Unpack};
 use crate::utils::ready_ok;
 
-pub use error::Error;
+pub use error::ReaderError;
 
 pub trait ReaderDriver: AsyncRead + Unpin {}
 impl<T: AsyncRead + Unpin> ReaderDriver for T {}
@@ -50,7 +50,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
     pub fn poll(
         &mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<ControlFlow<usize, Result<Unpack, Error>>> {
+    ) -> Poll<ControlFlow<usize, Result<Unpack, ReaderError>>> {
         assert_eq!(
             self.buffer.len(),
             self.pos,
@@ -63,7 +63,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             }
 
             if let Err(err) = ready!(self.poll_read(cx, self.end)) {
-                return Poll::Ready(ControlFlow::Continue(Err(Error::Io(err))));
+                return Poll::Ready(ControlFlow::Continue(Err(ReaderError::Io(err))));
             }
 
             let unpack = match self.transport.unpack(self.buffer.as_mut()) {
@@ -79,7 +79,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
 
                     self.buffer.clear();
 
-                    return Poll::Ready(ControlFlow::Continue(Err(Error::Transport(err))));
+                    return Poll::Ready(ControlFlow::Continue(Err(ReaderError::Transport(err))));
                 }
                 ControlFlow::Break(Ok(unpack)) => unpack,
             };

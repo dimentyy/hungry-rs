@@ -2,7 +2,7 @@ use std::ops::{ControlFlow, RangeFrom};
 
 use bytes::BytesMut;
 
-use crate::transport::{Error, Packet, Transport, TransportRead, TransportWrite, Unpack};
+use crate::transport::{TransportError, Packet, Transport, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
 use crate::{Envelope, EnvelopeSize, crypto};
 
@@ -36,14 +36,14 @@ impl TransportRead for FullRead {
 
     const DEFAULT_BUF_LEN: usize = 4;
 
-    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, Error>, usize> {
+    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, TransportError>, usize> {
         if buffer.len() < 4 {
             return ControlFlow::Continue(4);
         }
 
         let len = match i32::from_le_bytes(*buffer[0..4].arr()) {
-            len @ ..0 => return ControlFlow::Break(Err(Error::Status(-len))),
-            len @ 0..12 => return ControlFlow::Break(Err(Error::BadLen(len))),
+            len @ ..0 => return ControlFlow::Break(Err(TransportError::Status(-len))),
+            len @ 0..12 => return ControlFlow::Break(Err(TransportError::BadLen(len))),
             len => len as usize,
         };
 
@@ -54,7 +54,7 @@ impl TransportRead for FullRead {
         let seq = i32::from_le_bytes(*buffer[4..8].arr());
 
         if seq != self.seq {
-            return ControlFlow::Break(Err(Error::BadSeq {
+            return ControlFlow::Break(Err(TransportError::BadSeq {
                 received: seq,
                 expected: self.seq,
             }));
@@ -65,7 +65,7 @@ impl TransportRead for FullRead {
         let computed = crypto::crc32!(&buffer[0..len - 4]);
 
         if received != computed {
-            return ControlFlow::Break(Err(Error::BadCrc { received, computed }));
+            return ControlFlow::Break(Err(TransportError::BadCrc { received, computed }));
         }
 
         self.seq += 1;
