@@ -1,5 +1,3 @@
-// PERFECT!
-
 use std::fmt;
 
 use chumsky::prelude::*;

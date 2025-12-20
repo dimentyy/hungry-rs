@@ -5,29 +5,38 @@ use chumsky::prelude::*;
 use crate::read::{Error, ParserExtras};
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct Ident<'a> {
-    pub space: Option<&'a str>,
-    pub name: &'a str,
+pub struct Ident<S: AsRef<str> = String> {
+    pub space: Option<S>,
+    pub name: S,
 }
 
-impl fmt::Display for Ident<'_> {
+impl<S: AsRef<str>> fmt::Display for Ident<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(space) = self.space {
-            f.write_str(space)?;
+        if let Some(ref space) = self.space {
+            f.write_str(space.as_ref())?;
             f.write_str(".")?;
         }
 
-        f.write_str(self.name)
+        f.write_str(self.name.as_ref())
     }
 }
 
-impl<'src> Ident<'src> {
-    pub(crate) const TRUE: Ident<'static> = Ident {
+impl<S: AsRef<str>> Ident<S> {
+    pub const TRUE: Ident<&'static str> = Ident {
         space: None,
         name: "true",
     };
 
-    pub(super) fn part_parser() -> impl ParserExtras<'src, &'src str> + Copy {
+    pub fn as_ref(&self) -> Ident<&str> {
+        Ident {
+            space: self.space.as_ref().map(AsRef::as_ref),
+            name: self.name.as_ref(),
+        }
+    }
+}
+
+impl<'src> Ident<&'src str> {
+    pub(crate) fn string_parser() -> impl ParserExtras<'src, &'src str> + Copy {
         let first = any().filter(char::is_ascii_alphabetic);
 
         let other = any().filter(|c| matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_'));
@@ -35,8 +44,8 @@ impl<'src> Ident<'src> {
         first.then(other.repeated()).to_slice()
     }
 
-    pub(super) fn parser() -> impl ParserExtras<'src, Self> {
-        let ident = Self::part_parser();
+    pub(crate) fn parser() -> impl ParserExtras<'src, Self> {
+        let ident = Self::string_parser();
 
         ident
             .then(just('.').ignore_then(ident).or_not())
@@ -47,7 +56,7 @@ impl<'src> Ident<'src> {
         (l, r): (&'src str, Option<&'src str>),
         span: SimpleSpan,
     ) -> Result<Self, Error<'src>> {
-        if let Some(r) = r {
+        if let Some(name) = r {
             if !l.chars().next().unwrap().is_ascii_lowercase() {
                 return Err(Error::custom(
                     span,
@@ -57,7 +66,7 @@ impl<'src> Ident<'src> {
 
             Ok(Self {
                 space: Some(l),
-                name: r,
+                name,
             })
         } else {
             Ok(Self {
@@ -67,7 +76,7 @@ impl<'src> Ident<'src> {
         }
     }
 
-    pub(super) fn try_map_uppercase(self, span: SimpleSpan) -> Result<Self, Error<'src>> {
+    pub(crate) fn try_map_uppercase(self, span: SimpleSpan) -> Result<Self, Error<'src>> {
         if !self.name.starts_with(|c: char| c.is_ascii_uppercase()) {
             return Err(Error::custom(
                 span,
@@ -78,7 +87,7 @@ impl<'src> Ident<'src> {
         Ok(self)
     }
 
-    pub(super) fn try_map_lowercase(self, span: SimpleSpan) -> Result<Self, Error<'src>> {
+    pub(crate) fn try_map_lowercase(self, span: SimpleSpan) -> Result<Self, Error<'src>> {
         if !self.name.starts_with(|c: char| c.is_ascii_lowercase()) {
             return Err(Error::custom(
                 span,
