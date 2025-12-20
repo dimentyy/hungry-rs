@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Schema {
+pub struct Config {
     pub name: String,
     pub impl_debug: bool,
     pub derive_clone: bool,
@@ -9,7 +9,7 @@ pub struct Schema {
 }
 
 pub(crate) struct Prepared {
-    pub(crate) schema: Schema,
+    pub(crate) schema: Config,
     pub(crate) out_dir: PathBuf,
     pub(crate) derive: String,
 }

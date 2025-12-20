@@ -6,12 +6,12 @@ use crate::Ident;
 use crate::read::{Error, ParserExtras};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Flag<S: AsRef<str>> {
-    pub ident: S,
+pub struct Flag<'a> {
+    pub ident: &'a str,
     pub bit: Option<usize>,
 }
 
-impl<S: AsRef<str>> fmt::Display for Flag<S> {
+impl fmt::Display for Flag<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.ident.as_ref())?;
         if let Some(bit) = self.bit {
@@ -22,7 +22,7 @@ impl<S: AsRef<str>> fmt::Display for Flag<S> {
     }
 }
 
-impl<'src> Flag<&'src str> {
+impl<'src> Flag<'src> {
     pub(crate) fn parser() -> impl ParserExtras<'src, Self> {
         let ident = Ident::string_parser();
 

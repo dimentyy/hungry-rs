@@ -1,13 +1,17 @@
 #![allow(dead_code)]
-// #![deny(unused_imports)]
+#![deny(unsafe_code)]
 
 mod category;
 mod config;
-mod flag;
 mod ident;
-mod read;
+mod meta;
+
+pub(crate) mod read;
+pub(crate) mod rust;
+mod code;
 
 pub use category::Category;
-pub use config::Schema;
-pub use flag::Flag;
+pub use config::Config;
 pub use ident::Ident;
+
+

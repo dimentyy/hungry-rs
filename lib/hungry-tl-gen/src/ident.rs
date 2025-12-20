@@ -3,6 +3,7 @@ use std::fmt;
 use chumsky::prelude::*;
 
 use crate::read::{Error, ParserExtras};
+use crate::rust;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Ident<S: AsRef<str> = String> {
@@ -22,20 +23,27 @@ impl<S: AsRef<str>> fmt::Display for Ident<S> {
 }
 
 impl<S: AsRef<str>> Ident<S> {
-    pub const TRUE: Ident<&'static str> = Ident {
-        space: None,
-        name: "true",
-    };
-
     pub fn as_ref(&self) -> Ident<&str> {
         Ident {
             space: self.space.as_ref().map(AsRef::as_ref),
             name: self.name.as_ref(),
         }
     }
+
+    pub fn to_rust(&self) -> Ident<String> {
+        Ident {
+            space: self.space.as_ref().map(AsRef::as_ref).map(rust::snake_case),
+            name: rust::pascal_case(self.name.as_ref()),
+        }
+    }
 }
 
 impl<'src> Ident<&'src str> {
+    pub const TRUE: Self = Self {
+        space: None,
+        name: "true",
+    };
+    
     pub(crate) fn string_parser() -> impl ParserExtras<'src, &'src str> + Copy {
         let first = any().filter(char::is_ascii_alphabetic);
 

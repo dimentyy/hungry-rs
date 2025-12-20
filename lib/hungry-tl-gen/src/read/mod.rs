@@ -3,6 +3,7 @@ mod combinator;
 mod comments;
 mod opt;
 mod typ;
+pub mod flag;
 
 use chumsky::prelude::*;
 
@@ -13,6 +14,7 @@ pub use combinator::Combinator;
 pub use comments::{Comment, CommentVariant};
 pub use opt::{OptArg, OptArgTyp};
 pub use typ::Typ;
+pub use flag::Flag;
 
 pub type Error<'a> = Rich<'a, char>;
 

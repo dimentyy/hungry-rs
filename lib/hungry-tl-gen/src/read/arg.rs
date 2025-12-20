@@ -2,9 +2,8 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::Flag;
 use crate::ident::Ident;
-use crate::read::{Extra, Typ};
+use crate::read::{Extra, Typ, Flag};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arg<'a> {
@@ -17,7 +16,7 @@ pub enum ArgTyp<'a> {
     Typ {
         excl_mark: bool,
         typ: Typ<'a>,
-        flag: Option<Flag<&'a str>>,
+        flag: Option<Flag<'a>>,
     },
     Nat,
 }
