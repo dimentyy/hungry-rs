@@ -1,14 +1,13 @@
-use crate::F;
-use crate::meta::Name;
-use std::io::{Seek, SeekFrom, Write};
 use std::ops::Deref;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::{env, fs, io};
 
-#[derive(Clone, Debug)]
+use crate::meta::Ident;
+
+pub(crate) type F = io::BufWriter<fs::File>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
-    pub schema_name: String,
     pub impl_debug: bool,
     pub derive_clone: bool,
     pub impl_into_enum: bool,
@@ -16,28 +15,51 @@ pub struct Config {
 
 pub(crate) struct Cfg {
     pub(crate) config: Config,
+    pub(crate) schemas: Vec<String>,
+    pub(crate) current: usize,
     pub(crate) out_dir: PathBuf,
-    pub(crate) derive_macros: Vec<&'static str>,
+    pub(crate) derive: String,
 }
 
 impl Cfg {
-    pub(crate) fn new(config: Config) -> Self {
-        let mut out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-
-        out_dir.push("hungry_tl");
-        out_dir.push(&config.schema_name);
-
-        let mut derive_macros = Vec::new();
+    pub(crate) fn new(config: Config, schemas: Vec<String>) -> Self {
+        let mut derives = Vec::new();
 
         if config.derive_clone {
-            derive_macros.push("Clone");
+            derives.push("Clone");
         }
+
+        let mut iter = derives.iter();
+
+        let mut derive = "".to_owned();
+
+        if let Some(x) = iter.next() {
+            derive.push_str("\n#[derive(");
+            derive.push_str(x);
+
+            for x in iter {
+                derive.push_str(", ");
+                derive.push_str(x);
+            }
+
+            derive.push_str(")]");
+        };
 
         Self {
             config,
-            out_dir,
-            derive_macros,
+            schemas,
+            current: usize::MAX,
+            out_dir: PathBuf::new(),
+            derive,
         }
+    }
+
+    pub(crate) fn switch(&mut self, schema: usize) {
+        self.current = schema;
+        self.out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+        self.out_dir.push("hungry_tl");
+        self.out_dir.push(&self.schemas[schema]);
     }
 }
 
@@ -69,7 +91,7 @@ macro_rules! file {
 }
 
 impl Cfg {
-    pub(crate) const UNSPACED: &'static str = "_unspaced";
+    pub(crate) const ROOT: &'static str = "_root";
 
     pub(crate) fn mod_file(&self, module: &str) -> io::Result<F> {
         Ok(file!(self => module))
@@ -79,12 +101,12 @@ impl Cfg {
         Ok(file!(self, module => space))
     }
 
-    pub(crate) fn item_file(&self, module: &str, name: &Name) -> io::Result<F> {
-        let space = match name.space {
-            None => Self::UNSPACED,
+    pub(crate) fn item_file(&self, module: &str, ident: &Ident) -> io::Result<F> {
+        let space = match ident.space {
+            None => Self::ROOT,
             Some(ref space) => space,
         };
 
-        Ok(file!(self, module, space => &name.file))
+        Ok(file!(self, module, space => &ident.file))
     }
 }

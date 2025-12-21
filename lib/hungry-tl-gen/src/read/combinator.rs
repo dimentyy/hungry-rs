@@ -2,13 +2,13 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::read::{Arg, Error, Ident, OptArgs, ParserExtras, Typ};
+use crate::read::{Arg, Error, Ident, OptArg, ParserExtras, Typ};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Combinator<'a> {
     pub ident: Ident<'a>,
     pub name: Option<u32>,
-    pub opts: Vec<OptArgs<'a>>,
+    pub opts: Vec<OptArg<'a>>,
     pub args: Vec<Arg<'a>>,
     pub result: Typ<'a>,
 }
@@ -21,10 +21,15 @@ impl fmt::Display for Combinator<'_> {
             && let Some(name) = self.name
         {
             f.write_str("#")?;
-            f.write_str(&format!("{:08x}", name))?;
+            f.write_fmt(format_args!("{name:08x}"))?;
         }
 
-        for arg in &self.args {
+        for opt in self.opts.iter() {
+            f.write_str(" ")?;
+            opt.fmt(f)?;
+        }
+
+        for arg in self.args.iter() {
             f.write_str(" ")?;
             arg.fmt(f)?;
         }
@@ -45,22 +50,27 @@ impl<'src> Combinator<'src> {
     pub(super) fn parser() -> impl ParserExtras<'src, Self> {
         let ident = Ident::parser().try_map(Ident::try_map_lowercase);
 
-        let name = just('#')
-            .ignore_then(text::digits(16).at_most(8).to_slice())
-            .try_map(|s, span| u32::from_str_radix(s, 16).map_err(|e| Error::custom(span, e)));
+        let name = any()
+            .filter(char::is_ascii_hexdigit)
+            .repeated()
+            .at_least(1)
+            .to_slice()
+            .try_map(|name, span| {
+                u32::from_str_radix(name, 16).map_err(|e| Error::custom(span, e))
+            });
 
-        let opts = OptArgs::parser().padded().repeated().collect();
+        let opts = OptArg::parser().padded().repeated().collect();
         let args = Arg::parser().padded().repeated().collect();
 
         let result = Typ::parser(Ident::parser().try_map(Ident::try_map_uppercase));
 
         ident
-            .then(name.or_not())
+            .then(just('#').ignore_then(name).or_not())
             .then(opts)
             .then(args)
             .then_ignore(just('=').padded())
-            .then(result)
-            .then_ignore(just(';').padded())
+            .then(result.padded())
+            .then_ignore(just(';'))
             .map(|((((ident, name), opts), args), result)| Combinator {
                 ident,
                 name,
@@ -71,7 +81,7 @@ impl<'src> Combinator<'src> {
     }
 
     pub(crate) fn infer_name(&self) -> u32 {
-        crc32fast::hash(format!("{:#}", self).as_bytes())
+        crc32fast::hash(format!("{self:#}").as_bytes())
     }
 }
 
@@ -79,13 +89,53 @@ impl<'src> Combinator<'src> {
 mod tests {
     use super::*;
 
+    macro_rules! args {
+        ( $( $ident:literal : $typ:literal ),+ $( , )? ) => {
+            vec![$( crate::read::Arg {
+                ident: $ident,
+                typ: crate::read::ArgTyp::Typ {
+                    excl_mark: false,
+                    typ: Typ {
+                        ident: Ident { space: None, name: $typ },
+                        params: vec![]
+                    },
+                    flag: None,
+                },
+            } ),+]
+        };
+    }
+
     /// https://core.telegram.org/mtproto/TL#example
     #[test]
-    fn test_calc_name() {
+    fn test_combinator_parser() {
         const TEST: &str = "user id:int first_name:string last_name:string = User;";
 
-        let inferred = Combinator::parser().parse(TEST).unwrap().infer_name();
+        let combinator = Combinator::parser().parse(TEST).unwrap();
 
-        assert_eq!(inferred, 0xd23c81a3);
+        assert_eq!(combinator.infer_name(), 0xd23c81a3);
+
+        assert_eq!(
+            combinator,
+            Combinator {
+                ident: Ident {
+                    space: None,
+                    name: "user"
+                },
+                name: None,
+                opts: vec![],
+                args: args![
+                    "id": "int",
+                    "first_name": "string",
+                    "last_name": "string",
+                ],
+                result: Typ {
+                    ident: Ident {
+                        space: None,
+                        name: "User",
+                    },
+                    params: vec![]
+                },
+            }
+        )
     }
 }

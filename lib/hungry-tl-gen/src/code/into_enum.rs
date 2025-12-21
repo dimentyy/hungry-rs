@@ -1,21 +1,19 @@
-use crate::F;
-use crate::code::{write_enum_variant, write_escaped, write_name};
-use crate::config::Cfg;
+use crate::code::{push_enum_variant, push_escaped, push_ident};
+use crate::Cfg;
 use crate::meta::{Data, Type};
-use std::io::{Result, Write};
 
-pub(super) fn write_into_enum(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
-    f.write_all(b"\nimpl crate::IntoEnum for ")?;
-    write_escaped(f, &x.combinator.name.actual)?;
-    f.write_all(b" {\n    type Enum = ")?;
-    write_name(f, "enums", &data.enums[x.enum_index].name)?;
-    f.write_all(b";\n\n    fn into_enum(self) -> Self::Enum {\n        ")?;
-    write_name(f, "enums", &data.enums[x.enum_index].name)?;
-    f.write_all(b"::")?;
-    write_enum_variant(f, cfg, x)?;
+pub(super) fn push_into_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
+    s.push_str("\nimpl crate::IntoEnum for ");
+    push_escaped(s, &x.combinator.ident.actual);
+    s.push_str(" {\n    type Enum = ");
+    push_ident(s, "enums", &data.enums[x.enum_index].ident);
+    s.push_str(";\n\n    fn into_enum(self) -> Self::Enum {\n        ");
+    push_ident(s, "enums", &data.enums[x.enum_index].ident);
+    s.push_str("::");
+    push_enum_variant(cfg, s, x);
     if x.recursive {
-        f.write_all(b"(Box::new(self))\n    }\n}\n")
+        s.push_str("(Box::new(self))\n    }\n}\n")
     } else {
-        f.write_all(b"(self)\n    }\n}\n")
+        s.push_str("(self)\n    }\n}\n")
     }
 }

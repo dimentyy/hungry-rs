@@ -1,21 +1,17 @@
-use std::collections::HashMap;
-use std::io::{Result, Write};
-
-use crate::code::generic::write_generics;
-use crate::code::{X, write_enum_variant, write_escaped, write_name};
+use crate::Cfg;
+use crate::code::{push_enum_variant, push_escaped, push_function_generics, push_ident};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
-use crate::{Cfg, F};
 
-fn write_after_f(f: &mut F) -> Result<()> {
-    f.write_all(b"f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        ")
-}
+pub(super) fn push_struct_debug(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator) {
+    s.push_str("\nimpl");
 
-fn write_struct_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Result<()> {
-    write_after_f(f)?;
-
-    f.write_all(b"f.debug_struct(\"")?;
-    f.write_all(x.name.actual.as_bytes())?;
-    f.write_all(b"\")\n")?;
+    push_function_generics(s, &x.generic_args, true);
+    s.push_str(" std::fmt::Debug for ");
+    push_escaped(s, &x.ident.actual);
+    push_function_generics(s, &x.generic_args, false);
+    s.push_str(" {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.debug_struct(\"");
+    push_escaped(s, &x.ident.actual);
+    s.push_str("\")\n");
 
     for (i, arg) in x.args.iter().enumerate() {
         let (typ, optional) = match &arg.typ {
@@ -24,84 +20,64 @@ fn write_struct_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Resu
             ArgTyp::True { flag } => (&Typ::Bool, false),
         };
 
-        f.write_all(b"            .field(\"")?;
-        write_escaped(f, &arg.name)?;
-        f.write_all(b"\", ")?;
+        s.push_str("            .field(\"");
+        push_escaped(s, &arg.ident);
+        s.push_str("\", ");
 
         if optional {
             match typ {
                 Typ::Int128 | Typ::Int256 => {
-                    f.write_all(b"&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b".as_ref().map(crate::hex::HexIntFmt))\n")?;
+                    s.push_str("&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str(".as_ref().map(crate::hex::HexIntFmt))\n");
                 }
                 Typ::Bytes => {
-                    f.write_all(b"&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b".as_ref().map(crate::hex::HexBytesFmt))\n")?;
+                    s.push_str("&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str(".as_ref().map(crate::hex::HexBytesFmt))\n");
                 }
                 _ => {
-                    f.write_all(b"&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b")\n")?;
+                    s.push_str("&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str(")\n");
                 }
             }
         } else {
             match typ {
                 Typ::Int128 | Typ::Int256 => {
-                    f.write_all(b"&crate::hex::HexIntFmt(&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b"))\n")?;
+                    s.push_str("&crate::hex::HexIntFmt(&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str("))\n");
                 }
                 Typ::Bytes => {
-                    f.write_all(b"&crate::hex::HexBytesFmt(&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b"))\n")?;
+                    s.push_str("&crate::hex::HexBytesFmt(&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str("))\n");
                 }
                 _ => {
-                    f.write_all(b"&self.")?;
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b")\n")?;
+                    s.push_str("&self.");
+                    push_escaped(s, &arg.ident);
+                    s.push_str(")\n");
                 }
             }
         }
     }
 
-    f.write_all(b"            .finish()\n")
+    s.push_str("            .finish()\n    }\n}\n");
 }
 
-fn write_enum_debug(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
-    write_after_f(f)?;
-    f.write_all(b"match self {\n")?;
+pub(super) fn push_enum_debug(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
+    s.push_str("\nimpl std::fmt::Debug for ");
+    push_escaped(s, &x.ident.actual);
+    s.push_str(" {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        match self {\n");
 
     for variant in &x.variants {
         let x = &data.types[*variant];
 
-        f.write_all(b"            Self::")?;
-        write_enum_variant(f, cfg, x)?;
-        f.write_all(b"(x) => x.fmt(f),\n")?;
+        s.push_str("            Self::");
+        push_enum_variant(cfg, s, x);
+        s.push_str("(x) => x.fmt(f),\n");
     }
 
-    f.write_all(b"        }\n")
-}
-
-pub(super) fn write_debug(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result<()> {
-    f.write_all(b"\nimpl")?;
-    match x {
-        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, false)?,
-        _ => {}
-    }
-    f.write_all(b" std::fmt::Debug for ")?;
-    write_escaped(f, &x.name().actual)?;
-    match x {
-        X::Func(x) => write_generics(f, cfg, &x.combinator.generic_args, true)?,
-        _ => {}
-    }
-    f.write_all(b" {\n    fn fmt(&self, ")?;
-    match x {
-        X::Type(x) => write_struct_debug(f, cfg, data, &x.combinator)?,
-        X::Func(x) => write_struct_debug(f, cfg, data, &x.combinator)?,
-        X::Enum(x) => write_enum_debug(f, cfg, data, x)?,
-    }
-    f.write_all(b"    }\n}\n")
+    s.push_str("        }\n    }\n}\n");
 }

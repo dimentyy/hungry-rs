@@ -1,32 +1,33 @@
-#![allow(unused)]
+#![allow(dead_code)]
+#![deny(unsafe_code)]
 
-mod casing;
 mod category;
 mod code;
 mod config;
-mod macros;
 mod meta;
-mod read;
-mod rust;
 
-use std::fmt::Formatter;
-use std::{fmt, fs, io};
+pub(crate) mod read;
+pub(crate) mod rust;
 
-pub(crate) use config::Cfg;
-
-pub use chumsky;
+pub(crate) use config::{Cfg, F};
 
 pub use category::Category;
 pub use config::Config;
 
-type F = io::BufWriter<fs::File>;
+pub fn generate(config: Config, names: Vec<String>, schemas: &[&str]) {
+    let mut parsed = Vec::new();
 
-pub fn generate(config: Config, schema: &str) {
-    let config = Cfg::new(config);
+    for schema in schemas {
+        parsed.push(read::parse(schema).unwrap());
+    }
 
-    let parsed = read::parse(&config, schema).unwrap();
+    let data = meta::validate(&parsed);
 
-    let (data, temp) = meta::validate(&parsed).unwrap();
+    let mut cfg = Cfg::new(config, names);
 
-    code::generate(&config, &data, &temp).unwrap();
+    for i in 0..schemas.len() {
+        cfg.switch(i);
+
+        code::generate(&cfg, &data).unwrap();
+    }
 }

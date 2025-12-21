@@ -2,7 +2,8 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::read::{Extra, Ident, Typ};
+use crate::read::ident::Ident;
+use crate::read::{Extra, Typ, Flag};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arg<'a> {
@@ -18,35 +19,6 @@ pub enum ArgTyp<'a> {
         flag: Option<Flag<'a>>,
     },
     Nat,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Flag<'a> {
-    pub ident: &'a str,
-    pub bit: Option<usize>,
-}
-
-impl fmt::Display for Flag<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.ident)?;
-        if let Some(bit) = self.bit {
-            f.write_str(".")?;
-            f.write_str(&bit.to_string())?;
-        }
-        f.write_str("?")
-    }
-}
-
-impl<'src> Flag<'src> {
-    fn parser() -> impl Parser<'src, &'src str, Self, Extra<'src>> {
-        let ident = Ident::part_parser();
-        let bit = just('.').ignore_then(text::int(10).from_str().unwrapped());
-
-        ident
-            .then(bit.or_not())
-            .then_ignore(just('?'))
-            .map(|(ident, bit)| Flag { ident, bit })
-    }
 }
 
 impl fmt::Display for ArgTyp<'_> {
@@ -71,14 +43,17 @@ impl fmt::Display for ArgTyp<'_> {
 }
 
 impl<'src> ArgTyp<'src> {
-    pub fn parser() -> impl Parser<'src, &'src str, Self, Extra<'src>> {
+    pub(super) fn parser() -> impl Parser<'src, &'src str, Self, Extra<'src>> {
         let nat = just('#').to(ArgTyp::Nat);
 
         let excl_mark = just('!').or_not().map(|x| x.is_some());
 
+        let flag = Flag::parser();
+        let typ = Typ::parser(Ident::parser());
+
         let typ = excl_mark
-            .then(Flag::parser().or_not())
-            .then(Typ::parser(Ident::parser()))
+            .then(flag.or_not())
+            .then(typ)
             .map(|((excl_mark, flag), typ)| ArgTyp::Typ {
                 excl_mark,
                 flag,
@@ -98,8 +73,8 @@ impl fmt::Display for Arg<'_> {
 }
 
 impl<'src> Arg<'src> {
-    pub fn parser() -> impl Parser<'src, &'src str, Self, Extra<'src>> {
-        let ident = Ident::part_parser();
+    pub(super) fn parser() -> impl Parser<'src, &'src str, Self, Extra<'src>> {
+        let ident = Ident::string_parser();
 
         ident
             .then_ignore(just(':'))

@@ -4,6 +4,12 @@ use chumsky::prelude::*;
 
 use crate::read::ParserExtras;
 
+const LINE_START: &str = "//";
+const LINE_END: &str = "\n";
+
+const BLOCK_START: &str = "/*";
+const BLOCK_END: &str = "*/";
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Comment<'a> {
     pub variant: CommentVariant,
@@ -17,23 +23,17 @@ pub enum CommentVariant {
 }
 
 impl CommentVariant {
-    pub const LINE_START: &'static str = "//";
-    pub const LINE_END: &'static str = "\n";
-
-    pub const BLOCK_START: &'static str = "/*";
-    pub const BLOCK_END: &'static str = "*/";
-
     pub const fn start(&self) -> &'static str {
         match self {
-            CommentVariant::Line => Self::LINE_START,
-            CommentVariant::Block => Self::BLOCK_START,
+            CommentVariant::Line => LINE_START,
+            CommentVariant::Block => BLOCK_START,
         }
     }
 
     pub const fn end(&self) -> &'static str {
         match self {
-            CommentVariant::Line => Self::LINE_END,
-            CommentVariant::Block => Self::BLOCK_END,
+            CommentVariant::Line => LINE_END,
+            CommentVariant::Block => BLOCK_END,
         }
     }
 }

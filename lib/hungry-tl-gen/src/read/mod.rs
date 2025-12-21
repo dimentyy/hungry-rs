@@ -1,37 +1,38 @@
 mod arg;
 mod combinator;
 mod comments;
-mod error;
-mod ident;
-mod opts;
+mod opt;
 mod typ;
+pub mod flag;
+pub mod ident;
 
 use chumsky::prelude::*;
 
-pub use arg::{Arg, ArgTyp, Flag};
+use crate::Category;
+
+pub use arg::{Arg, ArgTyp};
 pub use combinator::Combinator;
 pub use comments::{Comment, CommentVariant};
-pub use error::Error;
-pub use ident::Ident;
-pub use opts::{OptArgs, OptArgsTyp};
+pub use opt::{OptArg, OptArgTyp};
 pub use typ::Typ;
+pub use flag::Flag;
+pub use ident::Ident;
 
-use crate::Cfg;
-use crate::category::Category;
+pub type Error<'a> = Rich<'a, char>;
 
 pub(crate) type Extra<'a> = extra::Err<Error<'a>>;
 
 pub(crate) trait ParserExtras<'src, T>: Parser<'src, &'src str, T, Extra<'src>> {}
 impl<'src, T, A: Parser<'src, &'src str, T, Extra<'src>>> ParserExtras<'src, T> for A {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Item<'a> {
     Comment(Comment<'a>),
     Combinator(Combinator<'a>),
     Separator(Category),
 }
 
-pub(crate) fn parse<'a>(_config: &Cfg, schema: &'a str) -> ParseResult<Vec<Item<'a>>, Error<'a>> {
+pub(crate) fn parse(schema: &'_ str) -> ParseResult<Vec<Item<'_>>, Error<'_>> {
     choice((
         Comment::parser().map(Item::Comment),
         Combinator::parser().map(Item::Combinator),

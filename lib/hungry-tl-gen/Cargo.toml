@@ -3,6 +3,6 @@ name = "hungry-tl-gen"
 edition = "2024"
 
 [dependencies]
-chumsky = { git = "https://github.com/zesterer/chumsky" }
+chumsky = "0.12.0"
 crc32fast = "1.5.0"
 indexmap = "2.12.0"

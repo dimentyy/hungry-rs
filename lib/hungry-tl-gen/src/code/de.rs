@@ -1,65 +1,103 @@
 use std::io::{Result, Write};
 
-use crate::code::{X, write_escaped, write_name, write_typ};
-use crate::meta::{ArgTyp, Combinator, Data, Enum, Typ, Type};
-use crate::{Cfg, F};
+use crate::Cfg;
+use crate::code::{push_escaped, push_ident, push_typ};
+use crate::meta::{ArgTyp, Combinator, Data, Deserialization, Enum, Typ, Type};
 
-fn write_empty(f: &mut F, name: &str) -> Result<()> {
-    f.write_all(b"\nimpl crate::de::DeserializeInfallible for ")?;
-    f.write_all(name.as_bytes())?;
-    f.write_all(
-        b" {\n    unsafe fn deserialize_infallible(_buf: std::ptr::NonNull<u8>) -> Self {\n        Self {}",
+fn push_empty(s: &mut String, name: &str) {
+    s.push_str("\nimpl crate::de::DeserializeInfallible for ");
+    s.push_str(&name);
+    s.push_str(" {\n    unsafe fn deserialize_infallible(_buf: std::ptr::NonNull<u8>) -> Self {\n        Self {}\n    }\n}\n", )
+}
+
+fn push_checked_de(s: &mut String, name: &str) {
+    s.push_str("\nimpl crate::de::Deserialize for ");
+    s.push_str(&name);
+    s.push_str(
+        " {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n        ",
     )
 }
 
-fn write_pre_de(f: &mut F, name: &str) -> Result<()> {
-    f.write_all(b"\nimpl crate::de::Deserialize for ")?;
-    f.write_all(name.as_bytes())?;
-    f.write_all(
-        b" {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n",
+fn push_unchecked_de(s: &mut String, name: &str) {
+    s.push_str("\nimpl crate::de::DeserializeUnchecked for ");
+    s.push_str(&name);
+    s.push_str(
+        " {\n    unsafe fn deserialize_unchecked(buf: std::ptr::NonNull<u8>) -> Result<Self, crate::de::UnexpectedConstructorError> {\n        unsafe {\n",
     )
 }
 
-fn write_enum_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
-    write_pre_de(f, &x.name.actual)?;
+fn push_infallible_de(s: &mut String, name: &str) {
+    s.push_str("\nimpl crate::de::DeserializeInfallible for ");
+    s.push_str(&name);
+    s.push_str(
+        " {\n    unsafe fn deserialize_infallible(buf: std::ptr::NonNull<u8>) -> Self {\n        unsafe {\n",
+    )
+}
 
-    f.write_all(b"        match u32::deserialize(buf)? {\n")?;
+fn push_enum_checked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
+    push_checked_de(s, &x.ident.actual);
+
+    s.push_str("match u32::deserialize(buf)? {\n");
 
     for variant in &x.variants {
         let x = &data.types[*variant];
 
-        f.write_all(b"            ")?;
-        write_name(f, "types", &x.combinator.name)?;
-        f.write_all(b"::CONSTRUCTOR_ID => Ok(Self::")?;
-        f.write_all(x.combinator.name.actual.as_bytes())?;
-        f.write_all(if x.recursive { b"(Box::new(" } else { b"(" })?;
-        write_typ(
-            f,
-            cfg,
-            data,
-            &[],
-            &Typ::Type {
-                index: *variant,
-                params: Vec::new(),
-            },
-            true,
-        )?;
-        f.write_all(if x.recursive {
-            b"::deserialize(buf)?))),\n"
+        s.push_str("            ");
+        push_ident(s, "types", &x.combinator.ident);
+        s.push_str("::CONSTRUCTOR_ID => Ok(Self::");
+        s.push_str(&x.combinator.ident.actual);
+        s.push_str(if x.recursive { "(Box::new(" } else { "(" });
+        push_typ(cfg, data, s, &[], &Typ::Type { index: *variant }, true);
+        s.push_str(if x.recursive {
+            "::deserialize(buf)?))),\n"
         } else {
-            b"::deserialize(buf)?)),\n"
-        })?;
+            "::deserialize(buf)?)),\n"
+        });
     }
 
-    f.write_all(b"            _ => Err(crate::de::Error::unexpected_constructor()),\n        }")
+    s.push_str("            _ => Err(crate::de::Error::unexpected_constructor()),\n        }");
+    s.push_str("\n    }\n}\n");
 }
 
-fn write_struct_finish(f: &mut F, cfg: &Cfg, x: &Combinator, ok: bool) -> Result<()> {
-    f.write_all(if ok {
-        b"\n        Ok(Self {\n"
+fn push_enum_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
+    push_unchecked_de(s, &x.ident.actual);
+
+    s.push_str("            match u32::deserialize_infallible(buf) {\n");
+
+    for variant in &x.variants {
+        let x = &data.types[*variant];
+
+        s.push_str("                ");
+        push_ident(s, "types", &x.combinator.ident);
+        s.push_str("::CONSTRUCTOR_ID => Ok(Self::");
+        s.push_str(&x.combinator.ident.actual);
+        s.push_str("(");
+        push_typ(cfg, data, s, &[], &Typ::Type { index: *variant }, true);
+        s.push_str("::deserialize_");
+        s.push_str(
+            if matches!(x.combinator.de, Deserialization::Infallible(_)) {
+                "infallible(buf.add(4))"
+            } else {
+                "unchecked(buf.add(4))?"
+            },
+        );
+        s.push_str(")),\n");
+    }
+
+    s.push_str("                _ => Err(crate::de::UnexpectedConstructorError {}),\n            }\n        }\n    }\n}\n");
+}
+
+pub(super) fn push_enum_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
+    if matches!(x.de, Deserialization::Unchecked(_)) {
+        push_enum_unchecked_de(cfg, data, s, x);
     } else {
-        b"\n        Self {\n"
-    })?;
+        push_enum_checked_de(cfg, data, s, x);
+    }
+}
+
+fn push_struct_finish(x: &Combinator, s: &mut String, ok: bool, indent: &str) {
+    s.push_str(indent);
+    s.push_str(if ok { "Ok(Self {" } else { "Self {" });
 
     for arg in &x.args {
         match &arg.typ {
@@ -67,70 +105,215 @@ fn write_struct_finish(f: &mut F, cfg: &Cfg, x: &Combinator, ok: bool) -> Result
             ArgTyp::Typ { .. } => {}
             ArgTyp::True { .. } => {}
         }
-
-        f.write_all(b"            ")?;
-        write_escaped(f, &arg.name)?;
-        f.write_all(b",\n")?;
+        s.push_str(indent);
+        s.push_str("    ");
+        push_escaped(s, &arg.ident);
+        s.push_str(",");
     }
-
-    f.write_all(if ok { b"        })" } else { b"        }" })
+    s.push_str(indent);
+    s.push_str(if ok { "})" } else { "}" });
 }
 
-fn write_type_de(f: &mut F, cfg: &Cfg, data: &Data, x: &Type) -> Result<()> {
-    if x.combinator.args.is_empty() {
-        return write_empty(f, &x.combinator.name.actual);
-    }
-
-    write_pre_de(f, &x.combinator.name.actual)?;
+fn push_type_checked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
+    push_checked_de(s, &x.combinator.ident.actual);
 
     for arg in &x.combinator.args {
-        f.write_all(b"        let ")?;
+        s.push_str("        let ");
         if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
-            f.write_all(b"_")?;
+            s.push_str("_");
         }
-        write_escaped(f, &arg.name)?;
-        f.write_all(b" = ")?;
+        push_escaped(s, &arg.ident);
+        s.push_str(" = ");
 
         match &arg.typ {
             ArgTyp::Flags { .. } => {
-                f.write_all(b"u32::deserialize(buf)?;\n")?;
+                s.push_str("u32::deserialize(buf)?;\n");
             }
             ArgTyp::Typ { typ, flag } => {
                 if let Some(flag) = flag {
-                    f.write_all(b"if ")?;
+                    s.push_str("if ");
                     let arg = &x.combinator.args[flag.arg];
-                    write_escaped(f, &arg.name)?;
-                    f.write_all(b" & (1 << ")?;
-                    write!(f, "{}", flag.bit)?;
-                    f.write_all(b") != 0 { Some(")?;
-                    write_typ(f, cfg, data, &x.combinator.generic_args, typ, true)?;
-                    f.write_all(b"::deserialize(buf)?) } else { None };\n")?;
+                    push_escaped(s, &arg.ident);
+                    s.push_str(" & (1 << ");
+                    std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                    s.push_str(") != 0 { Some(");
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize(buf)?) } else { None };\n");
                 } else {
-                    write_typ(f, cfg, data, &x.combinator.generic_args, typ, true)?;
-                    f.write_all(b"::deserialize(buf)?;\n")?;
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize(buf)?;\n");
                 }
             }
             ArgTyp::True { flag } => {
                 let flag_arg = &x.combinator.args[flag.arg];
-                dbg!(&x);
                 assert!(matches!(&flag_arg.typ, ArgTyp::Flags { .. }));
-                f.write_all(flag_arg.name.as_bytes())?;
-                f.write_all(b" & (1 << ")?;
-                write!(f, "{}", flag.bit)?;
-                f.write_all(b") != 0;\n")?;
+                s.push_str(&flag_arg.ident);
+                s.push_str(" & (1 << ");
+                std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                s.push_str(") != 0;\n");
             }
         };
     }
 
-    write_struct_finish(f, cfg, &x.combinator, true)
+    push_struct_finish(&x.combinator, s, true, "\n        ");
+    s.push_str("\n    }\n}\n");
 }
 
-pub(super) fn write_deserializable(f: &mut F, cfg: &Cfg, data: &Data, x: X) -> Result<()> {
-    match x {
-        X::Type(x) => write_type_de(f, cfg, data, x)?,
-        X::Func(x) => unimplemented!(),
-        X::Enum(x) => write_enum_de(f, cfg, data, x)?,
-    };
+fn push_type_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
+    push_unchecked_de(s, &x.combinator.ident.actual);
 
-    f.write_all(b"\n    }\n}\n")
+    let mut offset = 0;
+
+    for arg in &x.combinator.args {
+        s.push_str("            let ");
+        if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
+            s.push_str("_");
+        }
+        push_escaped(s, &arg.ident);
+        s.push_str(" = ");
+
+        match &arg.typ {
+            ArgTyp::Flags { .. } => {
+                offset += 4;
+                s.push_str("u32::deserialize_infallible(buf);\n");
+            }
+            ArgTyp::Typ { typ, flag } => {
+                let de = dbg!(typ).ready_de(data);
+                let func = if matches!(de, Deserialization::Infallible(_)) {
+                    "_infallible"
+                } else {
+                    "_unchecked"
+                };
+
+                let fin = if matches!(de, Deserialization::Infallible(_)) {
+                    ")"
+                } else {
+                    ")?"
+                };
+
+                if let Some(flag) = flag {
+                    s.push_str("if ");
+                    let arg = &x.combinator.args[flag.arg];
+                    push_escaped(s, &arg.ident);
+                    s.push_str(" & (1 << ");
+                    std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                    s.push_str(") != 0 { Some(");
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize");
+                    s.push_str(func);
+                    s.push_str("(buf");
+                    if offset > 0 {
+                        s.push_str(".add(");
+                        std::fmt::write(s, format_args!("{offset}")).unwrap();
+                        s.push_str(")");
+                    }
+                    s.push_str(fin);
+                    s.push_str(") } else { None };\n");
+                } else {
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize");
+                    s.push_str(func);
+                    s.push_str("(buf");
+                    if offset > 0 {
+                        s.push_str(".add(");
+                        std::fmt::write(s, format_args!("{offset}")).unwrap();
+                        s.push_str(")");
+                    }
+                    s.push_str(fin);
+                    s.push_str(";\n");
+                }
+
+                offset += de.const_len().unwrap();
+            }
+            ArgTyp::True { flag } => {
+                let flag_arg = &x.combinator.args[flag.arg];
+                assert!(matches!(&flag_arg.typ, ArgTyp::Flags { .. }));
+                s.push_str(&flag_arg.ident);
+                s.push_str(" & (1 << ");
+                std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                s.push_str(") != 0;\n");
+            }
+        };
+    }
+
+    push_struct_finish(&x.combinator, s, true, "\n            ");
+    s.push_str("\n        }\n    }\n}\n");
+}
+
+fn push_type_infallible_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
+    push_infallible_de(s, &x.combinator.ident.actual);
+
+    let mut offset = 0;
+
+    for arg in &x.combinator.args {
+        s.push_str("            let ");
+        if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
+            s.push_str("_");
+        }
+        push_escaped(s, &arg.ident);
+        s.push_str(" = ");
+
+        match &arg.typ {
+            ArgTyp::Flags { .. } => {
+                offset += 4;
+                s.push_str("u32::deserialize_infallible(buf);\n");
+            }
+            ArgTyp::Typ { typ, flag } => {
+                let de = typ.ready_de(data);
+
+                if let Some(flag) = flag {
+                    s.push_str("if ");
+                    let arg = &x.combinator.args[flag.arg];
+                    push_escaped(s, &arg.ident);
+                    s.push_str(" & (1 << ");
+                    std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                    s.push_str(") != 0 { Some(");
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize_infallible(buf");
+                    if offset > 0 {
+                        s.push_str(".add(");
+                        std::fmt::write(s, format_args!("{offset}")).unwrap();
+                        s.push_str(")");
+                    }
+                    s.push_str(")) } else { None };\n");
+                } else {
+                    push_typ(cfg, data, s, &x.combinator.generic_args, typ, true);
+                    s.push_str("::deserialize_infallible(buf");
+                    if offset > 0 {
+                        s.push_str(".add(");
+                        std::fmt::write(s, format_args!("{offset}")).unwrap();
+                        s.push_str(")");
+                    }
+                    s.push_str(");\n");
+                }
+
+                offset += de.const_len().unwrap();
+            }
+            ArgTyp::True { flag } => {
+                let flag_arg = &x.combinator.args[flag.arg];
+                assert!(matches!(&flag_arg.typ, ArgTyp::Flags { .. }));
+                s.push_str(&flag_arg.ident);
+                s.push_str(" & (1 << ");
+                std::fmt::write(s, format_args!("{}", flag.bit)).unwrap();
+                s.push_str(") != 0;\n");
+            }
+        };
+    }
+
+    push_struct_finish(&x.combinator, s, false, "\n            ");
+    s.push_str("\n        }\n    }\n}\n");
+}
+
+pub(super) fn push_type_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
+    if x.combinator.args.is_empty() {
+        push_empty(s, &x.combinator.ident.actual);
+
+        return;
+    }
+
+    match &x.combinator.de {
+        Deserialization::Infallible(_) => push_type_infallible_de(cfg, data, s, x),
+        Deserialization::Unchecked(_) => push_type_unchecked_de(cfg, data, s, dbg!(x)),
+        Deserialization::Checked => push_type_checked_de(cfg, data, s, x),
+    }
 }

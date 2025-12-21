@@ -60,8 +60,9 @@ pub async fn send<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: 
     mtp: mtproto::PlainEnvelope,
     message_id: i64,
 ) -> Result<(i64, F::Response), Error> {
-    assert!(buffer.spare_capacity_len() >= func.serialized_len());
+    assert!(buffer.spare_capacity_len() >= func.serialized_len() + 4);
 
+    buffer.ser(&F::CONSTRUCTOR_ID);
     buffer.ser(func);
 
     let mut w = writer.single_plain(buffer, transport, mtp, message_id);

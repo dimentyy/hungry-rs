@@ -1,65 +1,60 @@
-use std::io::{Result, Write};
-
-use crate::code::{write_derive_macros, write_escaped, write_typ};
+use crate::Cfg;
+use crate::code::{push_escaped, push_typ};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, GenericArg, Typ};
-use crate::{Cfg, F};
 
-fn write_arg(
-    f: &mut F,
-    cfg: &Cfg,
-    data: &Data,
-    generic_args: &[GenericArg],
-    arg: &Arg,
-) -> Result<()> {
+fn write_arg(cfg: &Cfg, data: &Data, s: &mut String, generic_args: &[GenericArg], arg: &Arg) {
     let (typ, optional) = match &arg.typ {
-        ArgTyp::Flags { .. } => return Ok(()),
+        ArgTyp::Flags { .. } => return,
         ArgTyp::Typ { typ, flag } => (typ, flag.is_some()),
         ArgTyp::True { .. } => (&Typ::Bool, false),
     };
 
-    f.write_all(b"    pub ")?;
-    write_escaped(f, &arg.name)?;
-    f.write_all(b": ")?;
+    s.push_str("    pub ");
+    push_escaped(s, &arg.ident);
+    s.push_str(": ");
     if optional {
-        f.write_all(b"Option<")?;
+        s.push_str("Option<");
     }
-    write_typ(f, cfg, data, generic_args, typ, false)?;
+    push_typ(cfg, data, s, generic_args, typ, false);
     if optional {
-        f.write_all(b">")?;
+        s.push_str(">");
     }
-    f.write_all(b",\n")
+    s.push_str(",\n")
 }
 
-pub(super) fn write_struct_body(f: &mut F, cfg: &Cfg, data: &Data, x: &Combinator) -> Result<()> {
-    write_derive_macros(f, cfg)?;
-    f.write_all(b"pub struct ")?;
-    write_escaped(f, &x.name.actual)?;
+pub(super) fn push_struct_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator) {
+    s.push_str("\n/// ```tl\n/// ");
+    std::fmt::write(s, format_args!("{}", x.parsed)).unwrap();
+    s.push_str("\n/// ```");
+    s.push_str(&cfg.derive);
+    s.push_str("\npub struct ");
+    push_escaped(s, &x.ident.actual);
 
     let mut iter = x.generic_args.iter();
 
     if let Some(arg) = iter.next() {
-        f.write_all(b"<")?;
-        f.write_all(arg.name.as_bytes())?;
-        f.write_all(b": crate::Function")?;
+        s.push_str("<");
+        s.push_str(&arg.ident);
+        s.push_str(": crate::Function");
 
         for arg in iter {
-            f.write_all(b", ")?;
-            f.write_all(arg.name.as_bytes())?;
-            f.write_all(b": crate::Function")?;
+            s.push_str(", ");
+            s.push_str(&arg.ident);
+            s.push_str(": crate::Function");
         }
 
-        f.write_all(b">")?;
+        s.push_str(">");
     }
 
     if x.args.is_empty() {
-        return f.write_all(b" {}\n");
+        return s.push_str(" {}\n");
     };
 
-    f.write_all(b" {\n")?;
+    s.push_str(" {\n");
 
     for arg in &x.args {
-        write_arg(f, cfg, data, &x.generic_args, arg)?;
+        write_arg(cfg, data, s, &x.generic_args, arg);
     }
 
-    f.write_all(b"}\n")
+    s.push_str("}\n");
 }

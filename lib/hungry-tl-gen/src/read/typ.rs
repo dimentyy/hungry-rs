@@ -43,17 +43,17 @@ impl<'src> Typ<'src> {
         parser: Recursive<Direct<'src, 'src, &'src str, Self, Extra<'src>>>,
         ident: impl ParserExtras<'src, Ident<'src>>,
     ) -> impl ParserExtras<'src, Self> {
-        let ident = Ident::parser();
-
         let params = parser
             .padded()
             .separated_by(just(','))
             .at_least(1)
             .collect()
-            .delimited_by(just('<'), just('>'));
+            .delimited_by(just('<'), just('>'))
+            .or_not()
+            .map(Option::unwrap_or_default);
 
         ident
-            .then(params.or_not().map(Option::unwrap_or_default))
+            .then(params)
             .map(|(ident, params)| Typ { ident, params })
     }
 

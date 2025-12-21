@@ -1,8 +1,14 @@
-use crate::casing::Casing;
+enum Casing {
+    Upper,
+    Lower,
+    None,
+}
 
 pub(crate) fn pascal_case(s: &str) -> String {
     let chars = s.chars();
+
     let mut s = String::with_capacity(s.len());
+
     let mut casing = Casing::Upper;
 
     for c in chars {
@@ -19,17 +25,21 @@ pub(crate) fn pascal_case(s: &str) -> String {
 
                 continue;
             }
-            c if !c.is_ascii_alphabetic() => todo!(),
-            _ => {}
+            'A'..='Z' | 'a'..='z' => {},
+            _ => panic!()
         }
 
-        s.push(casing.apply_to(c));
+        s.push(match casing {
+            Casing::Upper => c.to_ascii_uppercase(),
+            Casing::Lower => c.to_ascii_lowercase(),
+            Casing::None => c,
+        });
 
         casing = if c.is_uppercase() {
             Casing::Lower
         } else {
             Casing::None
-        }
+        };
     }
 
     s.shrink_to_fit();

@@ -1,30 +1,40 @@
 mod combinator;
 mod data;
-mod error;
-mod name;
+mod ident;
+mod items;
 mod temp;
 mod typ;
 
 use crate::read;
 
-pub(crate) use data::{Data, Enum, Func, Type};
+pub(crate) use combinator::{Arg, ArgTyp, Combinator, Flag, GenericArg};
+pub(crate) use data::Data;
+pub(crate) use ident::Ident;
+pub(crate) use items::{Enum, Func, Type};
 pub(crate) use temp::Temp;
+pub(crate) use typ::Typ;
 
-pub use combinator::{Arg, ArgTyp, Combinator, Flag, GenericArg};
-pub use error::Error;
-pub use name::Name;
-pub use typ::Typ;
-
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
-pub enum TypeOrEnum {
-    Type(usize),
-    Enum(usize),
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Deserialization {
+    Infallible(usize),
+    Unchecked(usize),
+    Checked,
 }
 
-pub(crate) fn validate<'a>(parsed: &'a [read::Item<'a>]) -> Result<(Data, Temp<'a>), Error> {
-    let mut temp = Temp::build(parsed)?;
+impl Deserialization {
+    pub fn const_len(&self) -> Option<usize> {
+        match self {
+            Deserialization::Infallible(len) => Some(*len),
+            Deserialization::Unchecked(len) => Some(*len),
+            Deserialization::Checked => None,
+        }
+    }
+}
 
-    let mut data = Data::validate(&temp)?;
+pub(crate) fn validate<'a>(parsed: &'a [Vec<read::Item<'a>>]) -> Data<'a> {
+    let temp = Temp::validate(parsed);
 
-    Ok((data, temp))
+    let data = Data::validate(temp);
+
+    data
 }

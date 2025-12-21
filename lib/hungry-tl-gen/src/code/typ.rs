@@ -1,66 +1,56 @@
-use std::io::{Result, Write};
+use crate::Cfg;
+use crate::code::push_ident;
+use crate::meta::{Data, GenericArg, Typ};
 
-use crate::code::write_name;
-use crate::meta::{Data, GenericArg, Name, Typ};
-use crate::{Cfg, F};
-
-pub(super) fn write_typ(
-    f: &mut F,
+pub(super) fn push_typ(
     _cfg: &Cfg,
     data: &Data,
+    s: &mut String,
     generic_args: &[GenericArg],
     typ: &Typ,
     turbofish: bool,
-) -> Result<()> {
-    let typ: &[u8] = match typ {
-        Typ::Type { index, params } => {
-            if !params.is_empty() {
-                unimplemented!()
-            }
-
+) {
+    let end = match typ {
+        Typ::Type { index } => {
             let x = &data.types[*index];
 
-            return write_name(f, "types", &x.combinator.name);
+            return push_ident(s, "types", &x.combinator.ident);
         }
-        Typ::Enum { index, params } => {
-            if !params.is_empty() {
-                unimplemented!()
-            }
-
+        Typ::Enum { index } => {
             let x = &data.enums[*index];
 
-            return write_name(f, "enums", &x.name);
+            return push_ident(s, "enums", &x.ident);
         }
-        Typ::Int => b"i32",
-        Typ::Long => b"i64",
-        Typ::Double => b"f64",
+        Typ::Int => "i32",
+        Typ::Long => "i64",
+        Typ::Double => "f64",
         Typ::Bytes => {
             if turbofish {
-                b"Vec::<u8>"
+                "Vec::<u8>"
             } else {
-                b"Vec<u8>"
+                "Vec<u8>"
             }
         }
-        Typ::String => b"String",
-        Typ::Bool => b"bool",
+        Typ::String => "String",
+        Typ::Bool => "bool",
         Typ::BareVector(typ) => {
-            f.write_all(if turbofish {
-                b"crate::BareVec::<"
+            s.push_str(if turbofish {
+                "crate::BareVec::<"
             } else {
-                b"crate::BareVec<"
-            })?;
-            write_typ(f, _cfg, data, generic_args, typ, false)?;
-            b">"
+                "crate::BareVec<"
+            });
+            push_typ(_cfg, data, s, generic_args, typ, false);
+            ">"
         }
         Typ::Vector(typ) => {
-            f.write_all(if turbofish { b"Vec::<" } else { b"Vec<" })?;
-            write_typ(f, _cfg, data, generic_args, typ, false)?;
-            b">"
+            s.push_str(if turbofish { "Vec::<" } else { "Vec<" });
+            push_typ(_cfg, data, s, generic_args, typ, false);
+            ">"
         }
-        Typ::Int128 => b"crate::Int128",
-        Typ::Int256 => b"crate::Int256",
-        Typ::Generic { index } => generic_args[*index].name.as_bytes(),
+        Typ::Int128 => "crate::Int128",
+        Typ::Int256 => "crate::Int256",
+        Typ::Generic { index } => &generic_args[*index].ident,
     };
 
-    f.write_all(typ)
+    s.push_str(end);
 }

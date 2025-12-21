@@ -196,7 +196,7 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
                 Poll::Pending => break,
             };
 
-            return Poll::Ready(self.unpack(unpack));
+            return Poll::Ready(self.unpack(dbg!(unpack)));
         }
 
         Poll::Pending

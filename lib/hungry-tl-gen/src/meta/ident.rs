@@ -1,13 +1,13 @@
 use crate::{read, rust};
 
 #[derive(Debug)]
-pub struct Name {
+pub struct Ident {
     pub actual: String,
     pub space: Option<String>,
     pub file: String,
 }
 
-impl From<&read::Ident<'_>> for Name {
+impl From<&read::Ident<'_>> for Ident {
     fn from(value: &read::Ident<'_>) -> Self {
         Self {
             actual: rust::pascal_case(value.name),

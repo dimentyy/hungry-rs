@@ -1,47 +1,41 @@
 pub(crate) fn snake_case(s: &str) -> String {
-    let chars = s.chars();
+    let mut chars = s.chars().peekable();
 
     let mut s = String::with_capacity(s.len() + 20);
 
-    let mut underscore = true;
-
     let mut previous = '_';
 
-    for c in chars {
+    while let Some(c) = chars.next() {
         match c {
             '_' => {
-                if !underscore {
+                if previous != '_' {
                     s.push('_');
-
-                    underscore = true;
                 }
             }
             c @ '0'..='9' => {
-                if !underscore && !previous.is_ascii_digit() {
+                if previous.is_ascii_alphabetic() {
                     s.push('_');
-
-                    underscore = true;
-                } else {
-                    underscore = false;
                 }
 
                 s.push(c);
             }
             c @ 'a'..='z' => {
-                s.push(c);
+                if previous.is_ascii_digit() {
+                    s.push('_');
+                }
 
-                underscore = false;
+                s.push(c);
             }
             c @ 'A'..='Z' => {
-                if !underscore {
+                if matches!(previous, '0'..='9' | 'a'..='z')
+                    || (chars.peek().map_or(false, char::is_ascii_lowercase) && previous.is_ascii_uppercase())
+                {
                     s.push('_');
-
-                    underscore = true;
                 }
 
                 s.push(c.to_ascii_lowercase());
             }
-            _ => todo!(),
+            _ => panic!(),
         }
 
         previous = c;

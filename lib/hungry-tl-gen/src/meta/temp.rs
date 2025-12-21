@@ -1,61 +1,118 @@
-use indexmap::{IndexMap, IndexSet};
-use std::ops::Index;
+use indexmap::IndexMap;
+use indexmap::map::Entry;
 
-use crate::meta::Error;
 use crate::{Category, read};
 
+#[derive(Debug)]
+pub(crate) struct TempType<'a> {
+    pub(crate) combinator: &'a read::Combinator<'a>,
+    pub(crate) enum_index: usize,
+}
+
+#[derive(Debug)]
+pub(crate) struct TempFunc<'a> {
+    pub(crate) combinator: &'a read::Combinator<'a>,
+}
+
+#[derive(Debug)]
+pub(crate) struct TempEnum {
+    pub(crate) bare_types: Vec<usize>,
+}
+
 pub(crate) struct Temp<'a> {
-    pub(crate) types: IndexMap<&'a read::Ident<'a>, (&'a read::Combinator<'a>, usize)>,
-    pub(crate) funcs: IndexMap<&'a read::Ident<'a>, &'a read::Combinator<'a>>,
-    pub(crate) enums: IndexMap<&'a read::Ident<'a>, Vec<usize>>,
+    pub(crate) types: IndexMap<&'a read::Ident<'a>, TempType<'a>>,
+    pub(crate) funcs: IndexMap<&'a read::Ident<'a>, TempFunc<'a>>,
+    pub(crate) enums: IndexMap<&'a read::Ident<'a>, TempEnum>,
+
+    pub(crate) types_split: Vec<usize>,
+    pub(crate) funcs_split: Vec<usize>,
+    pub(crate) enums_split: Vec<usize>,
 }
 
 impl<'a> Temp<'a> {
-    pub(super) fn build(parsed: &'a [read::Item<'a>]) -> Result<Self, Error> {
-        let mut section = Category::default();
-
+    /// TODO: errors.
+    pub(super) fn validate(parsed: &'a [Vec<read::Item<'a>>]) -> Self {
         let mut types = IndexMap::new();
         let mut funcs = IndexMap::new();
-        let mut enums = IndexMap::new();
+        let mut enums = IndexMap::<&'a read::Ident<'a>, TempEnum>::new();
 
-        for item in parsed {
-            let combinator = match item {
-                read::Item::Comment(comment) => {
-                    continue;
-                }
-                read::Item::Combinator(combinator) => combinator,
-                read::Item::Separator(category) => {
-                    section = *category;
-                    continue;
-                }
-            };
+        let mut types_split = Vec::with_capacity(parsed.len());
+        let mut funcs_split = Vec::with_capacity(parsed.len());
+        let mut enums_split = Vec::with_capacity(parsed.len());
 
-            match section {
-                Category::Types => {
-                    let index = types.len();
+        for schema in parsed {
+            types_split.push(types.len());
+            funcs_split.push(funcs.len());
+            enums_split.push(enums.len());
 
-                    let mut entry = enums.entry(&combinator.result.ident);
+            let mut section = Category::default();
 
-                    let enum_index = entry.index();
-
-                    entry.or_insert_with(|| Vec::with_capacity(1)).push(index);
-
-                    if let Some(_) = types.insert(&combinator.ident, (combinator, enum_index)) {
-                        unimplemented!()
+            for item in schema {
+                let combinator @ read::Combinator { ident, result, .. } = match &item {
+                    read::Item::Comment(_) => {
+                        // TODO: comments.
+                        continue;
                     }
-                }
-                Category::Funcs => {
-                    if let Some(_) = funcs.insert(&combinator.ident, combinator) {
-                        unimplemented!()
+                    read::Item::Combinator(combinator) => combinator,
+                    read::Item::Separator(category) => {
+                        section = *category;
+                        continue;
+                    }
+                };
+
+                match section {
+                    Category::Types => {
+                        let type_index = types.len();
+
+                        let enum_entry = enums.entry(&result.ident);
+                        let enum_index = enum_entry.index();
+
+                        let temp = TempType {
+                            combinator,
+                            enum_index,
+                        };
+
+                        if let Some(x) = types.insert(ident, temp) {
+                            panic!("type declared twice: {x:?}, {:?}", types.get(ident));
+                        }
+
+                        match enum_entry {
+                            Entry::Occupied(mut entry) => {
+                                if entry.index() < *enums_split.last().unwrap() {
+                                    panic!()
+                                }
+
+                                entry.get_mut().bare_types.push(type_index);
+                            }
+                            Entry::Vacant(entry) => {
+                                entry.insert({
+                                    let mut bare_types = Vec::with_capacity(1);
+                                    bare_types.push(type_index);
+
+                                    TempEnum { bare_types }
+                                });
+                            }
+                        }
+                    }
+                    Category::Funcs => {
+                        let temp = TempFunc { combinator };
+
+                        if let Some(x) = funcs.insert(ident, temp) {
+                            panic!("func declared twice: {x:?}, {:?}", funcs.get(ident));
+                        }
                     }
                 }
             }
         }
 
-        Ok(Self {
+        Self {
             types,
             funcs,
             enums,
-        })
+
+            types_split,
+            funcs_split,
+            enums_split,
+        }
     }
 }

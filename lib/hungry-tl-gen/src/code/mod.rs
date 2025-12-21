@@ -1,266 +1,272 @@
-mod const_serialized_len;
+mod const_ser_len;
 mod de;
 mod debug;
 mod enum_body;
 mod function;
 mod generic;
+mod ident;
 mod identifiable;
 mod into_enum;
-mod name;
-mod name_for_id;
 mod ser;
 mod struct_body;
 mod typ;
-mod x;
 
 use std::io::{Result, Write};
 
 use indexmap::IndexMap;
 
-use crate::meta::{Data, Enum, Func, Name, Temp, Type};
-use crate::{Cfg, F};
+use crate::Cfg;
+use crate::meta::{Data, Enum, Func, Ident, Temp, Type};
 
-use const_serialized_len::write_const_serialized_len;
-use de::write_deserializable;
-use debug::write_debug;
-use enum_body::{write_enum_body, write_enum_variant};
-use function::write_function;
-use generic::write_generics;
-use identifiable::write_identifiable;
-use into_enum::write_into_enum;
-use name::write_name;
-use name_for_id::write_name_for_id;
-use ser::{write_serialize, write_serialized_len};
-use struct_body::write_struct_body;
-use typ::write_typ;
-use x::X;
+use crate::code::de::push_type_de;
+use const_ser_len::push_const_ser_len;
+use de::push_enum_de;
+use debug::{push_enum_debug, push_struct_debug};
+use enum_body::{push_enum_body, push_enum_variant};
+use function::push_function;
+use generic::push_function_generics;
+use ident::push_ident;
+use identifiable::push_identifiable;
+use into_enum::push_into_enum;
+use ser::{push_enum_ser, push_enum_ser_len, push_struct_ser, push_struct_ser_len};
+use struct_body::push_struct_body;
+use typ::push_typ;
 
 macro_rules! write_module {
-    ( $cfg:expr, $module:literal: for $x:ident in $iter:expr => $name:expr; $func:expr; ) => {{
-        let mut root = Vec::<&Name>::new();
-        let mut mods = IndexMap::<&str, Vec<&Name>>::new();
+    ( $cfg:expr,  $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr; $func:expr; ) => {{
+        let mut root = Vec::<&Ident>::new();
+        let mut mods = IndexMap::<&str, Vec<&Ident>>::new();
 
         for $x in $iter {
-            let name = $name;
+            let ident = $ident;
 
-            if let Some(ref space) = name.space {
-                mods.entry(space).or_default().push(name);
+            if let Some(ref space) = ident.space {
+                mods.entry(space).or_default().push(ident);
             } else {
-                root.push(name)
+                root.push(ident)
             }
 
             $func;
         }
 
-        let mut f = $cfg.mod_file($module)?;
+        write_spaces($cfg, $s, $module, &root, &mods)?;
 
-        write_module(&mut f, $cfg, $module, &root, &mods)?;
+        push_module($cfg, $s, $module, &root, &mods)?;
 
-        f
+        $cfg.mod_file($module)?
     }};
 }
 
-pub(crate) fn generate(cfg: &Cfg, data: &Data, temp: &Temp) -> Result<()> {
+pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
+    let mut s = String::with_capacity(1024 * 1024);
+
+    let types = &data.types[data.types_split[cfg.current]..data.types_split[cfg.current + 1]];
+
     let mut f = write_module!(
-        cfg, "types": for x in &data.types => &x.combinator.name;
-        write_type(cfg, data, temp, x)?;
+        cfg, &mut s, "types": for x in types => &x.combinator.ident;
+        write_type(cfg, data, &mut s, x)?;
     );
 
-    write_name_for_id(
-        &mut f,
-        data.types
-            .iter()
-            .map(|x| &x.combinator)
-            .zip(temp.types.values().map(|x| x.0)),
-    )?;
-
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()?;
 
+    let funcs = &data.funcs[data.funcs_split[cfg.current]..data.funcs_split[cfg.current + 1]];
+
     let mut f = write_module!(
-        cfg, "funcs": for x in &data.funcs => &x.combinator.name;
-        write_func(cfg, data, temp, x)?;
+        cfg, &mut s, "funcs": for x in funcs => &x.combinator.ident;
+        write_func(cfg, data, &mut s, x)?;
     );
 
-    write_name_for_id(
-        &mut f,
-        data.funcs
-            .iter()
-            .map(|x| &x.combinator)
-            .zip(temp.funcs.values().map(|x| *x)),
-    )?;
-
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()?;
 
+    let enums = &data.enums[data.enums_split[cfg.current]..data.enums_split[cfg.current + 1]];
+
     let mut f = write_module!(
-        cfg, "enums": for x in &data.enums => &x.name;
-        write_enum(cfg, data, temp, x)?;
+        cfg, &mut s, "enums": for x in enums => &x.ident;
+        write_enum(cfg, data, &mut s, x)?;
     );
 
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()?;
 
     let mut f = cfg.mod_file("mod")?;
 
-    f.write_all(b"pub mod types;\npub mod funcs;\npub mod enums;\n")?;
+    s.push_str("pub mod types;\npub mod funcs;\npub mod enums;\n");
 
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()
 }
 
-fn write_module(
-    f: &mut F,
+fn write_spaces(
     cfg: &Cfg,
+    s: &mut String,
     module: &str,
-    root: &Vec<&Name>,
-    mods: &IndexMap<&str, Vec<&Name>>,
+    root: &Vec<&Ident>,
+    mods: &IndexMap<&str, Vec<&Ident>>,
 ) -> Result<()> {
     if !root.is_empty() {
-        f.write_all(b"mod ")?;
-        f.write_all(Cfg::UNSPACED.as_bytes())?;
-        f.write_all(b";\n\n")?;
-
-        write_space(f, cfg, module, Cfg::UNSPACED, root)?;
+        write_space(cfg, s, module, Cfg::ROOT, root)?;
     }
 
     if !mods.is_empty() {
         for (space, names) in mods {
-            f.write_all(b"pub mod ")?;
-            write_escaped(f, space)?;
-            f.write_all(b";\n")?;
-
-            write_space(f, cfg, module, space, names)?;
+            write_space(cfg, s, module, space, names)?;
         }
-
-        f.write_all(b"\n")?;
-    }
-
-    if !root.is_empty() {
-        f.write_all(b"pub use ")?;
-        f.write_all(Cfg::UNSPACED.as_bytes())?;
-        f.write_all(b"::*;\n")?;
     }
 
     Ok(())
 }
 
-fn write_space(f: &mut F, cfg: &Cfg, module: &str, space: &str, names: &Vec<&Name>) -> Result<()> {
+fn push_module(
+    _cfg: &Cfg,
+    s: &mut String,
+    module: &str,
+    root: &Vec<&Ident>,
+    mods: &IndexMap<&str, Vec<&Ident>>,
+) -> Result<()> {
+    if !root.is_empty() {
+        s.push_str("mod ");
+        s.push_str(Cfg::ROOT);
+        s.push_str(";\n\n");
+    }
+
+    if !mods.is_empty() {
+        for space in mods.keys() {
+            s.push_str("pub mod ");
+            push_escaped(s, space);
+            s.push_str(";\n");
+        }
+    }
+
+    if !root.is_empty() {
+        s.push_str("pub use ");
+        s.push_str(Cfg::ROOT);
+        s.push_str("::*;\n\n");
+    }
+
+    Ok(())
+}
+
+fn write_space(
+    cfg: &Cfg,
+    s: &mut String,
+    module: &str,
+    space: &str,
+    idents: &Vec<&Ident>,
+) -> Result<()> {
     let f = &mut cfg.space_file(module, space)?;
 
-    write_mods(f, cfg, names)?;
-    write_uses(f, cfg, names)?;
+    for ident in idents {
+        s.push_str("mod ");
+        push_escaped(s, &ident.file);
+        s.push_str(";\n");
+    }
 
+    s.push_str("\n");
+
+    for ident in idents {
+        s.push_str("pub use ");
+        push_escaped(s, &ident.file);
+        s.push_str("::");
+        push_escaped(s, &ident.actual);
+        s.push_str(";\n");
+    }
+
+    s.push_str("\n");
+
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()
 }
 
-fn write_mods(f: &mut F, cfg: &Cfg, names: &Vec<&Name>) -> Result<()> {
-    for name in names {
-        f.write_all(b"mod ")?;
-        write_escaped(f, &name.file)?;
-        f.write_all(b";\n")?;
-    }
-    f.write_all(b"\n")
-}
+fn write_type(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) -> Result<()> {
+    let f = &mut cfg.item_file("types", &x.combinator.ident)?;
 
-fn write_uses(f: &mut F, cfg: &Cfg, names: &Vec<&Name>) -> Result<()> {
-    for name in names {
-        f.write_all(b"pub use ")?;
-        write_escaped(f, &name.file)?;
-        f.write_all(b"::")?;
-        write_escaped(f, &name.actual)?;
-        f.write_all(b";\n")?;
-    }
-    f.write_all(b"\n")
-}
+    push_imports(cfg, s);
 
-fn write_type(cfg: &Cfg, data: &Data, temp: &Temp, x: &Type) -> Result<()> {
-    let f = &mut cfg.item_file("types", &x.combinator.name)?;
-
-    write_imports(f, cfg)?;
-
-    write_struct_body(f, cfg, data, &x.combinator)?;
+    push_struct_body(cfg, data, s, &x.combinator);
     if cfg.impl_debug {
-        write_debug(f, cfg, data, X::Type(x))?;
+        push_struct_debug(cfg, data, s, &x.combinator);
     }
     if cfg.impl_into_enum {
-        write_into_enum(f, cfg, data, x);
+        push_into_enum(cfg, data, s, x);
     }
-    write_identifiable(f, cfg, &x.combinator)?;
-    if x.combinator.args.is_empty() {
-        write_const_serialized_len(f, &x.combinator.name.actual, 0)?;
+    push_identifiable(s, &x.combinator);
+    if let Some(len) = x.combinator.de.const_len() {
+        push_const_ser_len(s, &x.combinator.ident.actual, len);
     } else {
-        write_serialized_len(f, cfg, data, X::Type(x))?;
+        push_struct_ser_len(cfg, data, s, &x.combinator);
     }
-    write_serialize(f, cfg, data, X::Type(x))?;
-    write_deserializable(f, cfg, data, X::Type(x))?;
+    push_struct_ser(cfg, data, s, &x.combinator);
+    push_type_de(cfg, data, s, x);
 
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()
 }
 
-fn write_func(cfg: &Cfg, data: &Data, temp: &Temp, x: &Func) -> Result<()> {
-    let f = &mut cfg.item_file("funcs", &x.combinator.name)?;
+fn write_func(cfg: &Cfg, data: &Data, s: &mut String, x: &Func) -> Result<()> {
+    let f = &mut cfg.item_file("funcs", &x.combinator.ident)?;
 
-    write_imports(f, cfg)?;
+    push_imports(cfg, s);
 
-    write_struct_body(f, cfg, data, &x.combinator)?;
+    push_struct_body(cfg, data, s, &x.combinator);
     if cfg.impl_debug {
-        write_debug(f, cfg, data, X::Func(x))?;
+        push_struct_debug(cfg, data, s, &x.combinator);
     }
-    write_identifiable(f, cfg, &x.combinator)?;
-    write_function(f, cfg, data, x)?;
-    if x.combinator.args.is_empty() {
-        write_const_serialized_len(f, &x.combinator.name.actual, 4)?;
+    push_identifiable(s, &x.combinator);
+    push_function(cfg, data, s, x);
+    if let Some(len) = x.combinator.de.const_len() {
+        push_const_ser_len(s, &x.combinator.ident.actual, len);
     } else {
-        write_serialized_len(f, cfg, data, X::Func(x))?;
+        push_struct_ser_len(cfg, data, s, &x.combinator);
     }
-    write_serialize(f, cfg, data, X::Func(x))?;
+    push_struct_ser(cfg, data, s, &x.combinator);
 
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()
 }
 
-fn write_enum(cfg: &Cfg, data: &Data, temp: &Temp, x: &Enum) -> Result<()> {
-    let f = &mut cfg.item_file("enums", &x.name)?;
+fn write_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) -> Result<()> {
+    let f = &mut cfg.item_file("enums", &x.ident)?;
 
-    write_imports(f, cfg)?;
+    push_imports(cfg, s);
 
-    write_enum_body(f, cfg, data, x)?;
+    push_enum_body(cfg, data, s, x);
     if cfg.impl_debug {
-        write_debug(f, cfg, data, X::Enum(x))?;
+        push_enum_debug(cfg, data, s, x);
     }
-    write_serialized_len(f, cfg, data, X::Enum(x))?;
-    write_serialize(f, cfg, data, X::Enum(x))?;
-    write_deserializable(f, cfg, data, X::Enum(x))?;
+    if let Some(len) = x.de.const_len() {
+        push_const_ser_len(s, &x.ident.actual, len);
+    } else {
+        push_enum_ser_len(cfg, data, s, x);
+    }
+    push_enum_ser(cfg, data, s, x);
+    push_enum_de(cfg, data, s, x);
 
+    f.write_all(s.as_bytes())?;
+    s.clear();
     f.flush()
 }
 
-fn write_imports(f: &mut F, cfg: &Cfg) -> Result<()> {
-    f.write_all(b"use crate::{")?;
-    f.write_all(cfg.schema_name.as_bytes())?;
-    f.write_all(b"::{types as _types, enums as _enums}, Identifiable as _};\n")
+fn push_imports(cfg: &Cfg, s: &mut String) {
+    s.push_str("use crate::{");
+    s.push_str(&cfg.schemas[cfg.current]);
+    s.push_str("::{types as _types, enums as _enums}, Identifiable as _, de::DeserializeUnchecked as _, de::DeserializeInfallible as _};\n");
 }
 
-fn write_derive_macros(f: &mut F, cfg: &Cfg) -> Result<()> {
-    let mut iter = cfg.derive_macros.iter();
-
-    f.write_all(b"\n")?;
-
-    let Some(x) = iter.next() else { return Ok(()) };
-
-    f.write_all(b"#[derive(")?;
-    f.write_all(x.as_bytes())?;
-
-    for x in iter {
-        f.write_all(b", ")?;
-        f.write_all(x.as_bytes())?;
-    }
-
-    f.write_all(b")]\n")
-}
-
-pub(crate) fn write_escaped(f: &mut F, s: &str) -> Result<()> {
-    match s {
-        "self" => f.write_all(b"is_")?,
-        "loop" | "type" | "static" | "final" => f.write_all(b"r#")?,
+pub(crate) fn push_escaped(s: &mut String, ident: &str) {
+    match ident {
+        "self" => s.push_str("is_"),
+        "loop" | "type" | "static" | "final" => s.push_str("r#"),
         _ => {}
     }
 
-    f.write_all(s.as_bytes())
+    s.push_str(ident)
 }

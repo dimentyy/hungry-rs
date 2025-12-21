@@ -1,44 +1,37 @@
-use std::io::{Result, Write};
-
-use crate::code::{write_derive_macros, write_escaped, write_typ};
+use crate::Cfg;
+use crate::code::{push_escaped, push_typ};
 use crate::meta::{Data, Enum, Typ, Type};
-use crate::{Cfg, F};
 
-pub(super) fn write_enum_variant(f: &mut F, cfg: &Cfg, x: &Type) -> Result<()> {
-    write_escaped(f, &x.combinator.name.actual)
+pub(super) fn push_enum_variant(cfg: &Cfg, s: &mut String, x: &Type) {
+    push_escaped(s, &x.combinator.ident.actual);
 }
 
-pub(super) fn write_enum_body(f: &mut F, cfg: &Cfg, data: &Data, x: &Enum) -> Result<()> {
-    write_derive_macros(f, cfg)?;
-    f.write_all(b"pub enum ")?;
-    write_escaped(f, &x.name.actual)?;
-    f.write_all(b" {\n");
+pub(super) fn push_enum_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
+    s.push_str(&cfg.derive);
+    s.push_str("\npub enum ");
+    push_escaped(s, &x.ident.actual);
+    s.push_str(" {\n");
 
     for variant in &x.variants {
         let x = &data.types[*variant];
 
-        let name = &x.combinator.name;
-
-        f.write_all(b"    ")?;
-        write_enum_variant(f, cfg, x)?;
-        f.write_all(b"(")?;
+        s.push_str("    ");
+        push_enum_variant(cfg, s, x);
+        s.push_str("(");
 
         if x.recursive {
-            f.write_all(b"Box<")?;
+            s.push_str("Box<");
         }
 
-        let typ = Typ::Type {
-            index: *variant,
-            params: Vec::new(),
-        };
-        write_typ(f, cfg, data, &[], &typ, false);
+        let typ = Typ::Type { index: *variant };
+        push_typ(cfg, data, s, &[], &typ, false);
 
         if x.recursive {
-            f.write_all(b">")?;
+            s.push_str(">");
         }
 
-        f.write_all(b"),\n")?;
+        s.push_str("),\n");
     }
 
-    f.write_all(b"}\n")
+    s.push_str("}\n");
 }
