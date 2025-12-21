@@ -4,6 +4,7 @@ mod comments;
 mod opt;
 mod typ;
 pub mod flag;
+pub mod ident;
 
 use chumsky::prelude::*;
 
@@ -15,6 +16,7 @@ pub use comments::{Comment, CommentVariant};
 pub use opt::{OptArg, OptArgTyp};
 pub use typ::Typ;
 pub use flag::Flag;
+pub use ident::Ident;
 
 pub type Error<'a> = Rich<'a, char>;
 

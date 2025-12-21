@@ -2,8 +2,7 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::Ident;
-use crate::read::ParserExtras;
+use crate::read::{Ident, ParserExtras};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum OptArgTyp {

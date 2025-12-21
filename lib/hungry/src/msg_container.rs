@@ -59,8 +59,8 @@ impl MsgContainer {
         self.buffer.spare_capacity_len().checked_sub(Self::MSG_LEN)
     }
 
-    pub fn push<X: SerializeUnchecked>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
-        let len = x.serialized_len();
+    pub fn push<X: tl::Function>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
+        let len = x.serialized_len() + 4;
 
         if self.buffer.spare_capacity_len() < Self::MSG_LEN + len {
             return Err(message);
@@ -71,6 +71,7 @@ impl MsgContainer {
 
             buf = message.serialize_unchecked(buf);
             buf = (len as i32).serialize_unchecked(buf);
+            buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
             x.serialize_unchecked(buf);
 
             self.buffer.set_len(self.buffer.len() + Self::MSG_LEN + len);

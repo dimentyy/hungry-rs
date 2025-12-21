@@ -1,11 +1,10 @@
-use std::collections::HashSet;
-use crate::meta::{Data, TypeOrEnum};
+use crate::meta::{Data, Deserialization};
 
 #[derive(Debug)]
 pub enum Typ {
-    Type { index: usize, params: Vec<Typ> },
+    Type { index: usize },
 
-    Enum { index: usize, params: Vec<Typ> },
+    Enum { index: usize },
 
     Int,
     Long,
@@ -23,37 +22,56 @@ pub enum Typ {
 }
 
 impl Typ {
+    pub(super) fn de(&self, data: &Data, visited_types: &mut Vec<bool>, visited_enums: &mut Vec<bool>) -> Deserialization {
+        match self {
+            Typ::Type { index } => data.type_de(*index, visited_types, visited_enums),
+            Typ::Enum { index } => data.enum_de(*index, visited_types, visited_enums),
+            Typ::Int => Deserialization::Infallible(4),
+            Typ::Long => Deserialization::Infallible(8),
+            Typ::Double => Deserialization::Infallible(8),
+            Typ::Bytes => Deserialization::Checked,
+            Typ::String => Deserialization::Checked,
+            Typ::Bool => Deserialization::Unchecked(4),
+            Typ::BareVector(_) => Deserialization::Checked,
+            Typ::Vector(_) => Deserialization::Checked,
+            Typ::Int128 => Deserialization::Infallible(16),
+            Typ::Int256 => Deserialization::Infallible(32),
+            Typ::Generic { .. } => Deserialization::Checked,
+        }
+    }
+
+    pub(crate) fn ready_de(&self, data: &Data) -> Deserialization {
+        match self {
+            Typ::Type { index } => data.types[*index].combinator.de,
+            Typ::Enum { index } => dbg!(&data.enums[*index]).de,
+            Typ::Int => Deserialization::Infallible(4),
+            Typ::Long => Deserialization::Infallible(8),
+            Typ::Double => Deserialization::Infallible(8),
+            Typ::Bytes => Deserialization::Checked,
+            Typ::String => Deserialization::Checked,
+            Typ::Bool => Deserialization::Unchecked(4),
+            Typ::BareVector(_) => Deserialization::Checked,
+            Typ::Vector(_) => Deserialization::Checked,
+            Typ::Int128 => Deserialization::Infallible(16),
+            Typ::Int256 => Deserialization::Infallible(32),
+            Typ::Generic { .. } => Deserialization::Checked,
+        }
+    }
+
     pub(super) fn check_recursion(
         &self,
         data: &Data,
-        visited: &mut HashSet<TypeOrEnum>,
-        root: usize,
+        visited: &mut Vec<Option<Option<bool>>>,
     ) -> bool {
-        let value = match self {
-            Typ::Type { index, params } => {
-                if !params.is_empty() {
-                    todo!()
-                }
-
-                if *index == root {
-                    return true;
-                }
-
-                TypeOrEnum::Type(*index)
-            }
-            Typ::Enum { index, params } => {
-                if !params.is_empty() {
-                    todo!()
-                }
-
-                TypeOrEnum::Enum(*index)
-            }
-            Typ::BareVector(typ) => return typ.check_recursion(data, visited, root),
-            Typ::Vector(typ) => return typ.check_recursion(data, visited, root),
-            Typ::Generic { .. } => todo!(),
-            _ => return false,
-        };
-
-        data.check_recursion(visited, root, value)
+        match self {
+            Typ::Type { index } => data.check_recursion(visited, *index),
+            Typ::Enum { index } => data.enums[*index]
+                .variants
+                .iter()
+                .any(|&x| data.check_recursion(visited, x)),
+            Typ::BareVector(typ) => typ.check_recursion(data, visited),
+            Typ::Vector(typ) => typ.check_recursion(data, visited),
+            _ => false,
+        }
     }
 }

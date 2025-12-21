@@ -1,14 +1,10 @@
+use bytes::BytesMut;
+use hungry::mtproto::{AuthKey, Salt};
+use hungry::tl::mtproto::enums::ServerDhParams;
+use hungry::{Envelope, tl};
 use std::future::poll_fn;
 use std::pin::pin;
 use std::task::Poll;
-use bytes::BytesMut;
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use hungry::mtproto::{AuthKey, Salt};
-use hungry::reader::Reader;
-use hungry::tl::mtproto::enums::ServerDhParams;
-use hungry::writer::{QueuedWriter, Writer};
-use hungry::{Envelope, tl};
-use hungry::transport::Full;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -64,8 +60,8 @@ fn main() -> anyhow::Result<()> {
 
 async fn generate_auth_key(
     public_key: hungry::crypto::RsaKey,
-    reader: &mut Reader<ReaderDriver, Transport>,
-    writer: &mut Writer<WriterDriver, Transport>,
+    reader: &mut hungry::reader::Reader<ReaderDriver, Transport>,
+    writer: &mut hungry::writer::Writer<WriterDriver, Transport>,
 ) -> anyhow::Result<(AuthKey, Salt)> {
     let mut buffer = BytesMut::with_capacity(1024 * 1024);
 
@@ -168,7 +164,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::Sender::new(
         reader,
-        QueuedWriter::new(writer),
+        hungry::writer::QueuedWriter::new(writer),
         auth_key,
         salt,
         session_id,
@@ -195,26 +191,29 @@ async fn async_main() -> anyhow::Result<()> {
     dbg!(sender.invoke(&func));
 
     loop {
-        dbg!(poll_fn(|cx| {
-            let mut result = match sender.poll(cx) {
-                Poll::Ready(Ok(result)) => result,
-                Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                Poll::Pending => return Poll::Pending,
-            };
+        dbg!(
+            poll_fn(|cx| {
+                let mut result = match sender.poll(cx) {
+                    Poll::Ready(Ok(result)) => result,
+                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+                    Poll::Pending => return Poll::Pending,
+                };
 
-            // for result in result {
-            //     match result {
-            //         Ok(_) => {}
-            //         Err(err) => todo!(),
-            //     }
-            // }
+                // for result in result {
+                //     match result {
+                //         Ok(_) => {}
+                //         Err(err) => todo!(),
+                //     }
+                // }
 
-            result.next().unwrap().unwrap();
+                // result.next().unwrap().unwrap();
 
-            cx.waker().wake_by_ref();
+                cx.waker().wake_by_ref();
 
-            Poll::Pending
-        }).await)?;
+                Poll::Pending
+            })
+            .await
+        )?;
     }
 
     Ok(())

@@ -2,12 +2,11 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::Ident;
-use crate::read::{Arg, Error, OptArg, ParserExtras, Typ};
+use crate::read::{Arg, Error, Ident, OptArg, ParserExtras, Typ};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Combinator<'a> {
-    pub ident: Ident<&'a str>,
+    pub ident: Ident<'a>,
     pub name: Option<u32>,
     pub opts: Vec<OptArg<'a>>,
     pub args: Vec<Arg<'a>>,
@@ -69,7 +68,7 @@ impl<'src> Combinator<'src> {
             .then(just('#').ignore_then(name).or_not())
             .then(opts)
             .then(args)
-            .then_ignore(just('='))
+            .then_ignore(just('=').padded())
             .then(result.padded())
             .then_ignore(just(';'))
             .map(|((((ident, name), opts), args), result)| Combinator {

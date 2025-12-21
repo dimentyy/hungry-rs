@@ -1,5 +1,5 @@
-use crate::Ident;
-use crate::meta::Typ;
+use crate::meta::{Deserialization, Ident, Typ};
+use crate::read;
 
 #[derive(Debug)]
 pub struct Flag {
@@ -26,10 +26,12 @@ pub struct GenericArg {
 }
 
 #[derive(Debug)]
-pub struct Combinator {
+pub struct Combinator<'a> {
+    pub parsed: &'a read::Combinator<'a>,
     pub ident: Ident,
     pub explicit_id: Option<u32>,
     pub inferred_id: u32,
     pub args: Vec<Arg>,
     pub generic_args: Vec<GenericArg>,
+    pub de: Deserialization,
 }

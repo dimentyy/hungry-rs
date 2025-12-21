@@ -2,7 +2,7 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::ident::Ident;
+use crate::read::ident::Ident;
 use crate::read::{Extra, Typ, Flag};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

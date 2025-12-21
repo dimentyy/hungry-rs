@@ -1,17 +1,20 @@
-use std::collections::HashSet;
-
 use indexmap::{IndexMap, IndexSet};
 
 use crate::meta::temp::{TempEnum, TempFunc, TempType};
 use crate::meta::{
-    Arg, ArgTyp, Combinator, Enum, Flag, Func, GenericArg, Temp, Typ, Type, TypeOrEnum,
+    Arg, ArgTyp, Combinator, Deserialization, Enum, Flag, Func, GenericArg, Ident, Temp, Typ, Type,
 };
-use crate::{Ident, read, rust};
+use crate::{read, rust};
 
+#[derive(Debug)]
 pub(crate) struct Data<'a> {
     pub(crate) types: Vec<Type<'a>>,
     pub(crate) funcs: Vec<Func<'a>>,
     pub(crate) enums: Vec<Enum<'a>>,
+
+    pub(crate) types_split: Vec<usize>,
+    pub(crate) funcs_split: Vec<usize>,
+    pub(crate) enums_split: Vec<usize>,
 }
 
 impl<'a> Data<'a> {
@@ -20,27 +23,187 @@ impl<'a> Data<'a> {
             types: Vec::with_capacity(temp.types.len()),
             funcs: Vec::with_capacity(temp.funcs.len()),
             enums: Vec::with_capacity(temp.enums.len()),
-        };
 
-        for (ident, x) in &temp.enums {
-            data.push_enum(&temp, ident, x);
-        }
+            types_split: Vec::new(),
+            funcs_split: Vec::new(),
+            enums_split: Vec::new(),
+        };
 
         for x in temp.types.values() {
             data.push_type(&temp, x);
+        }
+
+        for (ident, x) in &temp.enums {
+            data.push_enum(&temp, ident, x);
         }
 
         for x in temp.funcs.values() {
             data.push_func(&temp, x);
         }
 
-        data
+        let mut visited_types = Vec::with_capacity(data.types.len());
+        visited_types.resize(visited_types.capacity(), None);
+
+        for i in 0..data.types.len() {
+            data.types[i].recursive = data.check_recursion(&mut visited_types, i);
+        }
+
+        let mut visited_types = Vec::with_capacity(data.types.len());
+        visited_types.resize(visited_types.capacity(), false);
+
+        let mut visited_enums = Vec::with_capacity(data.enums.len());
+        visited_enums.resize(visited_enums.capacity(), false);
+
+        for i in 0..data.types.len() {
+            data.types[i].combinator.de = data.type_de(i, &mut visited_types, &mut visited_enums);
+            visited_types.fill(false);
+            visited_enums.fill(false);
+        }
+
+        for i in 0..data.enums.len() {
+            data.enums[i].de = data.enum_de(i, &mut visited_types, &mut visited_enums);
+            visited_types.fill(false);
+            visited_enums.fill(false);
+        }
+
+        for i in 0..data.funcs.len() {
+            data.funcs[i].combinator.de = data.func_de(i);
+            visited_types.fill(false);
+            visited_enums.fill(false);
+        }
+
+        data.types_split = temp.types_split;
+        data.funcs_split = temp.funcs_split;
+        data.enums_split = temp.enums_split;
+
+        data.types_split.push(data.types.len());
+        data.funcs_split.push(data.funcs.len());
+        data.enums_split.push(data.enums.len());
+
+        dbg!(data)
     }
 
-    fn push_type(&mut self, temp: &Temp, x: &TempType) {
+    fn func_de(&self, i: usize) -> Deserialization {
+        let mut infallible = true;
+        let mut len = 0;
+
+        for arg in &self.funcs[i].combinator.args {
+            let typ = match &arg.typ {
+                ArgTyp::Flags { .. } => {
+                    len += 4;
+                    continue;
+                }
+                ArgTyp::Typ { typ, flag, .. } => {
+                    if flag.is_some() {
+                        return Deserialization::Checked;
+                    }
+
+                    typ
+                }
+                ArgTyp::True { .. } => continue,
+            };
+
+            match typ.ready_de(self) {
+                Deserialization::Infallible(n) => len += n,
+                Deserialization::Unchecked(n) => {
+                    infallible = false;
+                    len += n;
+                }
+                Deserialization::Checked => return Deserialization::Checked,
+            };
+        }
+
+        if infallible {
+            Deserialization::Infallible(len)
+        } else {
+            Deserialization::Unchecked(len)
+        }
+    }
+
+    pub(crate) fn type_de(
+        &self,
+        i: usize,
+        visited_types: &mut Vec<bool>,
+        visited_enums: &mut Vec<bool>,
+    ) -> Deserialization {
+        if visited_types[i] {
+            return self.types[i].combinator.de;
+        }
+
+        visited_types[i] = true;
+
+        let mut infallible = true;
+        let mut len = 0;
+
+        for arg in &self.types[i].combinator.args {
+            let typ = match &arg.typ {
+                ArgTyp::Flags { .. } => {
+                    len += 4;
+                    continue;
+                }
+                ArgTyp::Typ { typ, flag, .. } => {
+                    if flag.is_some() {
+                        return Deserialization::Checked;
+                    }
+
+                    typ
+                }
+                ArgTyp::True { .. } => continue,
+            };
+
+            match typ.de(self, visited_types, visited_enums) {
+                Deserialization::Infallible(n) => len += n,
+                Deserialization::Unchecked(n) => {
+                    infallible = false;
+                    len += n;
+                }
+                Deserialization::Checked => return Deserialization::Checked,
+            };
+        }
+
+        if infallible {
+            Deserialization::Infallible(len)
+        } else {
+            Deserialization::Unchecked(len)
+        }
+    }
+
+    pub(crate) fn enum_de(
+        &self,
+        i: usize,
+        visited_types: &mut Vec<bool>,
+        visited_enums: &mut Vec<bool>,
+    ) -> Deserialization {
+        visited_enums[i] = true;
+
+        let variants = &self.enums[i].variants;
+
+        let de = self.type_de(variants[0], visited_types, visited_enums);
+        for &x in &variants[1..] {
+            if self.type_de(x, visited_types, visited_enums) != de {
+                return Deserialization::Checked;
+            }
+        }
+
+        match de {
+            Deserialization::Infallible(len) => Deserialization::Unchecked(len + 4),
+            Deserialization::Unchecked(len) => Deserialization::Unchecked(len + 4),
+            x => x,
+        }
+    }
+
+    fn push_type(&mut self, temp: &Temp<'a>, x: &TempType<'a>) {
         if !x.combinator.opts.is_empty() {
             todo!()
         }
+
+        let (combinator, _) = Self::combinator(temp, x.combinator);
+
+        self.types.push(Type {
+            combinator,
+            enum_index: x.enum_index,
+            recursive: false,
+        });
     }
 
     fn push_func(&mut self, temp: &Temp<'a>, x: &TempFunc<'a>) {
@@ -48,24 +211,24 @@ impl<'a> Data<'a> {
         let response = Self::typ(temp, &x.combinator.result, &generic_args);
 
         self.funcs.push(Func {
-            parsed: x.combinator,
             combinator,
             response,
         });
     }
 
-    fn push_enum(&mut self, temp: &Temp, ident: &'a Ident<&'a str>, x: &TempEnum) {
+    fn push_enum(&mut self, _temp: &Temp, ident: &'a read::Ident<'a>, x: &TempEnum) {
         self.enums.push(Enum {
             parsed: ident,
-            ident: ident.to_rust(),
+            ident: Ident::from(ident),
             variants: x.bare_types.clone(),
+            de: Deserialization::Checked,
         })
     }
 
     pub(super) fn combinator(
         temp: &Temp<'a>,
-        combinator: &read::Combinator<'a>,
-    ) -> (Combinator, IndexSet<&'a str>) {
+        combinator: &'a read::Combinator<'a>,
+    ) -> (Combinator<'a>, IndexSet<&'a str>) {
         let mut generic_args = IndexSet::with_capacity(combinator.opts.len());
 
         for opt in &combinator.opts {
@@ -107,7 +270,7 @@ impl<'a> Data<'a> {
                         }),
                     };
 
-                    if typ.ident == Ident::TRUE {
+                    if typ.ident == read::Ident::TRUE {
                         let Some(flag) = flag else { todo!() };
 
                         if *excl_mark {
@@ -137,7 +300,8 @@ impl<'a> Data<'a> {
 
         (
             Combinator {
-                ident: combinator.ident.to_rust(),
+                parsed: combinator,
+                ident: Ident::from(&combinator.ident),
                 explicit_id: combinator.name,
                 inferred_id: combinator.infer_name(),
                 args: args.into_values().collect(),
@@ -147,6 +311,7 @@ impl<'a> Data<'a> {
                         ident: rust::pascal_case(*s),
                     })
                     .collect(),
+                de: Deserialization::Checked,
             },
             generic_args,
         )
@@ -155,7 +320,7 @@ impl<'a> Data<'a> {
     pub(super) fn typ(temp: &Temp, typ: &read::Typ, generic_args: &IndexSet<&str>) -> Typ {
         macro_rules! ok {
             ($len:expr ; $typ:expr) => {{
-                if typ.params.len() == $len {
+                if typ.params.len() != $len {
                     todo!()
                 }
 
@@ -197,11 +362,11 @@ impl<'a> Data<'a> {
         }
 
         if let Some(index) = temp.types.get_index_of(&typ.ident) {
-            ok!(0; Typ::Type { index, params });
+            ok!(0; Typ::Type { index });
         }
 
         if let Some(index) = temp.enums.get_index_of(&typ.ident) {
-            ok!(0; Typ::Enum { index, params })
+            ok!(0; Typ::Enum { index })
         }
 
         todo!()
@@ -209,38 +374,33 @@ impl<'a> Data<'a> {
 
     pub(super) fn check_recursion(
         &self,
-        visited: &mut HashSet<TypeOrEnum>,
-        root: usize,
-        value: TypeOrEnum,
+        visited: &mut Vec<Option<Option<bool>>>,
+        current: usize,
     ) -> bool {
-        if visited.contains(&value) {
-            return !visited.is_empty();
+        match visited[current] {
+            Some(Some(recursive)) => return recursive,
+            Some(None) => {
+                return true
+            },
+            None => {},
         }
 
-        visited.insert(value);
+        visited[current] = Some(None);
 
-        match value {
-            TypeOrEnum::Type(index) => {
-                for arg in &self.types[index].combinator.args {
-                    let typ = match &arg.typ {
-                        ArgTyp::Flags { .. } => continue,
-                        ArgTyp::Typ { typ, .. } => typ,
-                        ArgTyp::True { .. } => continue,
-                    };
+        for arg in &self.types[current].combinator.args {
+            let typ = match &arg.typ {
+                ArgTyp::Flags { .. } => continue,
+                ArgTyp::Typ { typ, .. } => typ,
+                ArgTyp::True { .. } => continue,
+            };
 
-                    if typ.check_recursion(self, visited, root) {
-                        return true;
-                    }
-                }
+            if typ.check_recursion(self, visited) {
+                visited[current] = Some(Some(true));
+                return true;
             }
-            TypeOrEnum::Enum(index) => {
-                for x in &self.enums[index].variants {
-                    if self.check_recursion(visited, root, TypeOrEnum::Type(*x)) {
-                        return true;
-                    }
-                }
-            }
-        };
+        }
+
+        visited[current] = Some(Some(false));
 
         false
     }

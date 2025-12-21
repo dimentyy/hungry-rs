@@ -3,12 +3,11 @@ use std::fmt;
 use chumsky::prelude::*;
 use chumsky::recursive::{Direct, Recursive};
 
-use crate::Ident;
-use crate::read::{Extra, ParserExtras};
+use crate::read::{Extra, Ident, ParserExtras};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Typ<'a> {
-    pub ident: Ident<&'a str>,
+    pub ident: Ident<'a>,
     pub params: Vec<Typ<'a>>,
 }
 
@@ -42,7 +41,7 @@ impl fmt::Display for Typ<'_> {
 impl<'src> Typ<'src> {
     fn parser_impl(
         parser: Recursive<Direct<'src, 'src, &'src str, Self, Extra<'src>>>,
-        ident: impl ParserExtras<'src, Ident<&'src str>>,
+        ident: impl ParserExtras<'src, Ident<'src>>,
     ) -> impl ParserExtras<'src, Self> {
         let params = parser
             .padded()
@@ -59,7 +58,7 @@ impl<'src> Typ<'src> {
     }
 
     pub(super) fn parser(
-        ident: impl ParserExtras<'src, Ident<&'src str>>,
+        ident: impl ParserExtras<'src, Ident<'src>>,
     ) -> impl ParserExtras<'src, Self> {
         let parser = recursive(|parser| Self::parser_impl(parser, Ident::parser()).boxed());
 

@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 
-use crate::{Category, Ident, read};
+use crate::{Category, read};
 
 #[derive(Debug)]
 pub(crate) struct TempType<'a> {
@@ -20,9 +20,9 @@ pub(crate) struct TempEnum {
 }
 
 pub(crate) struct Temp<'a> {
-    pub(crate) types: IndexMap<&'a Ident<&'a str>, TempType<'a>>,
-    pub(crate) funcs: IndexMap<&'a Ident<&'a str>, TempFunc<'a>>,
-    pub(crate) enums: IndexMap<&'a Ident<&'a str>, TempEnum>,
+    pub(crate) types: IndexMap<&'a read::Ident<'a>, TempType<'a>>,
+    pub(crate) funcs: IndexMap<&'a read::Ident<'a>, TempFunc<'a>>,
+    pub(crate) enums: IndexMap<&'a read::Ident<'a>, TempEnum>,
 
     pub(crate) types_split: Vec<usize>,
     pub(crate) funcs_split: Vec<usize>,
@@ -31,12 +31,10 @@ pub(crate) struct Temp<'a> {
 
 impl<'a> Temp<'a> {
     /// TODO: errors.
-    pub(super) fn validate(parsed: &[&'a [read::Item<'a>]]) -> Self {
-        let mut section = Category::default();
-
+    pub(super) fn validate(parsed: &'a [Vec<read::Item<'a>>]) -> Self {
         let mut types = IndexMap::new();
         let mut funcs = IndexMap::new();
-        let mut enums = IndexMap::<&'a Ident<&'a str>, TempEnum>::new();
+        let mut enums = IndexMap::<&'a read::Ident<'a>, TempEnum>::new();
 
         let mut types_split = Vec::with_capacity(parsed.len());
         let mut funcs_split = Vec::with_capacity(parsed.len());
@@ -47,8 +45,10 @@ impl<'a> Temp<'a> {
             funcs_split.push(funcs.len());
             enums_split.push(enums.len());
 
-            for item in *schema {
-                let combinator @ read::Combinator { ident, result, .. } = match item {
+            let mut section = Category::default();
+
+            for item in schema {
+                let combinator @ read::Combinator { ident, result, .. } = match &item {
                     read::Item::Comment(_) => {
                         // TODO: comments.
                         continue;

@@ -2,8 +2,7 @@ use std::fmt;
 
 use chumsky::prelude::*;
 
-use crate::Ident;
-use crate::read::{Error, ParserExtras};
+use crate::read::{Error, Ident, ParserExtras};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Flag<'a> {
