@@ -8,9 +8,9 @@ use std::fmt;
 /// created by the sender prior to this message and subsequently incremented
 /// by one if the current message is a content-related message.
 ///
-/// The seqno of a content-related message is thus `unpack.seqNo = (current_seqno*2)+1`
+/// The seqno of a content-related message is thus `msg.seqNo = (current_seqno*2)+1`
 /// (and after generating it, the local `current_seqno` counter must be incremented by 1),
-/// the seqno of a non-content related message is `unpack.seqNo = (current_seqno*2)`
+/// the seqno of a non-content related message is `msg.seqNo = (current_seqno*2)`
 /// (`current_seqno` must not be incremented by 1 after generation).
 ///
 /// Thus, the content-relatedness of an incoming MTProto message can simply be
