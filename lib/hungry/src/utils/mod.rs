@@ -1,9 +1,6 @@
 mod bytes_ext;
-mod dump;
 
 pub(crate) use bytes_ext::{BytesMutExt, unsplit_checked};
-
-pub use dump::dump;
 
 macro_rules! ready_ok {
     ($e:expr) => {{
