@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::mtproto::{PlainMessage, Session};
+use crate::mtproto::{MsgKeyCheckError, PlainMessage, Session};
 use crate::reader::ReaderError;
 use crate::writer::WriterError;
 
@@ -11,6 +11,7 @@ pub enum SenderError {
 
     PlainMessage(PlainMessage),
     UnexpectedAuthKeyId(i64),
+    MsgKeyCheck(MsgKeyCheckError),
     UnexpectedSessionId(Session),
 }
 
@@ -28,6 +29,13 @@ impl From<WriterError> for SenderError {
     }
 }
 
+impl From<MsgKeyCheckError> for SenderError {
+    #[inline]
+    fn from(value: MsgKeyCheckError) -> Self {
+        Self::MsgKeyCheck(value)
+    }
+}
+
 impl fmt::Display for SenderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use SenderError::*;
@@ -39,6 +47,7 @@ impl fmt::Display for SenderError {
             Writer(err) => err.fmt(f),
             PlainMessage(_) => write!(f, "received unexpected plain message"),
             UnexpectedAuthKeyId(err) => write!(f, "unexpected auth key id: {err:#010x}"),
+            MsgKeyCheck(err) => err.fmt(f),
             UnexpectedSessionId(err) => write!(f, "unexpected session id: {err:#010x}"),
         }
     }
@@ -48,10 +57,11 @@ impl std::error::Error for SenderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use SenderError::*;
 
-        match self {
-            Writer(err) => Some(err),
-            Reader(err) => Some(err),
-            _ => None,
-        }
+        Some(match self {
+            Writer(err) => err,
+            Reader(err) => err,
+            MsgKeyCheck(err) => err,
+            _ => return None,
+        })
     }
 }

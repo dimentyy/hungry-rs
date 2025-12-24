@@ -6,14 +6,19 @@ use tl::ConstSerializedLen;
 use tl::de::{Buf, DeserializeInfallible, Error};
 use tl::ser::SerializeUnchecked;
 
+#[must_use]
 #[derive(Debug)]
 pub struct Msg {
     pub msg_id: mtproto::MsgId,
     pub seq_no: mtproto::SeqNo,
 }
 
+impl Msg {
+    pub const HEADER_LEN: usize = Self::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+}
+
 impl ConstSerializedLen for Msg {
-    const SERIALIZED_LEN: usize = i64::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+    const SERIALIZED_LEN: usize = mtproto::MsgId::SERIALIZED_LEN + mtproto::SeqNo::SERIALIZED_LEN;
 }
 
 impl SerializeUnchecked for Msg {

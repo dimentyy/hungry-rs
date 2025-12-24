@@ -1,21 +1,22 @@
 use bytes::BytesMut;
 
-use crate::crypto;
 use crate::mtproto::{
-    AuthKey, DECRYPTED_MESSAGE_HEADER_SIZE, DecryptedMessage, EncryptedEnvelope, EncryptedMessage,
-    Msg, PlainEnvelope, Side,
+    AuthKey, DecryptedMessage, EncryptedEnvelope, EncryptedMessage, Msg, PlainEnvelope, Side,
 };
-use crate::utils::SliceExt;
 
-pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, msg_id: i64) {
+use crate::tl::ser::SerializeUnchecked;
+
+pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
     let excess = envelope.adapt(buffer);
     let (h, _) = envelope.buffers();
 
-    h[0..8].fill(0); // auth_key_id
-    h[8..16].copy_from_slice(&msg_id.to_le_bytes());
+    unsafe {
+        let mut buf = std::ptr::NonNull::new_unchecked(h.as_mut_ptr());
 
-    let length = buffer.len() as i32;
-    h[16..20].copy_from_slice(&length.to_le_bytes());
+        buf = 0i64.serialize_unchecked(buf); // auth_key_id
+        buf = message_id.serialize_unchecked(buf);
+        (buffer.len() as i32).serialize_unchecked(buf); // message_data_length
+    }
 
     envelope.unsplit(buffer, excess);
 }
@@ -37,34 +38,37 @@ pub fn pack_encrypted(
     let random_padding = &mut f[..random_padding_len];
     getrandom::fill(random_padding).unwrap();
 
-    let plaintext_header = h[EncryptedMessage::HEADER_LEN..].arr_mut();
+    unsafe {
+        let mut buf =
+            std::ptr::NonNull::new_unchecked(h.as_mut_ptr()).add(EncryptedMessage::HEADER_LEN);
 
-    plaintext_header[0..8].copy_from_slice(&message.salt.to_le_bytes());
-    plaintext_header[8..16].copy_from_slice(&message.session_id.to_le_bytes());
+        buf = message.salt.serialize_unchecked(buf);
+        buf = message.session_id.serialize_unchecked(buf);
 
-    plaintext_header[16..24].copy_from_slice(&msg.msg_id.to_le_bytes());
-    plaintext_header[24..28].copy_from_slice(&msg.seq_no.to_le_bytes());
-    plaintext_header[28..32].copy_from_slice(&(plaintext_len as i32).to_le_bytes());
+        buf = msg.msg_id.serialize_unchecked(buf);
+        buf = msg.seq_no.serialize_unchecked(buf);
 
-    let msg_key = auth_key.compute_msg_key(plaintext_header, buffer, random_padding, Side::Client);
-
-    h[0..8].copy_from_slice(auth_key.id());
-    h[8..24].copy_from_slice(&msg_key);
+        (plaintext_len as i32).serialize_unchecked(buf);
+    }
 
     envelope.unsplit(buffer, excess);
 
     buffer.truncate(
         EncryptedMessage::HEADER_LEN
-            + DECRYPTED_MESSAGE_HEADER_SIZE
+            + DecryptedMessage::HEADER_LEN
+            + Msg::HEADER_LEN
             + plaintext_len
             + random_padding_len,
     );
 
+    let (h, plaintext) = unsafe { buffer.split_at_mut_unchecked(24) };
+
+    let msg_key = auth_key.compute_msg_key(plaintext, Side::Client);
+
+    h[0..8].copy_from_slice(auth_key.id());
+    h[8..24].copy_from_slice(&msg_key);
+
     let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
 
-    crypto::aes_ige_encrypt(
-        &mut buffer[EncryptedMessage::HEADER_LEN..],
-        &aes_key,
-        &mut aes_iv,
-    );
+    crate::crypto::aes_ige_encrypt(plaintext, &aes_key, &mut aes_iv);
 }

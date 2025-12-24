@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use std::mem;
+use std::{mem, slice};
 
 use bytes::BytesMut;
 
@@ -7,15 +7,15 @@ use crate::utils::{BytesMutExt, unsplit_checked};
 
 /// A helper macro to define a standalone envelope size.
 macro_rules! envelopes {
-    { $( $vis:vis $name:ident => $size:ident: $header:expr, $footer:expr );+ $(;)? } => { $(
-        $vis struct $size;
+    { $( $vis:vis $alias:ident => $ident:ident : $header:expr , $footer:expr );+ $( ; )? } => { $(
+        $vis struct $ident;
 
-        impl crate::envelope::EnvelopeSize for $size {
+        impl crate::envelope::EnvelopeSize for $ident {
             const HEADER: usize = $header;
             const FOOTER: usize = $footer;
         }
 
-        $vis type $name = crate::envelope::Envelope<$size>;
+        $vis type $alias = crate::envelope::Envelope<$ident>;
     )+ };
 }
 
@@ -59,9 +59,24 @@ impl<S: EnvelopeSize> Envelope<S> {
     }
 
     /// Get envelope buffers. May be uninitialized.
-    #[inline]
+    #[must_use]
+    #[inline(always)]
     pub(crate) fn buffers(&mut self) -> (&mut [u8], &mut [u8]) {
         (self.header.as_mut(), self.footer.as_mut())
+    }
+
+    /// Get a mutable contiguous slice of all buffers.
+    #[must_use]
+    pub(crate) fn unsplit_slice_mut(&mut self, buffer: &mut BytesMut) -> &mut [u8] {
+        assert!(
+            self.header.can_unsplit(buffer) && buffer.can_unsplit(&self.footer),
+            "buffer does not belong to the envelope"
+        );
+
+        let len = S::HEADER + buffer.len() + S::FOOTER;
+
+        // SAFETY: `buffer` belongs to the envelope.
+        unsafe { slice::from_raw_parts_mut(self.header.as_mut_ptr(), len) }
     }
 
     /// Shrink buffer capacity to match its length. Excess buffer with remaining space is returned.

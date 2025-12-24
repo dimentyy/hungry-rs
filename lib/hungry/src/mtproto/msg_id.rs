@@ -27,27 +27,32 @@ use std::{fmt, time};
 pub type MsgId = i64;
 
 #[must_use]
-#[derive(Default)]
 pub struct MsgIds {
     last: i64,
+}
+
+impl fmt::Display for MsgIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "msg ids [last={}]", self.last)
+    }
 }
 
 impl fmt::Debug for MsgIds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MsgIds")
-            .field("previous", &format_args!("{:#016x}", self.last))
+            .field("last", &format_args!("{:#016x}", self.last))
             .finish()
     }
 }
 
 impl MsgIds {
-    #[inline]
+    #[inline(always)]
     pub const fn new() -> Self {
         Self { last: 0 }
     }
 
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub const fn last(&self) -> MsgId {
         self.last
     }

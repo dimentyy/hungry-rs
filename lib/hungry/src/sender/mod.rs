@@ -14,7 +14,7 @@ use crate::{Envelope, tl};
 
 mod error;
 
-pub use error::{SenderError};
+pub use error::SenderError;
 
 type Container<T> = (crate::MsgContainer, EncryptedEnvelope, Envelope<T>);
 
@@ -89,7 +89,7 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
 
         let msg_id = msg.msg_id;
 
-        self.get_container(len).push(msg, func).unwrap();
+        self.get_container(len).push(msg, func);
 
         msg_id
     }
@@ -147,7 +147,7 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
 
         let buf = &mut buf[EncryptedMessage::HEADER_LEN..];
 
-        let DecryptedMessage { salt, session_id } = encrypted.decrypt(&self.auth_key, buf);
+        let DecryptedMessage { salt, session_id } = encrypted.decrypt(&self.auth_key, buf)?;
 
         // assert_eq!(decrypted.salt, self.salt);
 
@@ -164,10 +164,7 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
         Ok(())
     }
 
-    pub fn poll<'a>(
-        &'a mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), SenderError>> {
+    pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
         if self.writer.is_empty()
             && let Some((container, mtp, transport)) = self.container.take()
         {

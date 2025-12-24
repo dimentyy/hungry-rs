@@ -59,17 +59,17 @@ impl MsgContainer {
         self.buffer.spare_capacity_len().checked_sub(Self::MSG_LEN)
     }
 
-    pub fn push<X: tl::Function>(&mut self, message: Msg, x: &X) -> Result<(), Msg> {
+    pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &X) {
         let len = x.serialized_len() + 4;
 
         if self.buffer.spare_capacity_len() < Self::MSG_LEN + len {
-            return Err(message);
+            panic!("msg container buffer does not have enough capacity");
         }
 
         unsafe {
             let mut buf = NonNull::new_unchecked(self.buffer.as_mut_ptr().add(self.buffer.len()));
 
-            buf = message.serialize_unchecked(buf);
+            buf = msg.serialize_unchecked(buf);
             buf = (len as i32).serialize_unchecked(buf);
             buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
             x.serialize_unchecked(buf);
@@ -78,8 +78,6 @@ impl MsgContainer {
         }
 
         self.length += 1;
-
-        Ok(())
     }
 
     #[must_use]

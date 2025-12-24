@@ -5,6 +5,7 @@ use crate::mtproto;
 /// Represents either [`PlainMessage`] or [`EncryptedMessage`] deserialized via [`unpack`] method.
 ///
 /// [`unpack`]: Message::unpack
+#[must_use]
 #[derive(Debug)]
 pub enum Message {
     Plain(PlainMessage),
@@ -24,6 +25,7 @@ impl fmt::Display for Message {
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#unencrypted-message
+#[must_use]
 #[derive(Debug)]
 pub struct PlainMessage {
     pub message_id: i64,
@@ -34,7 +36,7 @@ impl fmt::Display for PlainMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "plain message [message_id=0x{:016x}, message_length={}]",
+            "plain message [message_id={:#018x}, message_length={}]",
             self.message_id, self.message_length
         )
     }
@@ -55,6 +57,7 @@ impl PlainMessage {
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#encrypted-message
+#[must_use]
 #[derive(Debug)]
 pub struct EncryptedMessage {
     pub auth_key_id: std::num::NonZeroI64,
@@ -89,6 +92,7 @@ impl EncryptedMessage {
 /// https://core.telegram.org/mtproto/description#encrypted-message-encrypted-data
 ///
 /// [`decrypt`]: EncryptedMessage::decrypt
+#[must_use]
 #[derive(Debug)]
 pub struct DecryptedMessage {
     pub salt: i64,
@@ -99,7 +103,7 @@ impl fmt::Display for DecryptedMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "decrypted message [salt={:#016x}, session_id={:016x}]",
+            "decrypted message [salt={:#018x}, session_id={:016x}]",
             self.salt, self.session_id
         )
     }

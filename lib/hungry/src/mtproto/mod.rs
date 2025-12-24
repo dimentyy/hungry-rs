@@ -14,11 +14,7 @@ pub use msg::{Msg, MsgContainer};
 pub use msg_id::{MsgId, MsgIds};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
-
-pub const DECRYPTED_MESSAGE_HEADER_SIZE: usize = DecryptedMessage::HEADER_LEN
-    + 8  // message_id
-    + 4  // seq_no
-    + 4; // message_data_length
+pub use unpack::MsgKeyCheckError;
 
 /// # Session
 ///
@@ -55,6 +51,7 @@ pub type Salt = i64;
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
+#[repr(usize)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
     Client = 0,
@@ -62,7 +59,7 @@ pub enum Side {
 }
 
 impl Side {
-    #[inline]
+    #[inline(always)]
     pub const fn x(self) -> usize {
         self as usize
     }
@@ -72,7 +69,7 @@ envelopes! {
     pub PlainEnvelope => PlainEnvelopeSize:
         PlainMessage::HEADER_LEN,
         0;          // no padding
-    pub EncryptedEnvelope => EnvelopeSize:
-        EncryptedMessage::HEADER_LEN + DECRYPTED_MESSAGE_HEADER_SIZE,
+    pub EncryptedEnvelope => EncryptedEnvelopeSize:
+        EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + Msg::HEADER_LEN,
         1024;       // padding (12..1024)
 }

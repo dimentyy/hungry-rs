@@ -1,30 +1,57 @@
 // STATUS: stable.
 
-use std::ops::RangeTo;
+use std::fmt;
 
 use rug::{Integer, integer::Order::MsfBe};
 
-use crate::utils::SliceExt;
 use crate::{crypto, tl};
+
+/// 64 lower-order bits of SHA1 (server_public_key);
+/// the public key is represented as a bare type
+/// `rsa_public_key n:string e:string = RSAPublicKey`,
+/// where, as usual, n and e are numbers in
+/// big endian format serialized as strings
+/// of bytes, following which SHA1 is computed
+///
+/// ---
+/// https://core.telegram.org/mtproto/auth_key#2-server-sends-response-of-the-form
+pub type RsaKeyFingerprint = i64;
 
 /// https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows
 #[must_use]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq)]
 pub struct RsaKey {
     n: Integer,
     e: Integer,
-    fingerprint: i64,
+    fingerprint: RsaKeyFingerprint,
+}
+
+impl PartialEq for RsaKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.n == other.n && self.e == other.n
+    }
+}
+
+impl fmt::Display for RsaKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "rsa public key [fingerprint={:#018x}, ..]",
+            self.fingerprint
+        )
+    }
 }
 
 impl RsaKey {
     #[must_use]
-    pub fn calculate_fingerprint(n: &Integer, e: &Integer) -> i64 {
+    pub fn calculate_fingerprint(n: &Integer, e: &Integer) -> RsaKeyFingerprint {
         let n_len = n.significant_digits::<u8>();
         let e_len = e.significant_digits::<u8>();
 
-        if n <= e || e <= &1 || n.is_even() || e.is_even() || n_len != 256 || e_len > 256 {
-            panic!("invalid public RSA key")
-        }
+        assert!(
+            n > e && e > &1 && n.is_odd() && e.is_odd() && n_len == 256 && e_len <= 256,
+            "invalid public RSA key"
+        );
 
         let n_ser_len = tl::ser::bytes_len(n_len);
         let e_ser_len = tl::ser::bytes_len(e_len);
@@ -39,7 +66,7 @@ impl RsaKey {
 
         let sha1 = crypto::sha1!(&buf[..n_ser_len + e_ser_len]);
 
-        i64::from_le_bytes(*sha1[12..].arr())
+        i64::from_le_bytes(sha1[12..].try_into().unwrap())
     }
 
     #[inline]
@@ -49,9 +76,9 @@ impl RsaKey {
         Self { n, e, fingerprint }
     }
 
-    #[inline]
     #[must_use]
-    pub fn fingerprint(&self) -> i64 {
+    #[inline(always)]
+    pub fn fingerprint(&self) -> RsaKeyFingerprint {
         self.fingerprint
     }
 
@@ -121,7 +148,7 @@ impl RsaKey {
         &self,
         key_aes_encrypted: &[u8; 256],
         encrypted_data: &mut [u8; 256],
-    ) -> RangeTo<usize> {
+    ) -> std::ops::RangeTo<usize> {
         let key_aes_encrypted = Integer::from_digits(key_aes_encrypted, MsfBe);
 
         let result = key_aes_encrypted.pow_mod(&self.e, &self.n).unwrap();

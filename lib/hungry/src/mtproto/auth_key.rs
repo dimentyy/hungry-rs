@@ -2,7 +2,6 @@
 
 use std::fmt;
 
-use crate::utils::SliceExt;
 use crate::{crypto, mtproto};
 
 /// The middle 128 bits of the SHA-256 hash of the message to be encrypted
@@ -21,6 +20,7 @@ pub type MsgKey = crate::tl::Int128;
 /// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 #[must_use]
 #[derive(Clone)]
+#[repr(align(8))]
 pub struct AuthKey {
     data: [u8; 256],
 
@@ -51,22 +51,22 @@ impl AuthKey {
     pub fn new(data: [u8; 256]) -> Self {
         let hash = crypto::sha1!(&data);
 
-        let aux_hash = *hash[..8].arr();
-        let id = *hash[12..].arr();
+        let aux_hash = hash[0..8].try_into().unwrap();
+        let id = hash[12..20].try_into().unwrap();
 
         Self { data, aux_hash, id }
     }
 
     /// Actual underlying data used for cryptographic operations.
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub fn data(&self) -> &[u8; 256] {
         &self.data
     }
 
     /// Consume the [`AuthKey`] returning its owned underling data.
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub fn into_inner(self) -> [u8; 256] {
         self.data
     }
@@ -76,8 +76,8 @@ impl AuthKey {
     ///
     /// ---
     /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub fn aux_hash(&self) -> &[u8; 8] {
         &self.aux_hash
     }
@@ -86,8 +86,8 @@ impl AuthKey {
     ///
     /// ---
     /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub fn id(&self) -> &[u8; 8] {
         &self.id
     }
@@ -97,28 +97,14 @@ impl AuthKey {
     /// ---
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     #[must_use]
-    pub fn compute_msg_key(
-        &self,
-        plaintext_header: &[u8; mtproto::DECRYPTED_MESSAGE_HEADER_SIZE],
-        plaintext: &[u8],
-        random_padding: &[u8],
-        side: mtproto::Side,
-    ) -> MsgKey {
+    pub fn compute_msg_key(&self, plaintext: &[u8], side: mtproto::Side) -> MsgKey {
         let x = side.x();
 
         // * msg_key_large = SHA256(substr(auth_key, 88 + x, 32) + plaintext + random_padding);
-        let msg_key_large = crypto::sha256!(
-            &self.data[88 + x..88 + x + 32],
-            plaintext_header,
-            plaintext,
-            random_padding
-        );
+        let msg_key_large = crypto::sha256!(&self.data[88 + x..88 + x + 32], plaintext);
 
         // * msg_key = substr(msg_key_large, 8, 16);
-        let msg_key = *msg_key_large[8..24].arr();
-
-        #[allow(clippy::let_and_return)]
-        msg_key
+        msg_key_large[8..24].try_into().unwrap()
     }
 
     /// Compute [`AesIgeKey`] and [`AesIgeIv`].

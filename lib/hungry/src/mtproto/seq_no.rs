@@ -1,9 +1,11 @@
 // STATUS: stable.
 
+use std::fmt;
+
 /// # Message Sequence Number (msg_seqno)
 ///
 /// A 32-bit number equal to twice the number of [content-related »] messages
-/// created by the _sender prior to this message and subsequently incremented
+/// created by the sender prior to this message and subsequently incremented
 /// by one if the current message is a content-related message.
 ///
 /// The seqno of a content-related message is thus `msg.seqNo = (current_seqno*2)+1`
@@ -26,25 +28,31 @@
 pub type SeqNo = i32;
 
 #[must_use]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SeqNos {
     current: i32,
 }
 
+impl fmt::Display for SeqNos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "msg seq nos [current={}]", self.current)
+    }
+}
+
 impl SeqNos {
-    #[inline]
+    #[inline(always)]
     pub const fn new() -> Self {
         Self { current: 0 }
     }
 
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub const fn non_content_related(&self) -> SeqNo {
         self.current * 2
     }
 
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub const fn get_content_related(&mut self) -> SeqNo {
         self.current += 1;
         (self.current * 2) - 1
