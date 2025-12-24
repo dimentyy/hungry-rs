@@ -10,7 +10,7 @@ use crate::envelopes;
 
 pub use auth_key::{AuthKey, MsgKey};
 pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
-pub use msg::{Msg, MsgContainer};
+pub use msg::Msg;
 pub use msg_id::{MsgId, MsgIds};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};

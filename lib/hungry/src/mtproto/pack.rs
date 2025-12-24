@@ -6,7 +6,7 @@ use crate::mtproto::{
 
 use crate::tl::ser::SerializeUnchecked;
 
-pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id: i64) {
+pub fn pack_plain(mut envelope: PlainEnvelope, buffer: &mut BytesMut, message_id: i64) {
     let excess = envelope.adapt(buffer);
     let (h, _) = envelope.buffers();
 
@@ -22,8 +22,8 @@ pub fn pack_plain(buffer: &mut BytesMut, mut envelope: PlainEnvelope, message_id
 }
 
 pub fn pack_encrypted(
-    buffer: &mut BytesMut,
     mut envelope: EncryptedEnvelope,
+    buffer: &mut BytesMut,
     auth_key: &AuthKey,
     message: DecryptedMessage,
     msg: Msg,

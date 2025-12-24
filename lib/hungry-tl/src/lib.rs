@@ -1,5 +1,7 @@
-use std::fmt;
+use crate::ser::SerializeUnchecked;
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
+use std::{fmt, mem};
 
 mod hex;
 
@@ -79,6 +81,7 @@ pub type Bytes = Vec<u8>;
 pub struct BareVec<T>(pub Vec<T>);
 
 impl<T: fmt::Debug> fmt::Debug for BareVec<T> {
+    #[inline(always)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -87,12 +90,14 @@ impl<T: fmt::Debug> fmt::Debug for BareVec<T> {
 impl<T> Deref for BareVec<T> {
     type Target = Vec<T>;
 
+    #[inline(always)]
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
 impl<T> DerefMut for BareVec<T> {
+    #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -154,4 +159,59 @@ impl_const_serialized_len!(
 
 pub fn de<X: de::Deserialize>(buf: &[u8]) -> Result<X, de::Error> {
     de::Buf::new(buf).de()
+}
+
+#[derive(Clone)]
+pub struct CalculatedLen<'a, X: SerializedLen> {
+    len: usize,
+    obj: &'a X,
+}
+
+impl<'a, X: SerializedLen> CalculatedLen<'a, X> {
+    pub fn new(obj: &'a X) -> Self {
+        let len = obj.serialized_len();
+
+        Self { len, obj }
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<'a, X: SerializedLen> Deref for CalculatedLen<'a, X> {
+    type Target = X;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        self.obj
+    }
+}
+
+#[repr(transparent)]
+pub struct ConstructorId<X: SerializeUnchecked + Identifiable>(pub X);
+
+impl<X: SerializeUnchecked + Identifiable> ConstructorId<X> {
+    #[inline(always)]
+    pub fn from_ref(obj: &'_ X) -> &'_ Self {
+        unsafe { mem::transmute(obj) }
+    }
+}
+
+impl<X: SerializeUnchecked + Identifiable> SerializedLen for ConstructorId<X> {
+    #[inline(always)]
+    fn serialized_len(&self) -> usize {
+        self.0.serialized_len() + 4
+    }
+}
+
+impl<X: SerializeUnchecked + Identifiable> SerializeUnchecked for ConstructorId<X> {
+    #[inline(always)]
+    unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
+        unsafe {
+            buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
+            self.0.serialize_unchecked(buf)
+        }
+    }
 }

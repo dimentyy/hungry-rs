@@ -66,12 +66,12 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use = "the `BytesMut` must be reused to avoid unnecessary memory reallocation"]
     pub fn queue_plain(
         &mut self,
-        mut buffer: BytesMut,
         transport: Envelope<T>,
         mtp: mtproto::PlainEnvelope,
+        mut buffer: BytesMut,
         message_id: i64,
     ) -> (Option<BytesMut>, Option<BytesMut>) {
-        mtproto::pack_plain(&mut buffer, mtp, message_id);
+        mtproto::pack_plain(mtp, &mut buffer, message_id);
 
         self.queue_impl(buffer, transport)
     }
@@ -79,14 +79,14 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use = "the `BytesMut` must be reused to avoid unnecessary memory reallocation"]
     pub fn queue(
         &mut self,
-        mut buffer: BytesMut,
         transport: Envelope<T>,
         mtp: mtproto::EncryptedEnvelope,
+        mut buffer: BytesMut,
         auth_key: &mtproto::AuthKey,
         message: mtproto::DecryptedMessage,
         msg: mtproto::Msg,
     ) -> (Option<BytesMut>, Option<BytesMut>) {
-        mtproto::pack_encrypted(&mut buffer, mtp, auth_key, message, msg);
+        mtproto::pack_encrypted(mtp, &mut buffer, auth_key, message, msg);
 
         self.queue_impl(buffer, transport)
     }

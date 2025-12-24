@@ -1,22 +1,23 @@
+mod container;
+mod error;
+
+use std::mem;
 use std::ops::ControlFlow;
 use std::task::{Context, Poll};
 
 use bytes::BytesMut;
 
 use crate::mtproto::{
-    AuthKey, DecryptedMessage, EncryptedEnvelope, EncryptedMessage, Message, Msg, MsgId, MsgIds,
-    Salt, SeqNos, Session,
+    AuthKey, DecryptedMessage, EncryptedMessage, Message, Msg, MsgId, MsgIds, Salt, SeqNos, Session,
 };
 use crate::reader::{Reader, ReaderDriver};
+use crate::tl;
 use crate::transport::{Packet, Transport, Unpack};
 use crate::writer::{QueuedWriter, WriterDriver};
-use crate::{Envelope, tl};
 
-mod error;
+use container::Container;
 
 pub use error::SenderError;
-
-type Container<T> = (crate::MsgContainer, EncryptedEnvelope, Envelope<T>);
 
 pub struct Sender<T: Transport, R: ReaderDriver, W: WriterDriver> {
     reader: Reader<R, T>,
@@ -26,35 +27,30 @@ pub struct Sender<T: Transport, R: ReaderDriver, W: WriterDriver> {
     salt: Salt,
     session_id: Session,
 
-    container: Option<Container<T>>,
+    container: Container<T>,
 
     msg_ids: MsgIds,
     seq_nos: SeqNos,
 }
 
 impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
+    /// FIXME
     fn new_container() -> Container<T> {
-        let mut buffer = BytesMut::with_capacity(1024 * 1024);
+        let buffer = BytesMut::with_capacity(1024 * 1024);
 
-        let transport = Envelope::split(&mut buffer);
-        let mtp = Envelope::split(&mut buffer);
-
-        (crate::MsgContainer::new(buffer), mtp, transport)
+        Container::new(buffer)
     }
 
-    fn get_container(&mut self, capacity: usize) -> &mut crate::MsgContainer {
-        let new_required = match &self.container {
-            None => false,
-            Some((container, _, _)) => container.spare_capacity().map_or(false, |x| x >= capacity),
-        };
+    fn get_container(&mut self, len: usize) -> &mut Container<T> {
+        if !self.container.can_push(len) {
+            let container = Self::new_container();
 
-        if new_required {
-            if let Some((container, mtp, transport)) = self.container.take() {
-                self.queue(container, mtp, transport);
-            }
+            let container = mem::replace(&mut self.container, container);
+
+            self.queue(container);
         }
 
-        &mut self.container.get_or_insert_with(Self::new_container).0
+        &mut self.container
     }
 
     pub fn new(
@@ -68,7 +64,7 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
             reader,
             writer,
 
-            container: None,
+            container: Self::new_container(),
 
             msg_ids: MsgIds::new(),
             seq_nos: SeqNos::new(),
@@ -79,9 +75,10 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
         }
     }
 
-    pub fn invoke<F: tl::Function>(&mut self, func: &F) -> MsgId {
-        let len = func.serialized_len();
-
+    pub fn invoke<X: tl::Function>(
+        &mut self,
+        func: tl::CalculatedLen<'_, tl::ConstructorId<X>>,
+    ) -> MsgId {
         let msg = Msg {
             msg_id: self.msg_ids.get_using_system_time(),
             seq_no: self.seq_nos.get_content_related(),
@@ -89,17 +86,12 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
 
         let msg_id = msg.msg_id;
 
-        self.get_container(len).push(msg, func);
+        self.get_container(func.len()).push(msg, func);
 
         msg_id
     }
 
-    fn queue(
-        &mut self,
-        container: crate::MsgContainer,
-        mtp: EncryptedEnvelope,
-        transport: Envelope<T>,
-    ) {
+    fn queue(&mut self, container: Container<T>) {
         let message = DecryptedMessage {
             salt: self.salt,
             session_id: self.session_id,
@@ -110,24 +102,21 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
             seq_no: self.seq_nos.non_content_related(),
         };
 
-        let (header, footer) = self.writer.queue(
-            container.finalize(),
-            transport,
-            mtp,
-            &self.auth_key,
-            message,
-            msg,
-        );
+        let (transport, mtp, buffer) = container.finalize();
 
-        if let Some(_header) = header {}
+        let (h, f) = self
+            .writer
+            .queue(transport, mtp, buffer, &self.auth_key, message, msg);
 
-        if let Some(_footer) = footer {}
+        if let Some(_h) = h {}
+
+        if let Some(_f) = f {}
     }
 
-    fn unpack<'a>(&'a mut self, unpack: Unpack) -> Result<(), SenderError> {
+    fn unpack(&'_ mut self, unpack: Unpack) -> Result<(), SenderError> {
         let data = match &unpack {
             Unpack::Packet(Packet { data }) => data.clone(),
-            Unpack::QuickAck(_) => unimplemented!(),
+            Unpack::QuickAck(_) => todo!(),
         };
 
         let mut buffer = self.reader.buffer().split();
@@ -165,10 +154,12 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Sender<T, R, W> {
     }
 
     pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
-        if self.writer.is_empty()
-            && let Some((container, mtp, transport)) = self.container.take()
-        {
-            self.queue(container, mtp, transport);
+        if self.writer.is_empty() && !self.container.is_empty() {
+            let container = Self::new_container();
+
+            let container = mem::replace(&mut self.container, container);
+
+            self.queue(container);
         }
 
         loop {

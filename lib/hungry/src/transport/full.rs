@@ -2,7 +2,7 @@ use std::ops::{ControlFlow, RangeFrom};
 
 use bytes::BytesMut;
 
-use crate::transport::{TransportError, Packet, Transport, TransportRead, TransportWrite, Unpack};
+use crate::transport::{Packet, Transport, TransportError, TransportRead, TransportWrite, Unpack};
 use crate::utils::SliceExt;
 use crate::{Envelope, EnvelopeSize, crypto};
 

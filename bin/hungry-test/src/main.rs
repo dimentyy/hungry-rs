@@ -171,24 +171,24 @@ async fn async_main() -> anyhow::Result<()> {
     );
 
     let func = tl::mtproto::funcs::Ping { ping_id: 123 };
-    dbg!(sender.invoke(&func));
+    dbg!(sender.invoke(tl::CalculatedLen::new(tl::ConstructorId::from_ref(&func))));
 
-    let func = tl::api::funcs::InvokeWithLayer {
-        layer: 214,
-        query: tl::api::funcs::InitConnection {
-            api_id: 4,
-            device_model: "device_model".to_string(),
-            system_version: "system_version".to_string(),
-            app_version: "0.0.0".to_string(),
-            system_lang_code: "en".to_string(),
-            lang_pack: "".to_string(),
-            lang_code: "en".to_string(),
-            proxy: None,
-            params: None,
-            query: tl::api::funcs::help::GetNearestDc {},
-        },
-    };
-    dbg!(sender.invoke(&func));
+    // let func = tl::api::funcs::InvokeWithLayer {
+    //     layer: 214,
+    //     query: tl::api::funcs::InitConnection {
+    //         api_id: 4,
+    //         device_model: "device_model".to_string(),
+    //         system_version: "system_version".to_string(),
+    //         app_version: "0.0.0".to_string(),
+    //         system_lang_code: "en".to_string(),
+    //         lang_pack: "".to_string(),
+    //         lang_code: "en".to_string(),
+    //         proxy: None,
+    //         params: None,
+    //         query: tl::api::funcs::help::GetNearestDc {},
+    //     },
+    // };
+    // dbg!(sender.invoke(tl::CalculatedLen::new(tl::ConstructorId::from_ref(&func))));
 
     loop {
         dbg!(

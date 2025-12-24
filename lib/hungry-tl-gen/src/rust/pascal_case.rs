@@ -25,8 +25,8 @@ pub(crate) fn pascal_case(s: &str) -> String {
 
                 continue;
             }
-            'A'..='Z' | 'a'..='z' => {},
-            _ => panic!()
+            'A'..='Z' | 'a'..='z' => {}
+            _ => panic!(),
         }
 
         s.push(match casing {

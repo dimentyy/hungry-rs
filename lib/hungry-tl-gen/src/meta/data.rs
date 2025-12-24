@@ -379,10 +379,8 @@ impl<'a> Data<'a> {
     ) -> bool {
         match visited[current] {
             Some(Some(recursive)) => return recursive,
-            Some(None) => {
-                return true
-            },
-            None => {},
+            Some(None) => return true,
+            None => {}
         }
 
         visited[current] = Some(None);

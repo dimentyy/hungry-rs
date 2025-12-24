@@ -3,7 +3,7 @@ use std::fmt;
 use chumsky::prelude::*;
 
 use crate::read::ident::Ident;
-use crate::read::{Extra, Typ, Flag};
+use crate::read::{Extra, Flag, Typ};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arg<'a> {

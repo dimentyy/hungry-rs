@@ -65,7 +65,7 @@ pub async fn send<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, F: 
     buffer.ser(&F::CONSTRUCTOR_ID);
     buffer.ser(func);
 
-    let mut w = writer.single_plain(buffer, transport, mtp, message_id);
+    let mut w = writer.single_plain(transport, mtp, buffer, message_id);
 
     poll_fn(|cx| w.poll(cx)).await.map_err(Error::Writer)?;
 

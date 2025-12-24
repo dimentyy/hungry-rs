@@ -21,7 +21,6 @@ impl Identifiable for MsgContainer {
 
 impl MsgContainer {
     const HEADER_LEN: usize = u32::SERIALIZED_LEN + u32::SERIALIZED_LEN;
-    const MSG_LEN: usize = Msg::SERIALIZED_LEN + i32::SERIALIZED_LEN;
 
     #[must_use]
     pub fn new(mut buffer: BytesMut) -> Self {
@@ -56,13 +55,22 @@ impl MsgContainer {
     #[inline]
     #[must_use]
     pub fn spare_capacity(&self) -> Option<usize> {
-        self.buffer.spare_capacity_len().checked_sub(Self::MSG_LEN)
+        self.buffer
+            .spare_capacity_len()
+            .checked_sub(Msg::HEADER_LEN)
     }
 
-    pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &X) {
-        let len = x.serialized_len() + 4;
+    #[inline(always)]
+    pub fn can_push(&self, len: usize) -> bool {
+        self.buffer.spare_capacity_len() >= Msg::HEADER_LEN + len
+    }
 
-        if self.buffer.spare_capacity_len() < Self::MSG_LEN + len {
+    pub fn push<X: tl::Function>(
+        &mut self,
+        msg: Msg,
+        x: tl::CalculatedLen<'_, tl::ConstructorId<X>>,
+    ) {
+        if !self.can_push(x.len()) {
             panic!("msg container buffer does not have enough capacity");
         }
 
@@ -70,11 +78,11 @@ impl MsgContainer {
             let mut buf = NonNull::new_unchecked(self.buffer.as_mut_ptr().add(self.buffer.len()));
 
             buf = msg.serialize_unchecked(buf);
-            buf = (len as i32).serialize_unchecked(buf);
-            buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
+            buf = (x.len() as i32).serialize_unchecked(buf);
             x.serialize_unchecked(buf);
 
-            self.buffer.set_len(self.buffer.len() + Self::MSG_LEN + len);
+            self.buffer
+                .set_len(self.buffer.len() + Msg::HEADER_LEN + x.len());
         }
 
         self.length += 1;

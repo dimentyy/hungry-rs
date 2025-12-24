@@ -1,5 +1,5 @@
-mod queued;
 mod error;
+mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
@@ -13,8 +13,8 @@ use crate::transport::{Transport, TransportWrite};
 use crate::utils::ready_ok;
 use crate::{Envelope, mtproto};
 
-pub use queued::QueuedWriter;
 pub use error::WriterError;
+pub use queued::QueuedWriter;
 
 pub trait WriterDriver: AsyncWrite + Unpin {}
 impl<T: AsyncWrite + Unpin> WriterDriver for T {}
@@ -57,26 +57,26 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
 
     pub fn single_plain<'a>(
         &'a mut self,
-        buffer: &'a mut BytesMut,
         transport: Envelope<T>,
         mtp: mtproto::PlainEnvelope,
+        buffer: &'a mut BytesMut,
         message_id: i64,
     ) -> Single<'a, W, T> {
-        mtproto::pack_plain(buffer, mtp, message_id);
+        mtproto::pack_plain(mtp, buffer, message_id);
 
         self.single_impl(buffer, transport)
     }
 
     pub fn single<'a>(
         &'a mut self,
-        buffer: &'a mut BytesMut,
         transport: Envelope<T>,
         mtp: mtproto::EncryptedEnvelope,
+        buffer: &'a mut BytesMut,
         auth_key: &mtproto::AuthKey,
         message: mtproto::DecryptedMessage,
         msg: mtproto::Msg,
     ) -> Single<'a, W, T> {
-        mtproto::pack_encrypted(buffer, mtp, auth_key, message, msg);
+        mtproto::pack_encrypted(mtp, buffer, auth_key, message, msg);
 
         self.single_impl(buffer, transport)
     }

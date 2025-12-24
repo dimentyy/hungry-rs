@@ -22,7 +22,12 @@ pub enum Typ {
 }
 
 impl Typ {
-    pub(super) fn de(&self, data: &Data, visited_types: &mut Vec<bool>, visited_enums: &mut Vec<bool>) -> Deserialization {
+    pub(super) fn de(
+        &self,
+        data: &Data,
+        visited_types: &mut Vec<bool>,
+        visited_enums: &mut Vec<bool>,
+    ) -> Deserialization {
         match self {
             Typ::Type { index } => data.type_de(*index, visited_types, visited_enums),
             Typ::Enum { index } => data.enum_de(*index, visited_types, visited_enums),

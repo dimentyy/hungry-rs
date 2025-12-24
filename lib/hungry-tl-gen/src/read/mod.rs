@@ -1,10 +1,10 @@
 mod arg;
 mod combinator;
 mod comments;
-mod opt;
-mod typ;
 pub mod flag;
 pub mod ident;
+mod opt;
+mod typ;
 
 use chumsky::prelude::*;
 
@@ -13,10 +13,10 @@ use crate::Category;
 pub use arg::{Arg, ArgTyp};
 pub use combinator::Combinator;
 pub use comments::{Comment, CommentVariant};
-pub use opt::{OptArg, OptArgTyp};
-pub use typ::Typ;
 pub use flag::Flag;
 pub use ident::Ident;
+pub use opt::{OptArg, OptArgTyp};
+pub use typ::Typ;
 
 pub type Error<'a> = Rich<'a, char>;
 

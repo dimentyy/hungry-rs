@@ -38,7 +38,7 @@ impl From<TransportError> for ReaderError {
 impl std::error::Error for ReaderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ReaderError::*;
-        
+
         Some(match self {
             Io(err) => err,
             Transport(err) => err,

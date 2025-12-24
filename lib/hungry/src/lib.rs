@@ -3,15 +3,16 @@
 
 mod envelope;
 mod gzip_packed;
-mod msg_container;
 mod sender;
 
 pub mod auth;
 pub mod crypto;
 pub mod mtproto;
+pub mod pack;
 pub mod plain;
 pub mod reader;
 pub mod transport;
+pub mod unpack;
 pub mod utils;
 pub mod writer;
 
@@ -25,7 +26,6 @@ pub use hungry_tl as tl;
 pub(crate) use envelope::envelopes;
 
 pub use envelope::{Envelope, EnvelopeSize};
-pub use msg_container::MsgContainer;
 pub use sender::Sender;
 
 pub fn init<T: transport::Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(

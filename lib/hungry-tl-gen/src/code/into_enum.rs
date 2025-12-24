@@ -1,5 +1,5 @@
-use crate::code::{push_enum_variant, push_escaped, push_ident};
 use crate::Cfg;
+use crate::code::{push_enum_variant, push_escaped, push_ident};
 use crate::meta::{Data, Type};
 
 pub(super) fn push_into_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {

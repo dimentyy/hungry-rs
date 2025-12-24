@@ -27,7 +27,7 @@ impl From<io::Error> for WriterError {
 impl std::error::Error for WriterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use WriterError::*;
-        
+
         Some(match self {
             Io(err) => err,
         })

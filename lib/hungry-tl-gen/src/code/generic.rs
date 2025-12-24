@@ -1,6 +1,10 @@
 use crate::meta::GenericArg;
 
-pub(super) fn push_function_generics(s: &mut String, generic_args: &[GenericArg], parameterize: bool) {
+pub(super) fn push_function_generics(
+    s: &mut String,
+    generic_args: &[GenericArg],
+    parameterize: bool,
+) {
     let mut iter = generic_args.iter();
 
     if let Some(arg) = iter.next() {
