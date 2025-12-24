@@ -111,9 +111,12 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
             let n = match ready {
                 Ok(n) => n.get(),
-                Err(error) if pos == 0 => return Poll::Ready(Err(WriterError::Io(error))),
-                Err(error) => {
-                    self.error = Some(error);
+                Err(err) if pos == 0 => return Poll::Ready(Err(WriterError::Io(err))),
+                Err(err) => {
+                    // Immediately wake the task so the error will be returned.
+                    cx.waker().wake_by_ref();
+
+                    self.error = Some(err);
 
                     return Poll::Ready(Ok(buffer.split_to(pos)));
                 }
