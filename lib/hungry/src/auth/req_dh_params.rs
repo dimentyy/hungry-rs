@@ -2,7 +2,6 @@ use std::fmt;
 
 use rug::{Integer, integer::Order::MsfBe};
 
-use crate::utils::SliceExt;
 use crate::{auth, crypto, tl};
 
 use tl::Int256;
@@ -90,7 +89,8 @@ impl ReqDhParams<'_> {
     }
 
     pub fn func(&mut self, key_aes_encrypted: KeyAesEncrypted) -> &funcs::ReqDhParams {
-        let encrypted_data = self.func.encrypted_data.arr_mut();
+        let mut encrypted_data: &mut [u8; 256] =
+            self.func.encrypted_data.as_mut_slice().try_into().unwrap();
 
         let range = self.key.encrypted_data(key_aes_encrypted.0, encrypted_data);
         encrypted_data[range].fill(0);

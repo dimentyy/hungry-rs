@@ -3,7 +3,6 @@ use std::ops::{ControlFlow, RangeFrom};
 use bytes::BytesMut;
 
 use crate::transport::{Packet, Transport, TransportError, TransportRead, TransportWrite, Unpack};
-use crate::utils::SliceExt;
 use crate::{Envelope, EnvelopeSize, crypto};
 
 #[derive(Default)]
@@ -41,7 +40,7 @@ impl TransportRead for FullRead {
             return ControlFlow::Continue(4);
         }
 
-        let len = match i32::from_le_bytes(*buffer[0..4].arr()) {
+        let len = match i32::from_le_bytes(buffer[0..4].try_into().unwrap()) {
             len @ ..0 => return ControlFlow::Break(Err(TransportError::Status(-len))),
             len @ 0..12 => return ControlFlow::Break(Err(TransportError::BadLen(len))),
             len => len as usize,
@@ -51,7 +50,7 @@ impl TransportRead for FullRead {
             return ControlFlow::Continue(len);
         }
 
-        let seq = i32::from_le_bytes(*buffer[4..8].arr());
+        let seq = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
         if seq != self.seq {
             return ControlFlow::Break(Err(TransportError::BadSeq {
@@ -60,7 +59,7 @@ impl TransportRead for FullRead {
             }));
         }
 
-        let received = u32::from_le_bytes(*buffer[len - 4..len].arr());
+        let received = u32::from_le_bytes(buffer[len - 4..len].try_into().unwrap());
 
         let computed = crypto::crc32!(&buffer[0..len - 4]);
 

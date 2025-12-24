@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::utils::SliceExt;
 use crate::{auth, crypto, tl};
 
 use tl::Int128;
@@ -67,7 +66,7 @@ impl ReqPqMulti {
             return Err(ResPqError::InvalidPqLen);
         }
 
-        let pq = u64::from_be_bytes(*response.pq.arr());
+        let pq = u64::from_be_bytes(response.pq.as_slice().try_into().unwrap());
         let (p, q) = crypto::factorize(pq);
 
         fn without_leading_zeros(i: u64) -> Vec<u8> {

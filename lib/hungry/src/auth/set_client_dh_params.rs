@@ -2,7 +2,6 @@ use std::fmt;
 
 use rug::{Integer, integer::Order::MsfBe};
 
-use crate::utils::SliceExt;
 use crate::{crypto, mtproto, tl};
 
 use tl::Int256;
@@ -50,7 +49,7 @@ fn new_nonce_hash(auth_key: &mtproto::AuthKey, new_nonce: &[u8; 32], number: u8)
     data[32] = number;
     data[33..].copy_from_slice(auth_key.aux_hash());
 
-    *crypto::sha1!(data)[4..].arr()
+    crypto::sha1!(data)[4..20].try_into().unwrap()
 }
 
 impl SetClientDhParams {
@@ -87,8 +86,8 @@ impl SetClientDhParams {
             return Err(NewNonceHash1Mismatch);
         }
 
-        let mut salt = i64::from_le_bytes(*self.new_nonce[..8].arr())
-            ^ i64::from_le_bytes(*self.func.server_nonce[..8].arr());
+        let mut salt = i64::from_le_bytes(self.new_nonce[0..8].try_into().unwrap())
+            ^ i64::from_le_bytes(self.func.server_nonce[0..8].try_into().unwrap());
 
         Ok((auth_key, salt))
     }
