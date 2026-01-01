@@ -1,14 +1,13 @@
 mod big_int;
-mod bytes;
 mod primitives;
+mod string;
 mod vec;
 
 use std::ptr::NonNull;
 
 use crate::SerializedLen;
 
-pub use bytes::{bytes_len, prepare_bytes};
-pub use vec::{bare_vec_serialize_unchecked, bare_vec_serialized_len};
+pub use string::string_len;
 
 pub trait SerializeUnchecked: SerializedLen {
     /// Serializes the instance into `buf` without checking its capacity.
@@ -22,107 +21,61 @@ pub trait SerializeUnchecked: SerializedLen {
     unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8>;
 }
 
-fn invalid_ret(
-    type_name: &str,
-    buf: NonNull<u8>,
-    len: usize,
-    end: NonNull<u8>,
-    ret: NonNull<u8>,
-) -> ! {
-    let off = unsafe { ret.offset_from(end) };
-
-    panic!(
-        "`Serialize` implementation for `{type_name}` is invalid: \
-        expected `serialize_unchecked` to return {end:?} \
-        ({buf:?} + {len:#x}), got {ret:?} off by {off}",
-    );
-}
-
-#[inline(always)]
-fn check_ret<X: SerializeUnchecked + ?Sized>(x: &X, buf: NonNull<u8>, len: usize) {
-    unsafe {
-        if !buf.cast::<u32>().is_aligned() {
-            todo!()
-        }
-
-        let end = buf.add(len);
-
-        let ret = x.serialize_unchecked(buf);
-
-        if ret != end {
-            invalid_ret(std::any::type_name::<X>(), buf, len, end, ret)
-        }
+#[inline]
+#[track_caller]
+pub fn safe<X: SerializeUnchecked + ?Sized>(x: &X, buf: &[u8]) {
+    #[cold]
+    #[inline(never)]
+    fn unaligned_buf() -> ! {
+        panic!("buffer is not aligned for 4-byte (32-bit) writes")
     }
-}
 
-fn buf_too_small(required: usize, available: usize) -> ! {
-    panic!(
-        "buffer too small for serialization: {} bytes required, but only {} available",
-        required, available
-    );
-}
+    #[cold]
+    #[inline(never)]
+    fn buf_too_small(required: usize, available: usize) -> ! {
+        panic!(
+            "buffer too small for serialization: {} bytes required, but only {} available",
+            required, available
+        );
+    }
 
-#[inline(always)]
-fn check_len<X: SerializeUnchecked + ?Sized>(x: &X, cap: usize) -> usize {
+    #[cold]
+    #[inline(never)]
+    fn invalid_ret(
+        type_name: &str,
+        buf: NonNull<u8>,
+        len: usize,
+        end: NonNull<u8>,
+        ret: NonNull<u8>,
+    ) -> ! {
+        let off = unsafe { ret.offset_from(end) };
+
+        panic!(
+            "impl `SerializeUnchecked` for `{type_name}` is invalid: \
+            expected `serialize_unchecked` to return {end:?} \
+            ({buf:?} + {len:#x}), got {ret:?}, off by {off}",
+        );
+    }
+
+    let ptr = NonNull::from_ref(buf).cast::<u8>();
+
+    if !ptr.cast::<u32>().is_aligned() {
+        unaligned_buf();
+    }
+
     let len = x.serialized_len();
 
-    if len > cap {
-        buf_too_small(len, cap);
+    if len > buf.len() {
+        buf_too_small(len, buf.len());
     }
 
-    len
-}
+    unsafe {
+        let end = ptr.add(len);
 
-pub trait SerializeInto {
-    fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X);
-}
+        let ret = x.serialize_unchecked(ptr);
 
-macro_rules! impl_arrays {
-    ( $( $typ:ty ),+ $( , )? ) => { $(
-        impl SerializeInto for [$typ] {
-            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
-                let len = check_len(x, self.len());
-
-                let buf = unsafe { NonNull::new_unchecked(self.as_mut_ptr().cast()) };
-
-                check_ret(x, buf, len);
-            }
+        if ret != end {
+            invalid_ret(std::any::type_name_of_val(x), ptr, len, end, ret)
         }
-
-        impl<const N: usize> SerializeInto for [$typ; N] {
-            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
-                let len = check_len(x, N);
-
-                let buf = unsafe { NonNull::new_unchecked(self.as_mut_ptr().cast()) };
-
-                check_ret(x, buf, len);
-            }
-        }
-    )+ };
+    }
 }
-
-impl_arrays!(u8, std::mem::MaybeUninit<u8>);
-
-macro_rules! impl_heap {
-    ( $( $typ:ty ),+ $( , )? ) => { $(
-        impl SerializeInto for $typ {
-            fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {
-                let len = x.serialized_len();
-
-                let cap = self.capacity() - self.len();
-
-                if len > cap {
-                    self.reserve(len - cap);
-                }
-
-                let buf = NonNull::new(self.spare_capacity_mut().as_mut_ptr() as *mut u8).unwrap();
-
-                check_ret(x, buf, len);
-
-                unsafe { self.set_len(self.len() + len) };
-            }
-        }
-    )+ };
-}
-
-impl_heap!(Vec<u8>, ::bytes::BytesMut);

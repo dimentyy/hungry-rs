@@ -2,7 +2,7 @@ use crate::Cfg;
 use crate::code::{push_escaped, push_typ};
 use crate::meta::{Data, Enum, Typ, Type};
 
-pub(super) fn push_enum_variant(cfg: &Cfg, s: &mut String, x: &Type) {
+pub(super) fn push_enum_variant(_cfg: &Cfg, s: &mut String, x: &Type) {
     push_escaped(s, &x.combinator.ident.actual);
 }
 

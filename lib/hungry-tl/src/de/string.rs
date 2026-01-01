@@ -26,14 +26,14 @@ impl Deserialize for Bytes {
 
             vec.set_len(len);
 
-            Ok(vec)
+            Ok(Bytes(vec))
         }
     }
 }
 
 impl Deserialize for String {
     fn deserialize(buf: &mut Buf) -> Result<Self, Error> {
-        match String::from_utf8(Bytes::deserialize(buf)?) {
+        match String::from_utf8(Bytes::deserialize(buf)?.0) {
             Ok(s) => Ok(s),
             Err(err) => Err(Error::InvalidUtf8String(err.utf8_error())),
         }

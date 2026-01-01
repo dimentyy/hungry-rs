@@ -3,17 +3,7 @@ use std::ptr::NonNull;
 use crate::ser::SerializeUnchecked;
 use crate::{BareVec, ConstSerializedLen, SerializedLen, VECTOR};
 
-pub fn bare_vec_serialized_len<T: SerializedLen>(arr: &[T]) -> usize {
-    let mut sum = u32::SERIALIZED_LEN;
-
-    for x in arr {
-        sum += x.serialized_len();
-    }
-
-    sum
-}
-
-pub unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
+unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
     arr: &[T],
     mut buf: NonNull<u8>,
 ) -> NonNull<u8> {
@@ -29,23 +19,33 @@ pub unsafe fn bare_vec_serialize_unchecked<T: SerializeUnchecked>(
 }
 
 impl<T: SerializedLen> SerializedLen for BareVec<T> {
-    #[inline(always)]
     fn serialized_len(&self) -> usize {
-        bare_vec_serialized_len(&self.0)
+        let mut sum = u32::SERIALIZED_LEN;
+
+        for x in self.iter() {
+            sum += x.serialized_len();
+        }
+
+        sum
     }
 }
 
 impl<T: SerializeUnchecked> SerializeUnchecked for BareVec<T> {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8> {
-        unsafe { bare_vec_serialize_unchecked(&self.0, buf) }
+        unsafe { bare_vec_serialize_unchecked(self.0.as_ref(), buf) }
     }
 }
 
 impl<T: SerializedLen> SerializedLen for Vec<T> {
-    #[inline(always)]
     fn serialized_len(&self) -> usize {
-        u32::SERIALIZED_LEN + bare_vec_serialized_len(self)
+        let mut sum = const { u32::SERIALIZED_LEN + u32::SERIALIZED_LEN };
+
+        for x in self.iter() {
+            sum += x.serialized_len();
+        }
+
+        sum
     }
 }
 

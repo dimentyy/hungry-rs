@@ -2,22 +2,13 @@ use crate::Cfg;
 use crate::code::{push_enum_variant, push_escaped, push_function_generics, push_ident};
 use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
 
-fn write_structure_arg_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Arg) {
+fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     match &x.typ {
         ArgTyp::Flags { .. } => s.push_str("4"),
-        ArgTyp::Typ { flag, .. } => {
-            if flag.is_some() {
-                s.push_str("if let Some(x) = &");
-            }
+        ArgTyp::Typ { .. } => {
             s.push_str("self.");
             push_escaped(s, &x.ident);
-            if flag.is_some() {
-                s.push_str(" { x");
-            }
             s.push_str(".serialized_len()");
-            if flag.is_some() {
-                s.push_str(" } else { 0 }");
-            }
         }
         ArgTyp::True { .. } => {}
     }
@@ -66,7 +57,7 @@ pub(super) fn push_enum_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum
     s.push_str("        }\n    }\n}\n");
 }
 
-fn write_flag_arg(cfg: &Cfg, s: &mut String, x: &Combinator, i: usize) {
+fn write_flag_arg(_cfg: &Cfg, s: &mut String, x: &Combinator, i: usize) {
     let arg = &x.args[i];
 
     let (bit, opt) = match &arg.typ {
@@ -92,7 +83,7 @@ fn write_flag_arg(cfg: &Cfg, s: &mut String, x: &Combinator, i: usize) {
     }
 }
 
-pub(super) fn push_struct_ser(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator) {
+pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combinator) {
     s.push_str("\nimpl");
     push_function_generics(s, &x.generic_args, true);
     s.push_str(" crate::ser::SerializeUnchecked for ");
@@ -108,7 +99,7 @@ pub(super) fn push_struct_ser(cfg: &Cfg, data: &Data, s: &mut String, x: &Combin
     s.push_str("unsafe {\n");
 
     for arg in &x.args {
-        let (typ, optional) = match &arg.typ {
+        let (_, _) = match &arg.typ {
             ArgTyp::Flags { args } => {
                 s.push_str("            buf = ");
                 if args.is_empty() {
@@ -132,15 +123,10 @@ pub(super) fn push_struct_ser(cfg: &Cfg, data: &Data, s: &mut String, x: &Combin
             ArgTyp::Typ { typ, flag } => (typ, flag.is_some()),
             ArgTyp::True { .. } => continue,
         };
-        if optional {
-            s.push_str("            if let Some(x) = &self.");
-            push_escaped(s, &arg.ident);
-            s.push_str(" { buf = x.serialize_unchecked(buf); }\n");
-        } else {
-            s.push_str("            buf = self.");
-            push_escaped(s, &arg.ident);
-            s.push_str(".serialize_unchecked(buf);\n");
-        }
+
+        s.push_str("            buf = self.");
+        push_escaped(s, &arg.ident);
+        s.push_str(".serialize_unchecked(buf);\n");
     }
 
     s.push_str("            buf\n        }\n    }\n}\n");

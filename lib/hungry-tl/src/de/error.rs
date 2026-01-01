@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::Utf8Error;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error {
     EndOfBuffer(EndOfBufferError),
     UnexpectedConstructor(UnexpectedConstructorError),
@@ -21,14 +21,23 @@ impl Error {
 }
 
 impl From<EndOfBufferError> for Error {
+    #[inline(always)]
     fn from(value: EndOfBufferError) -> Self {
         Self::EndOfBuffer(value)
     }
 }
 
 impl From<UnexpectedConstructorError> for Error {
+    #[inline(always)]
     fn from(value: UnexpectedConstructorError) -> Self {
         Self::UnexpectedConstructor(value)
+    }
+}
+
+impl From<Utf8Error> for Error {
+    #[inline(always)]
+    fn from(value: Utf8Error) -> Self {
+        Self::InvalidUtf8String(value)
     }
 }
 

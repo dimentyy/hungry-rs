@@ -1,220 +1,238 @@
-use bytes::BytesMut;
-use hungry::mtproto::{AuthKey, Salt};
-use hungry::tl::mtproto::enums::ServerDhParams;
-use hungry::{Envelope, tl};
-use std::future::poll_fn;
-use std::pin::pin;
-use std::task::Poll;
+use std::time::Instant;
 
-const ADDR: &str = "149.154.167.40:443";
+use grammers_tl_types::{Deserializable, Serializable};
 
-const N: &str = "253428894488404155649716895907134732068988477590847790525820265945460224638539\
-    4058588521595116849196570822264939918060381807420062046377613542488463216251240316379308392\
-    1641631564740959529419359595852941166848940585952337613333022396096584117954892216031229237\
-    3029437018775884567383353986024616752250817918203931537575049526362349513232378200365435810\
-    4782690612092797248736680529211579223142368426126233039432475078545094258975175539015664775\
-    1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
-    127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
+use hungry::tl::api::{enums, types};
+use hungry::tl::de::Deserialize;
+use hungry::tl::ser::SerializeInto;
 
-type ReaderDriver = tokio::net::tcp::OwnedReadHalf;
-type WriterDriver = tokio::net::tcp::OwnedWriteHalf;
-
-type Transport = hungry::transport::Full;
-
-struct Plain<'a> {
-    buffer: &'a mut BytesMut,
-    reader: &'a mut hungry::reader::Reader<ReaderDriver, Transport>,
-    writer: &'a mut hungry::writer::Writer<WriterDriver, Transport>,
-}
-
-impl<'a> Plain<'a> {
-    async fn send<F: tl::Function>(
-        &mut self,
-        func: &F,
-    ) -> Result<F::Response, hungry::plain::Error> {
-        let transport_envelope = Envelope::split(self.buffer);
-        let mtp_envelope = Envelope::split(self.buffer);
-
-        let (_message_id, response) = hungry::plain::send(
-            self.reader,
-            self.writer,
-            func,
-            self.buffer,
-            transport_envelope,
-            mtp_envelope,
-            0,
-        )
-        .await?;
-
-        Ok(response)
+fn main() {
+    let hungry_message: enums::Message = types::Message {
+        out: false,
+        mentioned: true,
+        media_unread: false,
+        silent: true,
+        post: false,
+        from_scheduled: false,
+        legacy: true,
+        edit_hide: false,
+        pinned: false,
+        noforwards: true,
+        invert_media: true,
+        offline: true,
+        video_processing_pending: false,
+        paid_suggested_post_stars: false,
+        paid_suggested_post_ton: true,
+        id: 128936124,
+        from_id: Some(
+            types::PeerUser {
+                user_id: 892479289174,
+            }
+            .into(),
+        ),
+        from_boosts_applied: Some(12944213),
+        peer_id: types::PeerChat { chat_id: 9812497 }.into(),
+        saved_peer_id: Some(
+            types::PeerChannel {
+                channel_id: 2189317320138,
+            }
+            .into(),
+        ),
+        fwd_from: None,
+        via_bot_id: None,
+        via_business_bot_id: None,
+        reply_to: None,
+        date: 337648364,
+        message:
+            "dodgags8ouido8g71b2ued od8asou8dgwdqwq .  e2839peqha *(dphip8s dad 72378qas dsauhiu"
+                .to_owned(),
+        media: Some(
+            types::MessageMediaGiveaway {
+                only_new_subscribers: false,
+                winners_are_visible: false,
+                channels: vec![
+                    12041608723,
+                    4096030353,
+                    12892387213293,
+                    21312783293,
+                    2198331783892,
+                ],
+                countries_iso_2: Some(vec!["ru".to_owned(), "en".to_owned(), "ch".to_owned()]),
+                prize_description: Some("snasauis89y 1282282u ajskasd".to_owned()),
+                quantity: 9834143,
+                months: Some(1293829),
+                stars: Some(21893127932),
+                until_date: 198223813,
+            }
+            .into(),
+        ),
+        reply_markup: None,
+        entities: None,
+        views: None,
+        forwards: None,
+        replies: None,
+        edit_date: None,
+        post_author: None,
+        grouped_id: None,
+        reactions: None,
+        restriction_reason: None,
+        ttl_period: Some(938932392),
+        quick_reply_shortcut_id: None,
+        effect: None,
+        factcheck: None,
+        report_delivery_until_date: None,
+        paid_message_stars: Some(219839837238921783),
+        suggested_post: None,
     }
-}
+    .into();
 
-fn main() -> anyhow::Result<()> {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
+    let grammers_message: grammers_tl_types::enums::Message = grammers_tl_types::types::Message {
+        out: false,
+        mentioned: true,
+        media_unread: false,
+        silent: true,
+        post: false,
+        from_scheduled: false,
+        legacy: true,
+        edit_hide: false,
+        pinned: false,
+        noforwards: true,
+        invert_media: true,
+        offline: true,
+        video_processing_pending: false,
+        paid_suggested_post_stars: false,
+        paid_suggested_post_ton: true,
+        id: 128936124,
+        from_id: Some(
+            grammers_tl_types::types::PeerUser {
+                user_id: 892479289174,
+            }
+            .into(),
+        ),
+        from_boosts_applied: Some(12944213),
+        peer_id: grammers_tl_types::types::PeerChat { chat_id: 9812497 }.into(),
+        saved_peer_id: Some(
+            grammers_tl_types::types::PeerChannel {
+                channel_id: 2189317320138,
+            }
+            .into(),
+        ),
+        fwd_from: None,
+        via_bot_id: None,
+        via_business_bot_id: None,
+        reply_to: None,
+        date: 337648364,
+        message:
+            "dodgags8ouido8g71b2ued od8asou8dgwdqwq .  e2839peqha *(dphip8s dad 72378qas dsauhiu"
+                .to_owned(),
+        media: Some(
+            grammers_tl_types::types::MessageMediaGiveaway {
+                only_new_subscribers: false,
+                winners_are_visible: false,
+                channels: vec![
+                    12041608723,
+                    4096030353,
+                    12892387213293,
+                    21312783293,
+                    2198331783892,
+                ],
+                countries_iso2: Some(vec!["ru".to_owned(), "en".to_owned(), "ch".to_owned()]),
+                prize_description: Some("snasauis89y 1282282u ajskasd".to_owned()),
+                quantity: 9834143,
+                months: Some(1293829),
+                stars: Some(21893127932),
+                until_date: 198223813,
+            }
+            .into(),
+        ),
+        reply_markup: None,
+        entities: None,
+        views: None,
+        forwards: None,
+        replies: None,
+        edit_date: None,
+        post_author: None,
+        grouped_id: None,
+        reactions: None,
+        restriction_reason: None,
+        ttl_period: Some(938932392),
+        quick_reply_shortcut_id: None,
+        effect: None,
+        factcheck: None,
+        report_delivery_until_date: None,
+        paid_message_stars: Some(219839837238921783),
+        suggested_post: None,
+    }
+    .into();
 
-    rt.block_on(async_main())
-}
+    let mut buf = Vec::with_capacity(10_000_000);
 
-async fn generate_auth_key(
-    public_key: hungry::crypto::RsaKey,
-    reader: &mut hungry::reader::Reader<ReaderDriver, Transport>,
-    writer: &mut hungry::writer::Writer<WriterDriver, Transport>,
-) -> anyhow::Result<(AuthKey, Salt)> {
-    let mut buffer = BytesMut::with_capacity(1024 * 1024);
+    let t1 = Instant::now();
 
-    let mut plain = Plain {
-        buffer: &mut buffer,
-        reader,
-        writer,
-    };
+    for _ in 0..10_000 {
+        buf.clear();
 
-    let mut nonce = tl::Int128::default();
-    rand::fill(&mut nonce);
-
-    let req_pq = hungry::auth::start(nonce);
-
-    let func = req_pq.func();
-
-    let tl::mtproto::enums::ResPq::ResPq(response) = plain.send(func).await?;
-
-    println!("ResPq");
-
-    let res_pq = req_pq.res_pq(&response)?;
-
-    let mut random_padding_bytes = [0; 192];
-    rand::fill(&mut random_padding_bytes);
-
-    let mut new_nonce = tl::Int256::default();
-    rand::fill(&mut new_nonce);
-
-    let mut req_dh_params = res_pq.req_dh_params(random_padding_bytes, new_nonce, &public_key);
-
-    let mut temp_key = [0; 32];
-    let mut key_aes_encrypted = [0; 256];
-
-    let key_aes_encrypted = loop {
-        rand::fill(&mut temp_key);
-
-        if let Some(key_aes_encrypted) =
-            req_dh_params.key_aes_encrypted(&temp_key, &mut key_aes_encrypted)
-        {
-            break key_aes_encrypted;
+        for _ in 0..10_000 {
+            grammers_message.serialize(&mut buf);
         }
-    };
-
-    let func = req_dh_params.func(key_aes_encrypted);
-
-    let response = plain.send(func).await?;
-
-    let response = match response {
-        ServerDhParams::ServerDhParamsFail(_) => todo!(),
-        ServerDhParams::ServerDhParamsOk(response) => response,
-    };
-
-    let server_dh_params_ok = req_dh_params.server_dh_params_ok(&response)?;
-
-    println!("ServerDhParamsOk");
-
-    let mut b = [0; 256];
-    rand::fill(&mut b);
-
-    let set_client_dh_params = server_dh_params_ok.set_client_dh_params(&b, 0);
-
-    let func = set_client_dh_params.func();
-
-    let response = plain.send(func).await?;
-
-    let dh_gen_ok = {
-        use tl::mtproto::enums::SetClientDhParamsAnswer::*;
-
-        match response {
-            DhGenOk(x) => x,
-            DhGenRetry(_) => todo!(),
-            DhGenFail(_) => todo!(),
-        }
-    };
-
-    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
-
-    println!("DhGenOk");
-
-    Ok((auth_key, salt))
-}
-
-async fn async_main() -> anyhow::Result<()> {
-    let n = hungry::rug::Integer::from_str_radix(N, 10)?;
-    let e = hungry::rug::Integer::from(65537);
-
-    let public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
-
-    let transport = Transport::default();
-
-    let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
-
-    let buffer = BytesMut::with_capacity(1024 * 1024);
-
-    let (mut reader, mut writer) = hungry::init(transport, r, buffer, w);
-
-    let (auth_key, salt) = generate_auth_key(public_key, &mut reader, &mut writer).await?;
-
-    let session_id = rand::random();
-
-    let mut sender = hungry::Sender::new(
-        reader,
-        hungry::writer::QueuedWriter::new(writer),
-        auth_key,
-        salt,
-        session_id,
-    );
-
-    let func = tl::mtproto::funcs::Ping { ping_id: 123 };
-    dbg!(sender.invoke(tl::CalculatedLen::new(tl::ConstructorId::from_ref(&func))));
-
-    // let func = tl::api::funcs::InvokeWithLayer {
-    //     layer: 214,
-    //     query: tl::api::funcs::InitConnection {
-    //         api_id: 4,
-    //         device_model: "device_model".to_string(),
-    //         system_version: "system_version".to_string(),
-    //         app_version: "0.0.0".to_string(),
-    //         system_lang_code: "en".to_string(),
-    //         lang_pack: "".to_string(),
-    //         lang_code: "en".to_string(),
-    //         proxy: None,
-    //         params: None,
-    //         query: tl::api::funcs::help::GetNearestDc {},
-    //     },
-    // };
-    // dbg!(sender.invoke(tl::CalculatedLen::new(tl::ConstructorId::from_ref(&func))));
-
-    loop {
-        dbg!(
-            poll_fn(|cx| {
-                let mut result = match sender.poll(cx) {
-                    Poll::Ready(Ok(result)) => result,
-                    Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
-                    Poll::Pending => return Poll::Pending,
-                };
-
-                // for result in result {
-                //     match result {
-                //         Ok(_) => {}
-                //         Err(err) => todo!(),
-                //     }
-                // }
-
-                // result.next().unwrap().unwrap();
-
-                cx.waker().wake_by_ref();
-
-                Poll::Pending
-            })
-            .await
-        )?;
     }
 
-    Ok(())
+    let t2 = Instant::now();
+    dbg!(t2 - t1);
+
+    for _ in 0..10_000 {
+        buf.clear();
+
+        for _ in 0..10_000 {
+            buf.ser(&hungry_message);
+        }
+    }
+
+    let t3 = Instant::now();
+    dbg!(t3 - t2);
+
+    for _ in 0..10_000 {
+        let mut buf = hungry::tl::de::Buf::new(&buf);
+
+        for _ in 0..10_000 {
+            hungry::tl::api::enums::Message::deserialize(&mut buf).unwrap();
+        }
+    }
+
+    let t4 = Instant::now();
+    dbg!(t4 - t3);
+
+    for _ in 0..10_000 {
+        let mut buf = grammers_tl_types::deserialize::Cursor::from_slice(&buf);
+
+        for _ in 0..10_000 {
+            grammers_tl_types::enums::Message::deserialize(&mut buf).unwrap();
+        }
+    }
+
+    let t5 = Instant::now();
+    dbg!(t5 - t4);
+
+    for _ in 0..10_000 {
+        buf.clear();
+        buf.push(0);
+
+        for _ in 0..10_000 {
+            grammers_message.serialize(&mut buf);
+        }
+    }
+
+    let t6 = Instant::now();
+    dbg!(t6 - t5);
+
+    for _ in 0..10_000 {
+        let mut buf = grammers_tl_types::deserialize::Cursor::from_slice(&buf[1..]);
+
+        for _ in 0..10_000 {
+            grammers_tl_types::enums::Message::deserialize(&mut buf).unwrap();
+        }
+    }
+
+    let t7 = Instant::now();
+    dbg!(t7 - t6);
 }

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 mod category;
 mod code;
@@ -9,7 +9,7 @@ mod meta;
 pub(crate) mod read;
 pub(crate) mod rust;
 
-pub(crate) use config::{Cfg, F};
+pub(crate) use config::Cfg;
 
 pub use category::Category;
 pub use config::Config;

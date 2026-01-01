@@ -4,7 +4,7 @@ use crate::de::{DeserializeInfallible, DeserializeUnchecked, UnexpectedConstruct
 use crate::{FALSE, TRUE};
 
 macro_rules! impls {
-    ( $buf:ident; $( $typ:ty: $val:expr ),+ $( , )? ) => { $(
+    ( $buf:ident ; $( $typ:ty : $val:expr ),+ $( , )? ) => { $(
         impl DeserializeInfallible for $typ {
             #[inline(always)]
             unsafe fn deserialize_infallible($buf: NonNull<u8>) -> Self {
@@ -18,7 +18,7 @@ impls!(buf;
     u32: Self::from_le(buf.cast().read()),
     i32: Self::from_le(buf.cast().read()),
     i64: Self::from_le(buf.cast().read_unaligned()),
-    f64: Self::from_bits(i64::deserialize_infallible(buf) as u64)
+    f64: Self::from_bits(buf.cast().read_unaligned()),
 );
 
 impl DeserializeUnchecked for bool {

@@ -1,12 +1,15 @@
-mod aes;
-mod crc32;
-mod factorize;
-mod rsa;
-mod sha;
+#![forbid(unsafe_code)]
 
-pub(crate) use crc32::crc32;
-pub(crate) use factorize::factorize;
-pub(crate) use sha::{sha1, sha256};
+mod aes;
+mod rsa;
 
 pub use aes::{AesIgeIv, AesIgeKey, aes_ige_decrypt, aes_ige_encrypt};
-pub use rsa::RsaKey;
+pub use rsa::{RsaKey, RsaKeyFingerprint};
+
+pub fn trim_zeroes_left(x: &[u8]) -> &[u8] {
+    let Some(pos) = x.iter().position(|&x| x != 0) else {
+        return &[0];
+    };
+
+    &x[pos..]
+}

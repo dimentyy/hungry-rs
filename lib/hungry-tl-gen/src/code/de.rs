@@ -1,5 +1,3 @@
-use std::io::{Result, Write};
-
 use crate::Cfg;
 use crate::code::{push_escaped, push_ident, push_typ};
 use crate::meta::{ArgTyp, Combinator, Data, Deserialization, Enum, Typ, Type};

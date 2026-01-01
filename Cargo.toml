@@ -1,3 +1,9 @@
 [workspace]
-members = [ "bin/hungry-test", "lib/hungry-tl", "lib/hungry" ]
+members = [
+    "lib/hungry-tl-gen",
+    "lib/hungry-common",
+    "lib/hungry-tl",
+    "lib/hungry",
+    "bin/hungry-test",
+]
 resolver = "3"

@@ -1,10 +1,11 @@
 mod arg;
 mod combinator;
 mod comments;
-pub mod flag;
-pub mod ident;
 mod opt;
 mod typ;
+
+pub mod flag;
+pub mod ident;
 
 use chumsky::prelude::*;
 

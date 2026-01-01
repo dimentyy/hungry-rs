@@ -1,6 +1,5 @@
 mod const_ser_len;
 mod de;
-mod debug;
 mod enum_body;
 mod function;
 mod generic;
@@ -16,12 +15,11 @@ use std::io::{Result, Write};
 use indexmap::IndexMap;
 
 use crate::Cfg;
-use crate::meta::{Data, Enum, Func, Ident, Temp, Type};
+use crate::meta::{Data, Enum, Func, Ident, Type};
 
 use crate::code::de::push_type_de;
 use const_ser_len::push_const_ser_len;
 use de::push_enum_de;
-use debug::{push_enum_debug, push_struct_debug};
 use enum_body::{push_enum_body, push_enum_variant};
 use function::push_function;
 use generic::push_function_generics;
@@ -33,7 +31,7 @@ use struct_body::push_struct_body;
 use typ::push_typ;
 
 macro_rules! write_module {
-    ( $cfg:expr,  $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr; $func:expr; ) => {{
+    ( $cfg:expr , $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr ; $func:expr ; ) => {{
         let mut root = Vec::<&Ident>::new();
         let mut mods = IndexMap::<&str, Vec<&Ident>>::new();
 
@@ -125,7 +123,7 @@ fn write_spaces(
 fn push_module(
     _cfg: &Cfg,
     s: &mut String,
-    module: &str,
+    _module: &str,
     root: &Vec<&Ident>,
     mods: &IndexMap<&str, Vec<&Ident>>,
 ) -> Result<()> {
@@ -190,9 +188,6 @@ fn write_type(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) -> Result<()> {
     push_imports(cfg, s);
 
     push_struct_body(cfg, data, s, &x.combinator);
-    if cfg.impl_debug {
-        push_struct_debug(cfg, data, s, &x.combinator);
-    }
     if cfg.impl_into_enum {
         push_into_enum(cfg, data, s, x);
     }
@@ -216,9 +211,6 @@ fn write_func(cfg: &Cfg, data: &Data, s: &mut String, x: &Func) -> Result<()> {
     push_imports(cfg, s);
 
     push_struct_body(cfg, data, s, &x.combinator);
-    if cfg.impl_debug {
-        push_struct_debug(cfg, data, s, &x.combinator);
-    }
     push_identifiable(s, &x.combinator);
     push_function(cfg, data, s, x);
     if let Some(len) = x.combinator.de.const_len() {
@@ -239,9 +231,6 @@ fn write_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) -> Result<()> {
     push_imports(cfg, s);
 
     push_enum_body(cfg, data, s, x);
-    if cfg.impl_debug {
-        push_enum_debug(cfg, data, s, x);
-    }
     if let Some(len) = x.de.const_len() {
         push_const_ser_len(s, &x.ident.actual, len);
     } else {

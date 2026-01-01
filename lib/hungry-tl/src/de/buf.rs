@@ -14,7 +14,7 @@ pub struct Buf<'a> {
 impl<'a> Buf<'a> {
     #[inline(always)]
     pub fn new(slice: &'a [u8]) -> Self {
-        let ptr = unsafe { NonNull::new_unchecked(slice.as_ptr().cast_mut()) };
+        let ptr = NonNull::from_ref(slice).cast();
 
         if !ptr.cast::<u32>().is_aligned() {
             todo!()

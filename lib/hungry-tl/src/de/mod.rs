@@ -1,8 +1,8 @@
 mod big_int;
 mod buf;
-mod bytes;
 mod error;
 mod primitives;
+mod string;
 mod vec;
 
 use std::ptr::NonNull;
@@ -15,7 +15,7 @@ pub use error::{EndOfBufferError, Error, UnexpectedConstructorError};
 pub trait Deserialize: SerializedLen + Sized {
     /// # Safety
     ///
-    /// * The [`serialized_len`] of the instance _should_ be checked afterward.
+    /// * The [`serialized_len`] of the instance _should_ be checked.
     ///
     /// [`serialized_len`]: SerializedLen::serialized_len
     fn deserialize(buf: &mut Buf) -> Result<Self, Error>;

@@ -24,13 +24,7 @@ pub(super) fn push_typ(
         Typ::Int => "i32",
         Typ::Long => "i64",
         Typ::Double => "f64",
-        Typ::Bytes => {
-            if turbofish {
-                "Vec::<u8>"
-            } else {
-                "Vec<u8>"
-            }
-        }
+        Typ::Bytes => "crate::Bytes",
         Typ::String => "String",
         Typ::Bool => "bool",
         Typ::BareVector(typ) => {

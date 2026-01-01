@@ -9,9 +9,9 @@ macro_rules! big_int {
             #[inline(always)]
             unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8> {
                 unsafe {
-                    let ptr = NonNull::new_unchecked(self.as_ptr() as *mut u8);
+                    let src = NonNull::new_unchecked(self.0.as_ptr().cast_mut());
 
-                    buf.copy_from_nonoverlapping(ptr, $len);
+                    buf.copy_from_nonoverlapping(src, $len);
 
                     buf.add($len)
                 }

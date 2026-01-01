@@ -6,4 +6,4 @@ edition = "2024"
 hungry-tl-gen = { path = "../hungry-tl-gen" }
 
 [dependencies]
-bytes = "1.11.0"
+hungry-common = { path = "../hungry-common" }
