@@ -5,6 +5,8 @@ edition = "2024"
 [dependencies]
 hungry-tl = { path = "../hungry-tl" }
 
+unbite = { path = "../unbite" }
+
 aes = "0.9.0-rc.2"
 crc32fast = "1.5.0"
 crypto-bigint = "0.7.0-rc.13"
@@ -12,5 +14,4 @@ digest = "0.11.0-rc.5"
 sha1 = "0.11.0-rc.3"
 sha2 = "0.11.0-rc.3"
 
-#bytes = "1.11.0"
-#tokio = { version = "1.48.0", features = ["net", "sync"] }
+tokio = { version = "1.49.0", features = ["net", "sync"] }

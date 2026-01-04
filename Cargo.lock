@@ -242,6 +242,8 @@ dependencies = [
  "hungry-tl",
  "sha1",
  "sha2",
+ "tokio",
+ "unbite",
 ]
 
 [[package]]
@@ -504,9 +506,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.48.0"
+version = "1.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
+checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
 dependencies = [
  "libc",
  "mio",
@@ -521,6 +523,10 @@ name = "typenum"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
+
+[[package]]
+name = "unbite"
+version = "0.0.0"
 
 [[package]]
 name = "unicode-ident"

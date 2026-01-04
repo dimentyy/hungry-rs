@@ -23,7 +23,7 @@ pub trait SerializeUnchecked: SerializedLen {
 
 #[inline]
 #[track_caller]
-pub fn safe<X: SerializeUnchecked + ?Sized>(x: &X, buf: &[u8]) {
+pub fn safe<X: SerializeUnchecked + ?Sized>(x: &X, buf: &mut [u8]) {
     #[cold]
     #[inline(never)]
     fn unaligned_buf() -> ! {

@@ -69,12 +69,12 @@ impl RsaKey {
         let n_len = n.serialized_len();
         let e_len = e.serialized_len();
 
-        let buf = &mut [0; <[u8; 256]>::SERIALIZED_LEN * 2][..n_len + e_len];
+        let mut buf = [0u8; <[u8; 256]>::SERIALIZED_LEN * 2];
 
         tl::ser::safe(n, &mut buf[..n_len]);
-        tl::ser::safe(e, &mut buf[n_len..]);
+        tl::ser::safe(e, &mut buf[n_len..n_len + e_len]);
 
-        let sha1 = sha1::Sha1::digest(buf);
+        let sha1 = sha1::Sha1::digest(&buf[..n_len + e_len]);
 
         i64::from_le_bytes(sha1[12..20].try_into().unwrap())
     }

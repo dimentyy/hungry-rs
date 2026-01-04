@@ -1,0 +1,5 @@
+[package]
+name = "unbite"
+edition = "2024"
+
+[dependencies]

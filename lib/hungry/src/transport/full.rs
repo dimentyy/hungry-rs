@@ -1,0 +1,101 @@
+use crate::transport::{Packet, Transport, TransportEnvelope, TransportError, TransportRead, TransportWrite, Unpack};
+
+use std::ops::ControlFlow;
+
+#[derive(Default)]
+pub struct Full;
+
+pub struct FullRead {
+    seq: i32,
+}
+
+pub struct FullWrite {
+    seq: i32,
+}
+
+pub struct FullEnvelope {
+    header: unbite::Raw<8>,
+    footer: unbite::Raw<4>,
+}
+
+impl Transport for Full {
+    type Read = FullRead;
+    type Write = FullWrite;
+
+    fn split(self) -> (Self::Read, Self::Write) {
+        (FullRead { seq: 0 }, FullWrite { seq: 0 })
+    }
+}
+
+impl TransportRead for FullRead {
+    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, TransportError>, usize> {
+        if buffer.len() < 4 {
+            return ControlFlow::Continue(4);
+        }
+
+        let len = match i32::from_le_bytes(buffer[0..4].try_into().unwrap()) {
+            len @ ..0 => return ControlFlow::Break(Err(TransportError::Status(-len))),
+            len @ 0..12 => return ControlFlow::Break(Err(TransportError::BadLen(len))),
+            len => len as usize,
+        };
+
+        if buffer.len() < len {
+            return ControlFlow::Continue(len);
+        }
+
+        let seq = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
+
+        if seq != self.seq {
+            return ControlFlow::Break(Err(TransportError::BadSeq {
+                received: seq,
+                expected: self.seq,
+            }));
+        }
+
+        let received = u32::from_le_bytes(buffer[len - 4..len].try_into().unwrap());
+
+        let computed = crc32fast::hash(&buffer[0..len - 4]);
+
+        if received != computed {
+            return ControlFlow::Break(Err(TransportError::BadCrc { received, computed }));
+        }
+
+        self.seq += 1;
+
+        let data = 8..len - 4;
+
+        ControlFlow::Break(Ok(Unpack::Packet(Packet { data })))
+    }
+}
+
+impl TransportWrite for FullWrite {
+    type Envelope = FullEnvelope;
+
+    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope) {
+        let mut header = envelope.header.into_buf();
+
+        let len = 4 + 4 + buffer.len() as i32 + 4;
+
+        header.extend_from_array(&len.to_le_bytes());
+        header.extend_from_array(&self.seq.to_le_bytes());
+
+        buffer.unsplit_buf_front(header);
+
+        let crc32 = crc32fast::hash(buffer.as_slice());
+
+        buffer.unsplit_raw_back(envelope.footer);
+
+        buffer.extend_from_array(&crc32.to_le_bytes());
+
+        self.seq += 1;
+    }
+}
+
+impl TransportEnvelope for FullEnvelope {
+    fn open(buffer: &mut unbite::DynBuf) -> Self {
+        let header = buffer.split_raw_to();
+        let footer = buffer.split_raw_off();
+
+        Self { header, footer }
+    }
+}

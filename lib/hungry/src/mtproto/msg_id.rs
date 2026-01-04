@@ -26,7 +26,7 @@ pub type MsgId = i64;
 
 #[must_use]
 pub struct MsgIds {
-    last: i64,
+    last: MsgId,
 }
 
 impl fmt::Display for MsgIds {
@@ -38,19 +38,28 @@ impl fmt::Display for MsgIds {
 impl fmt::Debug for MsgIds {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MsgIds")
-            .field("last", &format_args!("{:#016x}", self.last))
+            .field("last", &format_args!("{:#018x}", self.last))
             .finish()
     }
 }
 
 impl MsgIds {
-    #[inline(always)]
-    pub const fn new() -> Self {
-        Self { last: 0 }
+    #[inline]
+    pub const fn new(unix_time: time::Duration) -> Self {
+        let mut msg_ids = Self { last: 0 };
+        let _ = msg_ids.get(unix_time);
+        msg_ids
     }
 
+    #[inline]
+    pub fn new_using_system_time() -> Self {
+        let mut msg_ids = Self { last: 0 };
+        let _ = msg_ids.get_using_system_time();
+        msg_ids
+    }
+
+    #[inline]
     #[must_use]
-    #[inline(always)]
     pub const fn last(&self) -> MsgId {
         self.last
     }

@@ -29,7 +29,7 @@ pub type SeqNo = i32;
 #[must_use]
 #[derive(Debug)]
 pub struct SeqNos {
-    current: i32,
+    current: SeqNo,
 }
 
 impl fmt::Display for SeqNos {
@@ -39,19 +39,19 @@ impl fmt::Display for SeqNos {
 }
 
 impl SeqNos {
-    #[inline(always)]
+    #[inline]
     pub const fn new() -> Self {
         Self { current: 0 }
     }
 
+    #[inline]
     #[must_use]
-    #[inline(always)]
     pub const fn non_content_related(&self) -> SeqNo {
         self.current * 2
     }
 
+    #[inline]
     #[must_use]
-    #[inline(always)]
     pub const fn get_content_related(&mut self) -> SeqNo {
         self.current += 1;
         (self.current * 2) - 1

@@ -4,6 +4,6 @@ members = [
     "lib/hungry-common",
     "lib/hungry-tl",
     "lib/hungry",
-    "bin/hungry-test",
+    "bin/hungry-test", "lib/unbite",
 ]
 resolver = "3"
