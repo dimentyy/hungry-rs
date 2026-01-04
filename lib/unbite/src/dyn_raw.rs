@@ -1,3 +1,5 @@
+use std::hint::assert_unchecked;
+
 use crate::Raw;
 use crate::inner::Inner;
 
@@ -94,7 +96,10 @@ impl DynRaw {
 
         r.inner.drop_non_deallocating();
 
-        self.capacity += N;
+        unsafe {
+            self.capacity = self.capacity.unchecked_add(N);
+            assert_unchecked(self.capacity >= N);
+        }
     }
 
     #[inline]

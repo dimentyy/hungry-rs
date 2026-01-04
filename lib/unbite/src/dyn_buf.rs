@@ -1,3 +1,4 @@
+use std::hint::assert_unchecked;
 use std::ptr::NonNull;
 
 use crate::{Buf, DynRaw, Raw};
@@ -39,6 +40,10 @@ impl DynBuf {
     #[inline]
     pub fn unsplit_raw_back<const N: usize>(&mut self, r: Raw<N>) {
         self.raw.unsplit_back(r);
+
+        unsafe {
+            assert_unchecked(self.spare_capacity_len() >= N);
+        }
     }
 
     #[inline]
@@ -60,7 +65,10 @@ impl DynBuf {
         self.raw.unsplit_front(l.raw);
 
         if l.len == N {
-            self.len += l.len
+            unsafe {
+                self.len = self.len.unchecked_add(l.len);
+                assert_unchecked(self.len >= N);
+            }
         }
     }
 }

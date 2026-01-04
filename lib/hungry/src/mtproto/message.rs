@@ -95,7 +95,7 @@ impl EncryptedMessage {
 #[must_use]
 #[derive(Debug)]
 pub struct DecryptedMessage {
-    pub salt: i64,
+    pub salt: mtproto::Salt,
     pub session_id: mtproto::Session,
 }
 

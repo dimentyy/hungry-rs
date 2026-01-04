@@ -1,0 +1,56 @@
+use crate::mtproto::{
+    AuthKey, DecryptedMessage, EncryptedHeader, EncryptedMessage, EncryptedPadding, Msg,
+    PlainHeader, Side,
+};
+
+pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, message_id: i64) {
+    let mut header = header.into_buf();
+
+    header.extend_from_slice(&0i64.to_le_bytes()); // auth_key_id
+    header.extend_from_slice(&message_id.to_le_bytes());
+    header.extend_from_slice(&(buffer.len() as i32).to_le_bytes()); // message_data_length
+
+    buffer.unsplit_buf_front(header);
+}
+
+pub fn pack_encrypted(
+    header: EncryptedHeader,
+    buffer: &mut unbite::DynBuf,
+    padding: EncryptedPadding,
+    auth_key: &AuthKey,
+    message: DecryptedMessage,
+    msg: Msg,
+) {
+    let mut header = header.into_buf();
+
+    let plaintext_len = buffer.len();
+
+    // TODO: allow custom padding length; currently minimum possible
+    let random_padding_len = ((20 - (plaintext_len & 15)) & 15) + 12; // 12..28
+
+    buffer.unsplit_raw_back(padding);
+
+    getrandom::fill_uninit(&mut buffer.spare_capacity_mut()[..random_padding_len]).unwrap();
+
+    header.extend_from_slice(auth_key.id());
+
+    unsafe { header.set_len(24) };
+
+    header.extend_from_array(&message.salt.to_le_bytes());
+    header.extend_from_array(&message.session_id.to_le_bytes());
+    header.extend_from_array(&msg.msg_id.to_le_bytes());
+    header.extend_from_array(&msg.seq_no.to_le_bytes());
+    header.extend_from_array(&(plaintext_len as i32).to_le_bytes());
+
+    buffer.unsplit_buf_front(header);
+
+    let (h, plaintext) = buffer.as_mut_slice().split_at_mut(24);
+
+    let msg_key = auth_key.compute_msg_key(plaintext, Side::Client);
+
+    h[8..24].copy_from_slice(msg_key.as_ref());
+
+    let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
+
+    crate::crypto::aes_ige_encrypt(plaintext, &aes_key, &mut aes_iv);
+}

@@ -27,6 +27,10 @@ macro_rules! common_impl {
                 $len
             }
 
+            pub unsafe fn set_len(&mut $self, new_len: usize) {
+                $len = new_len;
+            }
+
             #[inline]
             pub fn as_slice(&$self) -> &[u8] {
                 unsafe { std::slice::from_raw_parts($self.as_ptr(), $self.len()) }
@@ -54,7 +58,7 @@ macro_rules! common_impl {
 
             #[inline]
             pub fn spare_capacity_len(&$self) -> usize {
-                $self.capacity() - $self.len()
+                unsafe { $self.capacity().unchecked_sub($self.len()) }
             }
 
             #[inline]

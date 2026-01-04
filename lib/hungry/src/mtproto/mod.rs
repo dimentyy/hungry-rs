@@ -2,12 +2,14 @@ mod auth_key;
 mod message;
 mod msg;
 mod msg_id;
+mod pack;
 mod seq_no;
 
 pub use auth_key::{AuthKey, MsgKey};
 pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 pub use msg::Msg;
 pub use msg_id::{MsgId, MsgIds};
+pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
 
 pub const MAX_ENCRYPTED_PADDING: usize = 1024;
