@@ -1,4 +1,6 @@
-use crate::transport::{Packet, Transport, TransportEnvelope, TransportError, TransportRead, TransportWrite, Unpack};
+use crate::transport::{
+    Packet, Transport, TransportEnvelope, TransportError, TransportRead, TransportWrite, Unpack,
+};
 
 use std::ops::ControlFlow;
 

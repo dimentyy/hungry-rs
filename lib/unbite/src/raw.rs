@@ -18,7 +18,7 @@ impl<const N: usize> Raw<N> {
 
         Self { inner }
     }
-    
+
     #[inline]
     pub fn into_buf(self) -> Buf<N> {
         Buf { raw: self, len: 0 }

@@ -44,6 +44,20 @@ macro_rules! big_int {
             }
         }
 
+        impl AsRef<[u8]> for $typ {
+            #[inline]
+            fn as_ref(&self) -> &[u8] {
+                &self.0
+            }
+        }
+
+        impl AsMut<[u8]> for $typ {
+            #[inline]
+            fn as_mut(&mut self) -> &mut [u8] {
+                &mut self.0
+            }
+        }
+
         impl fmt::Debug for $typ {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let mut buf = [0; $len * 2 + 2];

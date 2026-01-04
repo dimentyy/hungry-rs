@@ -80,7 +80,7 @@ macro_rules! common_impl {
 
                 $len += other.len();
             }
-        
+
             #[inline]
             pub fn extend_from_array<const M: usize>(&mut $self, other: &[u8; M]) {
                 assert!(M <= $self.spare_capacity_len());

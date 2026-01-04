@@ -3,7 +3,7 @@ mod error;
 use std::io;
 use std::num::NonZeroUsize;
 use std::pin::pin;
-use std::task::{Context, Poll, ready};
+use std::task::{Context, Poll};
 
 use tokio::io::AsyncWrite;
 
