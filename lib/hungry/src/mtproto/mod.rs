@@ -1,10 +1,12 @@
 mod auth_key;
 mod message;
+mod msg;
 mod msg_id;
 mod seq_no;
 
 pub use auth_key::{AuthKey, MsgKey};
 pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
+pub use msg::Msg;
 pub use msg_id::{MsgId, MsgIds};
 pub use seq_no::{SeqNo, SeqNos};
 
@@ -12,11 +14,8 @@ pub const MAX_ENCRYPTED_PADDING: usize = 1024;
 
 pub type PlainHeader = unbite::Raw<{ PlainMessage::HEADER_LEN }>;
 
-pub type EncryptedHeader = unbite::Raw<
-    {
-        EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + /* FIXME */ 16
-    },
->;
+pub type EncryptedHeader =
+    unbite::Raw<{ EncryptedMessage::HEADER_LEN + DecryptedMessage::HEADER_LEN + Msg::HEADER_LEN }>;
 
 pub type EncryptedPadding = unbite::Raw<MAX_ENCRYPTED_PADDING>;
 
