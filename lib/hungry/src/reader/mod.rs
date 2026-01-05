@@ -38,26 +38,26 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         'main: loop {
             let buffer = &mut self.buffer.as_mut_slice()[self.offset..];
 
-            match self.transport.unpack(buffer) {
+            let length = match self.transport.unpack(buffer) {
                 UnpackResult::Unpacked { result, offset } => {
                     self.offset += offset;
 
                     return Poll::Ready(Ok(result?));
                 }
-                UnpackResult::Continue { length } => {
-                    if length > self.buffer.capacity() {
-                        todo!()
-                    }
+                UnpackResult::Continue { length } => length,
+            };
 
-                    self.rotate_buffer(length);
+            if length > self.buffer.capacity() {
+                todo!()
+            }
 
-                    loop {
-                        ready!(self.poll_read(cx))?;
+            self.rotate_buffer(length);
 
-                        if self.buffer.len() >= self.offset + length {
-                            continue 'main;
-                        }
-                    }
+            loop {
+                ready!(self.poll_read(cx))?;
+
+                if self.buffer.len() >= self.offset + length {
+                    continue 'main;
                 }
             }
         }
