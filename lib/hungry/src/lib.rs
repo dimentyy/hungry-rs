@@ -7,7 +7,6 @@ pub mod auth;
 pub mod crypto;
 pub mod mtproto;
 pub mod transport;
-pub mod utils;
 
 pub use crypto_bigint;
 

@@ -27,8 +27,16 @@ macro_rules! common_impl {
                 $len
             }
 
+            #[inline]
             pub unsafe fn set_len(&mut $self, new_len: usize) {
                 $len = new_len;
+            }
+            
+            #[inline]
+            pub fn truncate(&mut $self, new_len: usize) {
+                if $self.len() > new_len {
+                    unsafe { $self.set_len(new_len) }
+                }
             }
 
             #[inline]

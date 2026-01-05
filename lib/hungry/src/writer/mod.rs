@@ -3,12 +3,11 @@ mod error;
 use std::io;
 use std::num::NonZeroUsize;
 use std::pin::pin;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use tokio::io::AsyncWrite;
 
 use crate::transport::Transport;
-use crate::utils::ready_ok;
 
 pub use error::WriterError;
 
@@ -31,7 +30,7 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
     }
 
     fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {
-        let n = ready_ok!(pin!(&mut self.driver).poll_write(cx, buf));
+        let n = ready!(pin!(&mut self.driver).poll_write(cx, buf))?;
 
         assert!(
             n <= buf.len(),
