@@ -195,6 +195,9 @@ impl Inner {
 
     #[inline(always)]
     pub(crate) fn drop_non_deallocating(self) {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::drop_non_deallocating()");
+
         self.alloc.dec_ref_count::<false>();
 
         forget(self);
@@ -202,6 +205,9 @@ impl Inner {
 
     #[inline(always)]
     pub(crate) unsafe fn split_off_unchecked(&mut self, at: usize) -> Inner {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::split_off_unchecked(at: {at})");
+
         self.alloc.inc_ref_count();
 
         Inner {
@@ -212,6 +218,9 @@ impl Inner {
 
     #[inline(always)]
     pub(crate) unsafe fn split_to_unchecked(&mut self, at: usize) -> Inner {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::split_to_unchecked(at: {at})");
+
         self.alloc.inc_ref_count();
 
         let bytes = self.bytes;

@@ -33,7 +33,8 @@ pub fn pack_encrypted(
 
     header.extend_from_slice(auth_key.id());
 
-    unsafe { header.set_len(24) };
+    // msg_key
+    unsafe { header.advance(16) };
 
     header.extend_from_array(&message.salt.to_le_bytes());
     header.extend_from_array(&message.session_id.to_le_bytes());

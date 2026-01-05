@@ -31,14 +31,26 @@ macro_rules! common_impl {
             pub unsafe fn set_len(&mut $self, new_len: usize) {
                 $len = new_len;
             }
-            
+
+            #[inline]
+            pub unsafe fn advance(&mut $self, n: usize) {
+                assert!(n <= $self.spare_capacity_len());
+
+                unsafe { $self.advance_unchecked(n) };
+            }
+
+            #[inline]
+            pub unsafe fn advance_unchecked(&mut $self, n: usize) {
+                unsafe { $self.set_len($self.len() + n) };
+            }
+
             #[inline]
             pub fn truncate(&mut $self, new_len: usize) {
                 if $self.len() > new_len {
                     unsafe { $self.set_len(new_len) }
                 }
             }
-            
+
             #[inline]
             pub fn clear(&mut $self) {
                 $self.truncate(0);

@@ -31,8 +31,8 @@ impl Transport for Full {
     }
 
     fn envelope(buffer: &mut unbite::DynBuf) -> FullEnvelope {
-        let header = buffer.split_raw_to();
-        let footer = buffer.split_raw_off();
+        let header = buffer.split_raw_front();
+        let footer = buffer.split_raw_back();
 
         FullEnvelope { header, footer }
     }

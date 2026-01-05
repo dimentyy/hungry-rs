@@ -30,7 +30,7 @@ impl Transport for Intermediate {
     }
 
     fn envelope(buffer: &mut unbite::DynBuf) -> IntermediateEnvelope {
-        let header = buffer.split_raw_to();
+        let header = buffer.split_raw_front();
 
         IntermediateEnvelope { header }
     }

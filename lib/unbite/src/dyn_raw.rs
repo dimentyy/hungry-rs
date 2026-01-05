@@ -49,7 +49,7 @@ impl DynRaw {
     }
 
     #[inline]
-    pub fn split_off<const N: usize>(&mut self) -> Raw<N> {
+    pub fn split_back<const N: usize>(&mut self) -> Raw<N> {
         assert!(N <= self.capacity);
 
         self.capacity -= N;
@@ -60,7 +60,7 @@ impl DynRaw {
     }
 
     #[inline]
-    pub fn split_to<const N: usize>(&mut self) -> Raw<N> {
+    pub fn split_front<const N: usize>(&mut self) -> Raw<N> {
         assert!(N <= self.capacity);
 
         self.capacity -= N;
@@ -76,7 +76,9 @@ impl DynRaw {
 
         r.inner.drop_non_deallocating();
 
-        self.capacity += r.capacity;
+        unsafe {
+            self.capacity = self.capacity.unchecked_add(r.capacity);
+        }
     }
 
     #[inline]
@@ -87,7 +89,9 @@ impl DynRaw {
 
         l.inner.drop_non_deallocating();
 
-        self.capacity += l.capacity;
+        unsafe {
+            self.capacity = self.capacity.unchecked_add(l.capacity);
+        }
     }
 
     #[inline]
@@ -110,6 +114,9 @@ impl DynRaw {
 
         l.inner.drop_non_deallocating();
 
-        self.capacity += N;
+        unsafe {
+            self.capacity = self.capacity.unchecked_add(N);
+            assert_unchecked(self.capacity >= N);
+        }
     }
 }

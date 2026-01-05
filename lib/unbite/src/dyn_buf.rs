@@ -24,17 +24,17 @@ impl DynBuf {
     }
 
     #[inline]
-    pub fn split_raw_off<const N: usize>(&mut self) -> Raw<N> {
+    pub fn split_raw_back<const N: usize>(&mut self) -> Raw<N> {
         self.len = self.len.min(N);
 
-        self.raw.split_off()
+        self.raw.split_back()
     }
 
     #[inline]
-    pub fn split_raw_to<const N: usize>(&mut self) -> Raw<N> {
+    pub fn split_raw_front<const N: usize>(&mut self) -> Raw<N> {
         self.len = self.len.saturating_sub(N);
 
-        self.raw.split_to()
+        self.raw.split_front()
     }
 
     #[inline]
@@ -49,6 +49,10 @@ impl DynBuf {
     #[inline]
     pub fn unsplit_raw_front<const N: usize>(&mut self, l: Raw<N>) {
         self.raw.unsplit_front(l);
+
+        if N > 0 {
+            self.len = 0;
+        }
     }
 
     #[inline]
@@ -69,6 +73,8 @@ impl DynBuf {
                 self.len = self.len.unchecked_add(l.len);
                 assert_unchecked(self.len >= N);
             }
+        } else {
+            self.len = l.len;
         }
     }
 }

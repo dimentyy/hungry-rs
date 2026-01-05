@@ -29,7 +29,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let envelope = Transport::envelope(&mut buffer);
 
-    let header = buffer.split_raw_to();
+    let header = buffer.split_raw_front();
 
     let mut nonce = hungry::tl::Int128::default();
 
@@ -57,7 +57,7 @@ async fn async_main() -> anyhow::Result<()> {
         Unpack::QuickAck(_) => todo!(),
     };
 
-    let message = match dbg!(hungry::mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()])) {
+    let _ = match dbg!(hungry::mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()])) {
         hungry::mtproto::Message::Plain(message) => message,
         hungry::mtproto::Message::Encrypted(_) => todo!(),
     };
@@ -66,7 +66,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut buf = hungry::tl::de::Buf::new(&r.buffer().as_slice()[data]);
 
-    let response: hungry::tl::mtproto::enums::ResPq = dbg!(buf.de()?);
+    let _: hungry::tl::mtproto::enums::ResPq = dbg!(buf.de()?);
 
     Ok(())
 }

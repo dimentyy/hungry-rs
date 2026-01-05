@@ -21,7 +21,7 @@ impl<const N: usize> Raw<N> {
 
     #[inline]
     pub fn into_buf(self) -> Buf<N> {
-        Buf { raw: self, len: 0 }
+        Buf::from_raw(self)
     }
 
     #[inline]
@@ -34,7 +34,7 @@ impl<const N: usize> Raw<N> {
     }
 
     #[inline]
-    pub fn unsplit<const L: usize, const R: usize>(mut l: Raw<L>, r: Raw<R>) -> Self {
+    pub fn unsplit<const L: usize, const R: usize>(l: Raw<L>, r: Raw<R>) -> Self {
         assert!(l.can_unsplit_raw_back(&r));
 
         unsafe { Raw::unsplit_unchecked(l, r) }
