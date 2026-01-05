@@ -1,7 +1,5 @@
-use std::ops::ControlFlow;
-
 use crate::transport::{
-    Packet, Transport, TransportEnvelope, TransportError, TransportInit, TransportRead,
+    Packet, Transport, TransportInit, TransportRead,
     TransportWrite, Unpack, UnpackResult,
 };
 
@@ -29,6 +27,12 @@ impl Transport for Intermediate {
             IntermediateInit {},
             IntermediateWrite {},
         )
+    }
+
+    fn envelope(buffer: &mut unbite::DynBuf) -> IntermediateEnvelope {
+        let header = buffer.split_raw_to();
+
+        IntermediateEnvelope { header }
     }
 }
 
@@ -79,15 +83,6 @@ impl TransportWrite for IntermediateWrite {
         header.extend_from_array(&buffer.len().to_le_bytes());
 
         buffer.unsplit_buf_front(header);
-    }
-}
-
-impl TransportEnvelope for IntermediateEnvelope {
-    #[inline]
-    fn open(buffer: &mut unbite::DynBuf) -> Self {
-        let header = buffer.split_raw_to();
-
-        Self { header }
     }
 }
 

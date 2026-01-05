@@ -1,6 +1,6 @@
-use std::ops::ControlFlow;
-
 use cipher::{KeyIvInit, StreamCipher};
+
+use unbite::DynBuf;
 
 use crate::transport::{
     IdentifiableTransport, Transport, TransportInit, TransportRead, TransportWrite, UnpackResult,
@@ -69,6 +69,10 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
                 cipher: Cipher::new(key, iv),
             },
         )
+    }
+
+    fn envelope(buffer: &mut DynBuf) -> <Self::Write as TransportWrite>::Envelope {
+        T::envelope(buffer)
     }
 }
 

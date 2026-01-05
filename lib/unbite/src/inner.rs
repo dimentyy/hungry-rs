@@ -196,11 +196,13 @@ impl Inner {
     pub(crate) unsafe fn split_to_unchecked(&mut self, at: usize) -> Inner {
         self.alloc.inc_ref_count();
 
+        let bytes = self.bytes;
+
         self.bytes = unsafe { self.bytes.add(at) };
 
         Inner {
             alloc: self.alloc,
-            bytes: self.bytes,
+            bytes,
         }
     }
 

@@ -1,7 +1,5 @@
-use std::ops::ControlFlow;
-
 use crate::transport::{
-    Packet, Transport, TransportEnvelope, TransportError, TransportInit, TransportRead,
+    Packet, Transport, TransportError, TransportInit, TransportRead,
     TransportWrite, Unpack, UnpackResult, bail,
 };
 
@@ -30,6 +28,13 @@ impl Transport for Full {
 
     fn split(self) -> (Self::Read, Self::Init, Self::Write) {
         (FullRead { seq: 0 }, FullInit {}, FullWrite { seq: 0 })
+    }
+
+    fn envelope(buffer: &mut unbite::DynBuf) -> FullEnvelope {
+        let header = buffer.split_raw_to();
+        let footer = buffer.split_raw_off();
+
+        FullEnvelope { header, footer }
     }
 }
 
@@ -108,14 +113,5 @@ impl TransportWrite for FullWrite {
         buffer.extend_from_array(&crc32.to_le_bytes());
 
         self.seq += 1;
-    }
-}
-
-impl TransportEnvelope for FullEnvelope {
-    fn open(buffer: &mut unbite::DynBuf) -> Self {
-        let header = buffer.split_raw_to();
-        let footer = buffer.split_raw_off();
-
-        Self { header, footer }
     }
 }

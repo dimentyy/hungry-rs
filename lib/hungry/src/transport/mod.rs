@@ -53,6 +53,8 @@ pub trait Transport {
     type Write: TransportWrite<Transport = Self>;
 
     fn split(self) -> (Self::Read, Self::Init, Self::Write);
+
+    fn envelope(buffer: &mut unbite::DynBuf) -> <Self::Write as TransportWrite>::Envelope;
 }
 
 pub trait TransportRead {
@@ -72,13 +74,9 @@ pub trait TransportInit {
 pub trait TransportWrite {
     type Transport: Transport<Write = Self>;
 
-    type Envelope: TransportEnvelope;
+    type Envelope;
 
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope);
-}
-
-pub trait TransportEnvelope {
-    fn open(buffer: &mut unbite::DynBuf) -> Self;
 }
 
 #[cfg(feature = "obfuscated-transport")]

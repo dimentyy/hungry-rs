@@ -38,6 +38,11 @@ macro_rules! common_impl {
                     unsafe { $self.set_len(new_len) }
                 }
             }
+            
+            #[inline]
+            pub fn clear(&mut $self) {
+                $self.truncate(0);
+            }
 
             #[inline]
             pub fn as_slice(&$self) -> &[u8] {

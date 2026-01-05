@@ -23,6 +23,15 @@ pub struct Reader<R: ReaderDriver, T: Transport> {
 }
 
 impl<R: ReaderDriver, T: Transport> Reader<R, T> {
+    pub(crate) fn new(driver: R, transport: T::Read, buffer: unbite::DynBuf) -> Self {
+        Self {
+            driver,
+            transport,
+            buffer,
+            offset: 0
+        }
+    }
+    
     fn rotate_buffer(&mut self, packet_len: usize) {
         let buffer_len = self.buffer.len() - self.offset;
         let capacity = buffer_len + self.buffer.spare_capacity_len();
