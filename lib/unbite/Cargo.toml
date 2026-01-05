@@ -2,4 +2,7 @@
 name = "unbite"
 edition = "2024"
 
+[features]
+debug = []
+
 [dependencies]

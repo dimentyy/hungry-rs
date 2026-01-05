@@ -33,12 +33,9 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut nonce = hungry::tl::Int128::default();
 
-    dbg!(header.as_ptr(), buffer.as_ptr());
-    assert!(header.can_unsplit_dyn_buf_back(&buffer));
-
     getrandom::fill(nonce.as_mut())?;
 
-    let func = hungry::tl::mtproto::funcs::ReqPqMulti { nonce };
+    let func = dbg!(hungry::tl::mtproto::funcs::ReqPqMulti { nonce });
 
     unsafe {
         let mut buf = buffer.as_non_null();

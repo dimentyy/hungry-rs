@@ -95,6 +95,9 @@ impl AllocPtr {
 
     #[inline(always)]
     fn new_embedded(cap: usize) -> (Self, NonNull<u8>) {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::new_embedded(cap: {cap})");
+
         let layout = Alloc::layout(cap);
 
         // SAFETY: `layout` size is at least `size_of::<Alloc>()`.
@@ -113,6 +116,9 @@ impl AllocPtr {
 
     #[inline(always)]
     fn new_external(ptr: NonNull<u8>, cap: usize) -> Self {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::new_external(ptr: {ptr:?}, cap: {cap})");
+
         let alloc = Box::new(Alloc::new(ptr, cap));
 
         let alloc_ptr = NonNull::from_mut(Box::leak(alloc));
@@ -122,13 +128,22 @@ impl AllocPtr {
 
     #[inline(always)]
     fn inc_ref_count(self) {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::inc_ref_count()");
+
         unsafe { (*self.as_ptr()).ref_count.fetch_add(1, Ordering::Relaxed) };
     }
 
     fn dec_ref_count<const DEALLOCATE: bool>(self) {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::dec_ref_count::<{DEALLOCATE}>()");
+
         let alloc_ptr = self.as_ptr();
 
         let previous = unsafe { (*alloc_ptr).ref_count.fetch_sub(1, Ordering::AcqRel) };
+
+        #[cfg(feature = "debug")]
+        println!("UNBITE > previous = {previous}");
 
         if previous > 1 {
             return;
@@ -141,6 +156,9 @@ impl AllocPtr {
         if const { !DEALLOCATE } {
             cold_panic!(ref_count_reached_0 => "ref_count reached 0 during non-deallocating drop");
         }
+
+        #[cfg(feature = "debug")]
+        println!("UNBITE > dealloc");
 
         if self.is_embedded() {
             let layout = Alloc::layout(unsafe { (*alloc_ptr).bytes_cap });
@@ -217,6 +235,8 @@ impl Inner {
 impl Drop for Inner {
     #[inline(always)]
     fn drop(&mut self) {
+        #[cfg(feature = "debug")]
+        println!("UNBITE > Inner::drop()");
         self.alloc.dec_ref_count::<true>()
     }
 }
