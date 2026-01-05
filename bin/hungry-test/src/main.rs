@@ -57,6 +57,17 @@ async fn async_main() -> anyhow::Result<()> {
         Unpack::QuickAck(_) => todo!(),
     };
 
+    let message = match dbg!(hungry::mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()])) {
+        hungry::mtproto::Message::Plain(message) => message,
+        hungry::mtproto::Message::Encrypted(_) => todo!(),
+    };
+
+    let data = data.start + hungry::mtproto::PlainMessage::HEADER_LEN..data.end;
+
+    let mut buf = hungry::tl::de::Buf::new(&r.buffer().as_slice()[data]);
+
+    let response: hungry::tl::mtproto::enums::ResPq = dbg!(buf.de()?);
+
     Ok(())
 }
 

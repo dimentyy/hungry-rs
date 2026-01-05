@@ -4,6 +4,7 @@ mod msg;
 mod msg_id;
 mod pack;
 mod seq_no;
+mod unpack;
 
 pub use auth_key::{AuthKey, MsgKey};
 pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};

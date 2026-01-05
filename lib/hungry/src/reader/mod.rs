@@ -32,6 +32,11 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         }
     }
     
+    #[inline]
+    pub fn buffer(&mut self) -> &mut unbite::DynBuf {
+        &mut self.buffer
+    }
+    
     fn rotate_buffer(&mut self, packet_len: usize) {
         let buffer_len = self.buffer.len() - self.offset;
         let capacity = buffer_len + self.buffer.spare_capacity_len();
