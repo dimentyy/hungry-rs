@@ -28,20 +28,24 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             driver,
             transport,
             buffer,
-            offset: 0
+            offset: 0,
         }
     }
-    
+
     #[inline]
     pub fn buffer(&mut self) -> &mut unbite::DynBuf {
         &mut self.buffer
     }
-    
+
     fn rotate_buffer(&mut self, packet_len: usize) {
+        if self.offset == 0 {
+            return;
+        }
+
         let buffer_len = self.buffer.len() - self.offset;
         let capacity = buffer_len + self.buffer.spare_capacity_len();
 
-        if self.offset > 0 && (buffer_len < BUFFER_NO_ROTATE_THRESHOLD || packet_len > capacity) {
+        if buffer_len < BUFFER_NO_ROTATE_THRESHOLD || packet_len > capacity {
             self.buffer.as_mut_slice().copy_within(self.offset.., 0);
             self.buffer.truncate(self.buffer.len() - self.offset);
             self.offset = 0;
@@ -49,12 +53,17 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Unpack, ReaderError>> {
-        'main: loop {
+        'unpack: loop {
             let buffer = &mut self.buffer.as_mut_slice()[self.offset..];
 
             let length = match self.transport.unpack(buffer) {
                 UnpackResult::Unpacked { result, offset } => {
                     self.offset += offset;
+
+                    if self.offset == self.buffer.len() {
+                        self.offset = 0;
+                        self.buffer.clear();
+                    }
 
                     return Poll::Ready(Ok(result?));
                 }
@@ -71,7 +80,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
                 ready!(self.poll_read(cx))?;
 
                 if self.buffer.len() >= self.offset + length {
-                    continue 'main;
+                    continue 'unpack;
                 }
             }
         }
