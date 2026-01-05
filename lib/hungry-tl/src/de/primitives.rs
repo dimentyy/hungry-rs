@@ -15,8 +15,8 @@ macro_rules! impls {
 }
 
 impls!(buf;
-    u32: Self::from_le(buf.cast().read()),
-    i32: Self::from_le(buf.cast().read()),
+    u32: Self::from_le(buf.cast().read_unaligned()),
+    i32: Self::from_le(buf.cast().read_unaligned()),
     i64: Self::from_le(buf.cast().read_unaligned()),
     f64: Self::from_bits(buf.cast().read_unaligned()),
 );

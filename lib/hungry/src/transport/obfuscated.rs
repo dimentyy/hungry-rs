@@ -26,6 +26,8 @@ pub struct ObfuscatedWrite<T: Transport> {
     cipher: Cipher,
 }
 
+impl<T: IdentifiableTransport> crate::Sealed for Obfuscated<T> {}
+
 impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
     type Read = ObfuscatedRead<T>;
     type Init = ObfuscatedInit<T>;

@@ -39,7 +39,7 @@ unsafe fn serialize_unchecked_small(src: NonNull<u8>, len: usize, buf: NonNull<u
         }
 
         if len & 2 == 0 {
-            buf.add((len & !1) + 2).cast::<u16>().write(0);
+            buf.add((len & !1) + 2).cast::<u16>().write_unaligned(0);
         }
 
         buf.add((len & !3) + 4)
@@ -62,7 +62,7 @@ unsafe fn serialize_unchecked_big(
         }
 
         if (len + 1) & 2 == 1 {
-            buf.add((len + 1) & !1).cast::<u16>().write(0);
+            buf.add((len + 1) & !1).cast::<u16>().write_unaligned(0);
         }
 
         buf.add((len + 3) & !3)
@@ -86,7 +86,7 @@ unsafe fn serialize_unchecked_large(
         }
 
         if (len + 1) & 2 == 1 {
-            buf.add((len + 1) & !1).cast::<u16>().write(0);
+            buf.add((len + 1) & !1).cast::<u16>().write_unaligned(0);
         }
 
         buf.add((len + 3) & !3)

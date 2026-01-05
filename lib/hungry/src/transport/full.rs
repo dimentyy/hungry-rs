@@ -10,7 +10,9 @@ pub struct FullRead {
     seq: i32,
 }
 
-pub struct FullInit {}
+pub struct FullInit {
+    _private: (),
+}
 
 pub struct FullWrite {
     seq: i32,
@@ -21,13 +23,19 @@ pub struct FullEnvelope {
     footer: unbite::Raw<4>,
 }
 
+impl crate::Sealed for Full {}
+
 impl Transport for Full {
     type Read = FullRead;
     type Init = FullInit;
     type Write = FullWrite;
 
     fn split(self) -> (Self::Read, Self::Init, Self::Write) {
-        (FullRead { seq: 0 }, FullInit {}, FullWrite { seq: 0 })
+        (
+            FullRead { seq: 0 },
+            FullInit { _private: () },
+            FullWrite { seq: 0 },
+        )
     }
 
     type Envelope = FullEnvelope;

@@ -5,15 +5,23 @@ use crate::transport::{
 #[derive(Default)]
 pub struct Intermediate;
 
-pub struct IntermediateRead {}
+pub struct IntermediateRead {
+    _private: (),
+}
 
-pub struct IntermediateInit {}
+pub struct IntermediateInit {
+    _private: (),
+}
 
-pub struct IntermediateWrite {}
+pub struct IntermediateWrite {
+    _private: (),
+}
 
 pub struct IntermediateEnvelope {
     header: unbite::Raw<4>,
 }
+
+impl crate::Sealed for Intermediate {}
 
 impl Transport for Intermediate {
     type Read = IntermediateRead;
@@ -22,9 +30,9 @@ impl Transport for Intermediate {
 
     fn split(self) -> (Self::Read, Self::Init, Self::Write) {
         (
-            IntermediateRead {},
-            IntermediateInit {},
-            IntermediateWrite {},
+            IntermediateRead { _private: () },
+            IntermediateInit { _private: () },
+            IntermediateWrite { _private: () },
         )
     }
 

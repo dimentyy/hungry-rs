@@ -15,7 +15,6 @@ pub trait SerializeUnchecked: SerializedLen {
     /// # Safety
     ///
     /// * `buf` must have at least [`serialized_len`] bytes of capacity.
-    /// * `buf` must be properly aligned for 4-byte (32-bit) writes.
     ///
     /// [`serialized_len`]: SerializedLen::serialized_len
     unsafe fn serialize_unchecked(&self, buf: NonNull<u8>) -> NonNull<u8>;
@@ -24,12 +23,6 @@ pub trait SerializeUnchecked: SerializedLen {
 #[inline]
 #[track_caller]
 pub fn safe<X: SerializeUnchecked + ?Sized>(x: &X, buf: &mut [u8]) {
-    #[cold]
-    #[inline(never)]
-    fn unaligned_buf() -> ! {
-        panic!("buffer is not aligned for 4-byte (32-bit) writes")
-    }
-
     #[cold]
     #[inline(never)]
     fn buf_too_small(required: usize, available: usize) -> ! {
@@ -58,10 +51,6 @@ pub fn safe<X: SerializeUnchecked + ?Sized>(x: &X, buf: &mut [u8]) {
     }
 
     let ptr = NonNull::from_ref(buf).cast::<u8>();
-
-    if !ptr.cast::<u32>().is_aligned() {
-        unaligned_buf();
-    }
 
     let len = x.serialized_len();
 

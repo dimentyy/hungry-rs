@@ -16,10 +16,6 @@ impl<'a> Buf<'a> {
     pub fn new(slice: &'a [u8]) -> Self {
         let ptr = NonNull::from_ref(slice).cast();
 
-        if !ptr.cast::<u32>().is_aligned() {
-            todo!()
-        }
-
         Self {
             ptr,
             len: slice.len(),

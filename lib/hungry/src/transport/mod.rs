@@ -5,7 +5,7 @@ mod intermediate;
 #[cfg(feature = "obfuscated-transport")]
 mod obfuscated;
 
-use std::ops::{ControlFlow, Range};
+use std::ops::Range;
 
 pub use error::TransportError;
 pub use full::Full;
@@ -47,7 +47,7 @@ macro_rules! bail {
 
 pub(self) use bail;
 
-pub trait Transport {
+pub trait Transport: crate::Sealed {
     type Read: TransportRead<Transport = Self>;
     type Init: TransportInit<Transport = Self>;
     type Write: TransportWrite<Transport = Self>;
@@ -76,7 +76,11 @@ pub trait TransportInit {
 pub trait TransportWrite {
     type Transport: Transport<Write = Self>;
 
-    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: <Self::Transport as Transport>::Envelope);
+    fn pack(
+        &mut self,
+        buffer: &mut unbite::DynBuf,
+        envelope: <Self::Transport as Transport>::Envelope,
+    );
 }
 
 #[cfg(feature = "obfuscated-transport")]
