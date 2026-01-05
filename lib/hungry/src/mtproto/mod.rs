@@ -57,6 +57,7 @@ pub type Salt = i64;
 ///
 /// ---
 /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
+#[must_use]
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Side {
@@ -65,6 +66,7 @@ pub enum Side {
 }
 
 impl Side {
+    #[must_use]
     #[inline(always)]
     pub const fn x(self) -> usize {
         self as usize

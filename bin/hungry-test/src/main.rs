@@ -3,10 +3,11 @@ use std::future::poll_fn;
 use tokio::io::AsyncWriteExt;
 
 use hungry::reader::ReaderResult;
-use hungry::tl::ser::SerializeUnchecked;
-use hungry::tl::{ConstSerializedLen, Identifiable};
 use hungry::transport::{Transport as _, TransportInit, Unpack};
-use hungry::unbite;
+use hungry::{mtproto, tl, unbite};
+
+use tl::ser::SerializeUnchecked;
+use tl::{ConstSerializedLen, Identifiable};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -32,19 +33,19 @@ async fn async_main() -> anyhow::Result<()> {
 
     let header = buffer.split_raw_front();
 
-    let mut nonce = hungry::tl::Int128::default();
+    let mut nonce = tl::Int128::default();
 
     getrandom::fill(nonce.as_mut())?;
 
-    let func = dbg!(hungry::tl::mtproto::funcs::ReqPqMulti { nonce });
+    let func = dbg!(tl::mtproto::funcs::ReqPqMulti { nonce });
 
     unsafe {
         let mut buf = buffer.as_non_null();
 
-        buf = hungry::tl::mtproto::funcs::ReqPqMulti::CONSTRUCTOR_ID.serialize_unchecked(buf);
+        buf = tl::mtproto::funcs::ReqPqMulti::CONSTRUCTOR_ID.serialize_unchecked(buf);
         func.serialize_unchecked(buf);
 
-        buffer.set_len(4 + hungry::tl::mtproto::funcs::ReqPqMulti::SERIALIZED_LEN);
+        buffer.set_len(4 + tl::mtproto::funcs::ReqPqMulti::SERIALIZED_LEN);
     }
 
     let mut fut = w.single_plain(envelope, header, &mut buffer, 0);
@@ -62,18 +63,18 @@ async fn async_main() -> anyhow::Result<()> {
         Unpack::QuickAck(_) => todo!(),
     };
 
-    let _ = match dbg!(hungry::mtproto::Message::unpack(
+    let _ = match dbg!(mtproto::Message::unpack(
         &r.buffer().as_slice()[data.clone()]
     )) {
-        hungry::mtproto::Message::Plain(message) => message,
-        hungry::mtproto::Message::Encrypted(_) => todo!(),
+        mtproto::Message::Plain(message) => message,
+        mtproto::Message::Encrypted(_) => todo!(),
     };
 
-    let data = data.start + hungry::mtproto::PlainMessage::HEADER_LEN..data.end;
+    let data = data.start + mtproto::PlainMessage::HEADER_LEN..data.end;
 
-    let mut buf = hungry::tl::de::Buf::new(&r.buffer().as_slice()[data]);
+    let mut buf = tl::de::Buf::new(&r.buffer().as_slice()[data]);
 
-    let _: hungry::tl::mtproto::enums::ResPq = dbg!(buf.de()?);
+    let _: tl::mtproto::enums::ResPq = dbg!(buf.de()?);
 
     Ok(())
 }

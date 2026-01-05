@@ -4,9 +4,9 @@ use std::task::{Context, Poll};
 
 use tokio::io::AsyncWrite;
 
+use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 use crate::writer::{Writer, WriterError};
-use crate::{mtproto};
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
     error: Option<io::Error>,
@@ -26,7 +26,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.buffers.is_empty() || self.error.is_some()
+        self.buffers.is_empty() && self.error.is_none()
     }
 
     fn queue_impl(
@@ -119,7 +119,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
             if pos < buffer.len() {
                 continue;
             }
-            
+
             return Poll::Ready(Ok(self.buffers.pop_front().unwrap()));
         }
     }

@@ -1,7 +1,5 @@
 use cipher::{KeyIvInit, StreamCipher};
 
-use unbite::DynBuf;
-
 use crate::transport::{
     IdentifiableTransport, Transport, TransportInit, TransportRead, TransportWrite, UnpackResult,
 };
@@ -75,7 +73,7 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
 
     type Envelope = T::Envelope;
 
-    fn envelope(buffer: &mut DynBuf) -> Self::Envelope {
+    fn envelope(buffer: &mut unbite::DynBuf) -> Self::Envelope {
         T::envelope(buffer)
     }
 }

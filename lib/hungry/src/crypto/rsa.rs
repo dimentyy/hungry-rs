@@ -22,7 +22,6 @@ use tl::{ConstSerializedLen, SerializedLen};
 pub type RsaKeyFingerprint = i64;
 
 /// https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows
-#[must_use]
 #[derive(Clone, Eq)]
 pub struct RsaKey {
     n: Odd<U2048>,
@@ -80,6 +79,7 @@ impl RsaKey {
     }
 
     #[inline]
+    #[must_use]
     #[track_caller]
     pub fn new(n: Odd<U2048>, e: Odd<U2048>) -> Self {
         assert!(n > e && e > Odd::ONE, "invalid public RSA key");

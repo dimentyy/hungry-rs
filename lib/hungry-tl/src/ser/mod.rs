@@ -2,6 +2,7 @@ mod big_int;
 mod primitives;
 mod string;
 mod vec;
+mod buf;
 
 use std::ptr::NonNull;
 

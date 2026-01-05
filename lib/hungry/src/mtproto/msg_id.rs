@@ -25,6 +25,23 @@ use std::{fmt, time};
 pub type MsgId = i64;
 
 #[must_use]
+#[inline(always)]
+const fn from_unix_time(unix_time: time::Duration) -> MsgId {
+    let secs = unix_time.as_secs() as i64;
+    let subsec_nanos = unix_time.subsec_nanos() as i64;
+
+    secs << 32 | subsec_nanos << 2
+}
+
+#[must_use]
+#[inline(always)]
+fn get_system_unix_time() -> time::Duration {
+    time::SystemTime::now()
+        .duration_since(time::UNIX_EPOCH)
+        .expect("system clock time to be after the Unix epoch")
+}
+
+#[must_use]
 pub struct MsgIds {
     last: MsgId,
 }
@@ -46,16 +63,14 @@ impl fmt::Debug for MsgIds {
 impl MsgIds {
     #[inline]
     pub const fn new(unix_time: time::Duration) -> Self {
-        let mut msg_ids = Self { last: 0 };
-        let _ = msg_ids.get(unix_time);
-        msg_ids
+        Self {
+            last: from_unix_time(unix_time),
+        }
     }
 
     #[inline]
     pub fn new_using_system_time() -> Self {
-        let mut msg_ids = Self { last: 0 };
-        let _ = msg_ids.get_using_system_time();
-        msg_ids
+        Self::new(get_system_unix_time())
     }
 
     #[inline]
@@ -66,28 +81,21 @@ impl MsgIds {
 
     #[must_use]
     pub const fn get(&mut self, unix_time: time::Duration) -> MsgId {
-        let secs = unix_time.as_secs() as i64;
-        let subsec_nanos = unix_time.subsec_nanos() as i64;
+        let msg_id = from_unix_time(unix_time);
 
-        let message_id = secs << 32 | subsec_nanos << 2;
-
-        if self.last >= message_id {
+        if self.last >= msg_id {
             self.last += 4;
 
             self.last
         } else {
-            self.last = message_id;
+            self.last = msg_id;
 
-            message_id
+            msg_id
         }
     }
 
     #[must_use]
     pub fn get_using_system_time(&mut self) -> MsgId {
-        let unix_time = time::SystemTime::now()
-            .duration_since(time::UNIX_EPOCH)
-            .expect("system clock time to be after the Unix epoch");
-
-        self.get(unix_time)
+        self.get(get_system_unix_time())
     }
 }
