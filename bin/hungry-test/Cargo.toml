@@ -5,8 +5,6 @@ edition = "2024"
 [dependencies]
 hungry = { path = "../../lib/hungry" }
 
-tokio = { version = "1.48.0", features = ["rt", "net", "signal"] }
+tokio = { version = "1.49.0", features = ["rt", "net", "signal"] }
 
 anyhow = "1.0.100"
-
-grammers-tl-types = {version = "0.8.0", features = ["impl-from-type", "impl-debug", "tl-api", "impl-from-enum"]}

@@ -209,34 +209,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grammers-tl-gen"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f363661005caecc082e40df967cd21d2ed1b9d56c204f062aec5572a4a9c59b6"
-dependencies = [
- "grammers-tl-parser",
-]
-
-[[package]]
-name = "grammers-tl-parser"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3949756519386578835cf5298befef465009accb0531d884eba6e2fc5ad8766e"
-dependencies = [
- "crc32fast",
-]
-
-[[package]]
-name = "grammers-tl-types"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e430e1834164323635d67f10bd8754eab2d97b16693a1b0532befd373d83d5bb"
-dependencies = [
- "grammers-tl-gen",
- "grammers-tl-parser",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -280,7 +252,6 @@ name = "hungry-test"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "grammers-tl-types",
  "hungry",
  "tokio",
 ]
