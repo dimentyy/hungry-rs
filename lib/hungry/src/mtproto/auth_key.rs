@@ -49,7 +49,7 @@ impl fmt::Debug for AuthKey {
 impl AuthKey {
     /// Create a new instance of [`AuthKey`] from its data.
     pub fn new(data: [u8; 256]) -> Self {
-        let hash = sha1::Sha1::digest(&data);
+        let hash = sha1::Sha1::digest(data);
 
         let aux_hash = hash[0..8].try_into().unwrap();
         let id = hash[12..20].try_into().unwrap();

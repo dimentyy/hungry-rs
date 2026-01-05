@@ -57,11 +57,11 @@ unsafe fn serialize_unchecked_big(
 
         buf.copy_from_nonoverlapping(src, len);
 
-        if len & 1 == 1 {
+        if len & 1 != 0 {
             buf.add(len).write(0);
         }
 
-        if (len + 1) & 2 == 1 {
+        if (len + 1) & 2 != 0 {
             buf.add((len + 1) & !1).cast::<u16>().write_unaligned(0);
         }
 
@@ -81,11 +81,11 @@ unsafe fn serialize_unchecked_large(
 
         buf.copy_from_nonoverlapping(src, len);
 
-        if len & 1 == 1 {
+        if len & 1 != 0 {
             buf.add(len).write(0);
         }
 
-        if (len + 1) & 2 == 1 {
+        if (len + 1) & 2 != 0 {
             buf.add((len + 1) & !1).cast::<u16>().write_unaligned(0);
         }
 

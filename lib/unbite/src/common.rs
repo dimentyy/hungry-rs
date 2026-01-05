@@ -26,12 +26,27 @@ macro_rules! common_impl {
             pub fn len(&$self) -> usize {
                 $len
             }
+            
+            #[inline]
+            pub fn is_empty(&$self) -> bool {
+                $self.len() == 0
+            }
 
+            /// # Safety
+            ///
+            /// * Data in the advanced region will be unitialized.
             #[inline]
             pub unsafe fn set_len(&mut $self, new_len: usize) {
                 $len = new_len;
             }
 
+            /// # Safety
+            ///
+            /// * Data in the advanced region will be unitialized.
+            ///
+            /// # Panics
+            ///
+            /// * When buffer does not have at least `n` bytes of spare capacity.
             #[inline]
             pub unsafe fn advance(&mut $self, n: usize) {
                 assert!(n <= $self.spare_capacity_len());
@@ -39,6 +54,10 @@ macro_rules! common_impl {
                 unsafe { $self.advance_unchecked(n) };
             }
 
+            /// # Safety
+            ///
+            /// * Buffer must have at least `n` bytes of spare capacity.
+            /// * Data in the advanced region will be unitialized.
             #[inline]
             pub unsafe fn advance_unchecked(&mut $self, n: usize) {
                 unsafe { $self.set_len($self.len() + n) };
@@ -47,6 +66,7 @@ macro_rules! common_impl {
             #[inline]
             pub fn truncate(&mut $self, new_len: usize) {
                 if $self.len() > new_len {
+                    // SAFETY: truncating will not expose unitialzed data.
                     unsafe { $self.set_len(new_len) }
                 }
             }

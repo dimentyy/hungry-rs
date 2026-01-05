@@ -33,7 +33,7 @@ pub fn pack_encrypted(
 
     header.extend_from_slice(auth_key.id());
 
-    // msg_key
+    // SAFETY: bytes in range 8..24 will be initialized with `msg_key`.
     unsafe { header.advance_unchecked(16) };
 
     header.extend_from_array(&message.salt.to_le_bytes());

@@ -17,7 +17,7 @@ pub(super) fn push_enum_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
 
         s.push_str("    ");
         push_enum_variant(cfg, s, x);
-        s.push_str("(");
+        s.push('(');
 
         if x.recursive {
             s.push_str("Box<");
@@ -27,7 +27,7 @@ pub(super) fn push_enum_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
         push_typ(cfg, data, s, &[], &typ, false);
 
         if x.recursive {
-            s.push_str(">");
+            s.push('>');
         }
 
         s.push_str("),\n");

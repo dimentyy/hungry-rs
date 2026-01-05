@@ -47,7 +47,7 @@ macro_rules! bail {
     };
 }
 
-pub(self) use bail;
+use bail;
 
 pub trait Transport: crate::Sealed {
     type Read: TransportRead<Transport = Self>;

@@ -250,25 +250,22 @@ impl<'a> Data<'a> {
                     typ,
                     flag,
                 } => {
-                    let flag = match flag {
-                        None => None,
-                        Some(flag) => Some({
-                            let Some(arg) = args.get_index_of(flag.ident) else {
-                                todo!()
-                            };
+                    let flag = flag.as_ref().map(|flag| {
+                        let Some(arg) = args.get_index_of(flag.ident) else {
+                            todo!()
+                        };
 
-                            match args.get_index_mut(arg).unwrap().1.typ {
-                                ArgTyp::Flags { ref mut args } => args.push(i),
-                                ArgTyp::Typ { .. } => todo!(),
-                                ArgTyp::True { .. } => todo!(),
-                            }
+                        match args.get_index_mut(arg).unwrap().1.typ {
+                            ArgTyp::Flags { ref mut args } => args.push(i),
+                            ArgTyp::Typ { .. } => todo!(),
+                            ArgTyp::True { .. } => todo!(),
+                        }
 
-                            Flag {
-                                arg,
-                                bit: flag.bit.unwrap_or(0),
-                            }
-                        }),
-                    };
+                        Flag {
+                            arg,
+                            bit: flag.bit.unwrap_or(0),
+                        }
+                    });
 
                     if typ.ident == read::Ident::TRUE {
                         let Some(flag) = flag else { todo!() };
@@ -308,7 +305,7 @@ impl<'a> Data<'a> {
                 generic_args: generic_args
                     .iter()
                     .map(|s| GenericArg {
-                        ident: rust::pascal_case(*s),
+                        ident: rust::pascal_case(s),
                     })
                     .collect(),
                 de: Deserialization::Checked,

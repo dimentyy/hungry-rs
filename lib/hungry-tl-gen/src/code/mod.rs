@@ -165,7 +165,7 @@ fn write_space(
         s.push_str(";\n");
     }
 
-    s.push_str("\n");
+    s.push('\n');
 
     for ident in idents {
         s.push_str("pub use ");
@@ -175,7 +175,7 @@ fn write_space(
         s.push_str(";\n");
     }
 
-    s.push_str("\n");
+    s.push('\n');
 
     f.write_all(s.as_bytes())?;
     s.clear();

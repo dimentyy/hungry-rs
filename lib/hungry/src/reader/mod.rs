@@ -122,7 +122,8 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             exceeds the buffer spare capacity length ({spare_capacity_len})",
             std::any::type_name::<R>(),
         );
-        
+
+        // SAFETY: we have read `n` bytes.
         unsafe { self.buffer.advance(n) };
 
         Poll::Ready(Ok(()))

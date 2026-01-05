@@ -13,6 +13,7 @@ impl<const N: usize> Raw<N> {
     );
 
     #[inline]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let inner = Inner::new_embedded(N);
 

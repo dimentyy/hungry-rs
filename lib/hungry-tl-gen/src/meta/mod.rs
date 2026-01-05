@@ -34,7 +34,5 @@ impl Deserialization {
 pub(crate) fn validate<'a>(parsed: &'a [Vec<read::Item<'a>>]) -> Data<'a> {
     let temp = Temp::validate(parsed);
 
-    let data = Data::validate(temp);
-
-    data
+    Data::validate(temp)
 }

@@ -23,6 +23,7 @@ impl<const N: usize> Buf<N> {
     );
 
     #[inline]
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             raw: Raw::new(),

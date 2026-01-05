@@ -8,7 +8,7 @@ pub(super) fn push_function_generics(
     let mut iter = generic_args.iter();
 
     if let Some(arg) = iter.next() {
-        s.push_str("<");
+        s.push('<');
 
         s.push_str(&arg.ident);
         if parameterize {
@@ -23,6 +23,6 @@ pub(super) fn push_function_generics(
             }
         }
 
-        s.push_str(">");
+        s.push('>');
     }
 }

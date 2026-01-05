@@ -17,7 +17,7 @@ fn write_arg(cfg: &Cfg, data: &Data, s: &mut String, generic_args: &[GenericArg]
     }
     push_typ(cfg, data, s, generic_args, typ, false);
     if optional {
-        s.push_str(">");
+        s.push('>');
     }
     s.push_str(",\n")
 }
@@ -33,7 +33,7 @@ pub(super) fn push_struct_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Combi
     let mut iter = x.generic_args.iter();
 
     if let Some(arg) = iter.next() {
-        s.push_str("<");
+        s.push('<');
         s.push_str(&arg.ident);
         s.push_str(": crate::Function");
 
@@ -43,7 +43,7 @@ pub(super) fn push_struct_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Combi
             s.push_str(": crate::Function");
         }
 
-        s.push_str(">");
+        s.push('>');
     }
 
     if x.args.is_empty() {

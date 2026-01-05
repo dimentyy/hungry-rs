@@ -31,7 +31,7 @@ impl<'src> Flag<'src> {
             .at_least(1)
             .to_slice()
             .try_map(|bit: &str, span| {
-                usize::from_str_radix(bit, 10).map_err(|err| Error::custom(span, err))
+                bit.parse::<usize>().map_err(|err| Error::custom(span, err))
             });
 
         ident

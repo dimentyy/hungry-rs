@@ -27,7 +27,7 @@ use std::fmt;
 pub type SeqNo = i32;
 
 #[must_use]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SeqNos {
     current: SeqNo,
 }

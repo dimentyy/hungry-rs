@@ -7,12 +7,12 @@ pub use hungry_common as common;
 
 pub use common::tl::*;
 
-#[allow(unused_imports, unused_mut)]
+#[allow(unused_imports, unused_mut, clippy::all)]
 pub mod api {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/api/mod.rs"));
 }
 
-#[allow(unused_imports, unused_mut)]
+#[allow(unused_imports, unused_mut, clippy::all)]
 pub mod mtproto {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/mtproto/mod.rs"));
 }

@@ -4,13 +4,13 @@ use crate::meta::{ArgTyp, Combinator, Data, Deserialization, Enum, Typ, Type};
 
 fn push_empty(s: &mut String, name: &str) {
     s.push_str("\nimpl crate::de::DeserializeInfallible for ");
-    s.push_str(&name);
+    s.push_str(name);
     s.push_str(" {\n    unsafe fn deserialize_infallible(_buf: std::ptr::NonNull<u8>) -> Self {\n        Self {}\n    }\n}\n", )
 }
 
 fn push_checked_de(s: &mut String, name: &str) {
     s.push_str("\nimpl crate::de::Deserialize for ");
-    s.push_str(&name);
+    s.push_str(name);
     s.push_str(
         " {\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n        ",
     )
@@ -18,7 +18,7 @@ fn push_checked_de(s: &mut String, name: &str) {
 
 fn push_unchecked_de(s: &mut String, name: &str) {
     s.push_str("\nimpl crate::de::DeserializeUnchecked for ");
-    s.push_str(&name);
+    s.push_str(name);
     s.push_str(
         " {\n    unsafe fn deserialize_unchecked(buf: std::ptr::NonNull<u8>) -> Result<Self, crate::de::UnexpectedConstructorError> {\n        unsafe {\n",
     )
@@ -26,7 +26,7 @@ fn push_unchecked_de(s: &mut String, name: &str) {
 
 fn push_infallible_de(s: &mut String, name: &str) {
     s.push_str("\nimpl crate::de::DeserializeInfallible for ");
-    s.push_str(&name);
+    s.push_str(name);
     s.push_str(
         " {\n    unsafe fn deserialize_infallible(buf: std::ptr::NonNull<u8>) -> Self {\n        unsafe {\n",
     )
@@ -69,7 +69,7 @@ fn push_enum_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
         push_ident(s, "types", &x.combinator.ident);
         s.push_str("::CONSTRUCTOR_ID => Ok(Self::");
         s.push_str(&x.combinator.ident.actual);
-        s.push_str("(");
+        s.push('(');
         push_typ(cfg, data, s, &[], &Typ::Type { index: *variant }, true);
         s.push_str("::deserialize_");
         s.push_str(
@@ -106,7 +106,7 @@ fn push_struct_finish(x: &Combinator, s: &mut String, ok: bool, indent: &str) {
         s.push_str(indent);
         s.push_str("    ");
         push_escaped(s, &arg.ident);
-        s.push_str(",");
+        s.push(',');
     }
     s.push_str(indent);
     s.push_str(if ok { "})" } else { "}" });
@@ -118,7 +118,7 @@ fn push_type_checked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
     for arg in &x.combinator.args {
         s.push_str("        let ");
         if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
-            s.push_str("_");
+            s.push('_');
         }
         push_escaped(s, &arg.ident);
         s.push_str(" = ");
@@ -165,7 +165,7 @@ fn push_type_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
     for arg in &x.combinator.args {
         s.push_str("            let ");
         if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
-            s.push_str("_");
+            s.push('_');
         }
         push_escaped(s, &arg.ident);
         s.push_str(" = ");
@@ -203,7 +203,7 @@ fn push_type_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
                     if offset > 0 {
                         s.push_str(".add(");
                         std::fmt::write(s, format_args!("{offset}")).unwrap();
-                        s.push_str(")");
+                        s.push(')');
                     }
                     s.push_str(fin);
                     s.push_str(") } else { None };\n");
@@ -215,7 +215,7 @@ fn push_type_unchecked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
                     if offset > 0 {
                         s.push_str(".add(");
                         std::fmt::write(s, format_args!("{offset}")).unwrap();
-                        s.push_str(")");
+                        s.push(')');
                     }
                     s.push_str(fin);
                     s.push_str(";\n");
@@ -246,7 +246,7 @@ fn push_type_infallible_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
     for arg in &x.combinator.args {
         s.push_str("            let ");
         if matches!(&arg.typ, ArgTyp::Flags { args } if args.is_empty()) {
-            s.push_str("_");
+            s.push('_');
         }
         push_escaped(s, &arg.ident);
         s.push_str(" = ");
@@ -271,7 +271,7 @@ fn push_type_infallible_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
                     if offset > 0 {
                         s.push_str(".add(");
                         std::fmt::write(s, format_args!("{offset}")).unwrap();
-                        s.push_str(")");
+                        s.push(')');
                     }
                     s.push_str(")) } else { None };\n");
                 } else {
@@ -280,7 +280,7 @@ fn push_type_infallible_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
                     if offset > 0 {
                         s.push_str(".add(");
                         std::fmt::write(s, format_args!("{offset}")).unwrap();
-                        s.push_str(")");
+                        s.push(')');
                     }
                     s.push_str(");\n");
                 }

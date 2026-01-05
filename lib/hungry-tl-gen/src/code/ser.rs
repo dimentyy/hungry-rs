@@ -4,7 +4,7 @@ use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
 
 fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     match &x.typ {
-        ArgTyp::Flags { .. } => s.push_str("4"),
+        ArgTyp::Flags { .. } => s.push('4'),
         ArgTyp::Typ { .. } => {
             s.push_str("self.");
             push_escaped(s, &x.ident);
@@ -23,7 +23,7 @@ pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Co
     s.push_str(" {\n    fn serialized_len(&self) -> usize {\n        ");
 
     if x.args.is_empty() {
-        return s.push_str("0");
+        return s.push('0');
     }
 
     let mut iter = x.args.iter();
@@ -105,7 +105,7 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
                 if args.is_empty() {
                     s.push_str("0u32");
                 } else {
-                    s.push_str("(");
+                    s.push('(');
                     for arg in &args[..args.len() - 1] {
                         write_flag_arg(cfg, s, x, *arg);
 
@@ -114,7 +114,7 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
 
                     write_flag_arg(cfg, s, x, *args.last().unwrap());
 
-                    s.push_str(")");
+                    s.push(')');
                 }
                 s.push_str(".serialize_unchecked(buf);\n");
 
