@@ -71,7 +71,9 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
         )
     }
 
-    fn envelope(buffer: &mut DynBuf) -> <Self::Write as TransportWrite>::Envelope {
+    type Envelope = T::Envelope;
+
+    fn envelope(buffer: &mut DynBuf) -> Self::Envelope {
         T::envelope(buffer)
     }
 }
@@ -117,9 +119,7 @@ impl<T: IdentifiableTransport> TransportInit for ObfuscatedInit<T> {
 impl<T: IdentifiableTransport> TransportWrite for ObfuscatedWrite<T> {
     type Transport = Obfuscated<T>;
 
-    type Envelope = <T::Write as TransportWrite>::Envelope;
-
-    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope) {
+    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: T::Envelope) {
         self.inner.pack(buffer, envelope);
         self.cipher.apply_keystream(buffer.as_mut_slice());
     }

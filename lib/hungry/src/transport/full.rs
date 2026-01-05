@@ -1,6 +1,6 @@
 use crate::transport::{
-    Packet, Transport, TransportError, TransportInit, TransportRead,
-    TransportWrite, Unpack, UnpackResult, bail,
+    Packet, Transport, TransportError, TransportInit, TransportRead, TransportWrite, Unpack,
+    UnpackResult, bail,
 };
 
 #[derive(Default)]
@@ -29,6 +29,8 @@ impl Transport for Full {
     fn split(self) -> (Self::Read, Self::Init, Self::Write) {
         (FullRead { seq: 0 }, FullInit {}, FullWrite { seq: 0 })
     }
+
+    type Envelope = FullEnvelope;
 
     fn envelope(buffer: &mut unbite::DynBuf) -> FullEnvelope {
         let header = buffer.split_raw_front();
@@ -94,9 +96,7 @@ impl TransportInit for FullInit {
 impl TransportWrite for FullWrite {
     type Transport = Full;
 
-    type Envelope = FullEnvelope;
-
-    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope) {
+    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: FullEnvelope) {
         let mut header = envelope.header.into_buf();
 
         let len = 4 + 4 + buffer.len() as i32 + 4;

@@ -85,6 +85,11 @@ macro_rules! common_impl {
             pub fn spare_capacity_len(&$self) -> usize {
                 unsafe { $self.capacity().unchecked_sub($self.len()) }
             }
+            
+            #[inline]
+            pub fn has_spare_capacity(&$self) -> bool {
+                $self.len() < $self.capacity()
+            }
 
             #[inline]
             pub fn spare_capacity_mut(&mut $self) -> &mut [std::mem::MaybeUninit<u8>] {

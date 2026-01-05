@@ -6,7 +6,7 @@ use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, ReadBuf};
 
-use crate::transport::{Transport, TransportError, TransportRead, Unpack, UnpackResult};
+use crate::transport::{Transport, TransportRead, Unpack, UnpackResult};
 
 pub use error::ReaderError;
 
@@ -83,7 +83,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             };
 
             if length > self.buffer.capacity() {
-                return Poll::Ready(ReaderResult::Reserve { bytes: length })
+                return Poll::Ready(ReaderResult::Reserve { bytes: length });
             }
 
             self.rotate_buffer(length);

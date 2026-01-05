@@ -1,6 +1,5 @@
 use crate::transport::{
-    Packet, Transport, TransportInit, TransportRead,
-    TransportWrite, Unpack, UnpackResult,
+    Packet, Transport, TransportInit, TransportRead, TransportWrite, Unpack, UnpackResult,
 };
 
 #[derive(Default)]
@@ -28,6 +27,8 @@ impl Transport for Intermediate {
             IntermediateWrite {},
         )
     }
+
+    type Envelope = IntermediateEnvelope;
 
     fn envelope(buffer: &mut unbite::DynBuf) -> IntermediateEnvelope {
         let header = buffer.split_raw_front();
@@ -75,9 +76,7 @@ impl TransportInit for IntermediateInit {
 impl TransportWrite for IntermediateWrite {
     type Transport = Intermediate;
 
-    type Envelope = IntermediateEnvelope;
-
-    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope) {
+    fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: IntermediateEnvelope) {
         let mut header = envelope.header.into_buf();
 
         header.extend_from_array(&buffer.len().to_le_bytes());

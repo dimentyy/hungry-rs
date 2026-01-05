@@ -32,7 +32,7 @@ impl fmt::Display for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let id = u64::from_ne_bytes(self.id);
 
-        write!(f, "auth key [id={id:#016x}, ..]")
+        write!(f, "auth key [id={id:#018x}, ..]")
     }
 }
 
@@ -41,7 +41,7 @@ impl fmt::Debug for AuthKey {
         let id = u64::from_ne_bytes(self.id);
 
         f.debug_struct("AuthKey")
-            .field("id", &format_args!("{id:#016x}"))
+            .field("id", &format_args!("{id:#018x}"))
             .finish_non_exhaustive()
     }
 }

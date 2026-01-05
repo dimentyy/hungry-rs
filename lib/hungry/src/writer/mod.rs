@@ -1,4 +1,6 @@
 mod error;
+mod init;
+mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
@@ -21,6 +23,7 @@ pub struct Writer<W: WriterDriver, T: Transport> {
 }
 
 impl<W: WriterDriver, T: Transport> Writer<W, T> {
+    #[inline]
     pub(crate) fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
     }
@@ -35,8 +38,8 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
 
         assert!(
             n <= buf.len(),
-            "`tokio::io::AsyncWrite` contract violation by `{}`: \
-            reported number of bytes written ({n})\
+            "`tokio::io::AsyncWrite` contract violation by `{}`:\
+             reported number of bytes written ({n})\
              exceeds the buffer length ({})",
             std::any::type_name::<W>(),
             buf.len(),
@@ -54,7 +57,7 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
 
     pub fn single_plain<'a>(
         &'a mut self,
-        envelope: <T::Write as TransportWrite>::Envelope,
+        envelope: T::Envelope,
         header: mtproto::PlainHeader,
         buffer: &'a mut unbite::DynBuf,
         message_id: i64,
@@ -66,7 +69,7 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
 
     pub fn single<'a>(
         &'a mut self,
-        envelope: <T::Write as TransportWrite>::Envelope,
+        envelope: T::Envelope,
         header: mtproto::EncryptedHeader,
         buffer: &'a mut unbite::DynBuf,
         padding: mtproto::EncryptedPadding,
@@ -82,7 +85,7 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
     fn single_impl<'a>(
         &'a mut self,
         buffer: &'a mut unbite::DynBuf,
-        envelope: <T::Write as TransportWrite>::Envelope,
+        envelope: T::Envelope,
     ) -> Single<'a, W, T> {
         self.transport.pack(buffer, envelope);
 

@@ -77,4 +77,49 @@ impl DynBuf {
             self.len = l.len;
         }
     }
+
+    #[inline]
+    pub fn unsplit_back(&mut self, r: DynBuf) {
+        self.raw.unsplit_dyn_back(r.raw);
+
+        if self.len == self.raw.capacity {
+            self.len += r.len
+        }
+    }
+
+    #[inline]
+    pub fn unsplit_front(&mut self, l: DynBuf) {
+        if l.len == l.raw.capacity {
+            self.len += l.len;
+        } else {
+            self.len = l.len;
+        }
+
+        self.raw.unsplit_dyn_front(l.raw);
+    }
+
+    #[inline]
+    pub fn split(&mut self) -> DynRaw {
+        self.raw.split_dyn_off(self.len)
+    }
+
+    #[inline]
+    pub fn split_off(&mut self, at: usize) -> DynBuf {
+        let raw = self.raw.split_dyn_off(at);
+
+        let len = self.len().saturating_sub(at);
+        self.len = self.len.min(at);
+
+        DynBuf { raw, len }
+    }
+
+    #[inline]
+    pub fn split_to(&mut self, at: usize) -> DynBuf {
+        let raw = self.raw.split_dyn_to(at);
+
+        let len = self.len().min(at);
+        self.len = self.len.saturating_sub(at);
+
+        DynBuf { raw, len }
+    }
 }
