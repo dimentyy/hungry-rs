@@ -1,8 +1,9 @@
-use crate::transport::{
-    Packet, Transport, TransportEnvelope, TransportError, TransportRead, TransportWrite, Unpack,
-};
-
 use std::ops::ControlFlow;
+
+use crate::transport::{
+    Packet, Transport, TransportEnvelope, TransportError, TransportInit, TransportRead,
+    TransportWrite, Unpack, UnpackResult, bail,
+};
 
 #[derive(Default)]
 pub struct Full;
@@ -10,6 +11,8 @@ pub struct Full;
 pub struct FullRead {
     seq: i32,
 }
+
+pub struct FullInit {}
 
 pub struct FullWrite {
     seq: i32,
@@ -22,36 +25,39 @@ pub struct FullEnvelope {
 
 impl Transport for Full {
     type Read = FullRead;
+    type Init = FullInit;
     type Write = FullWrite;
 
-    fn split(self) -> (Self::Read, Self::Write) {
-        (FullRead { seq: 0 }, FullWrite { seq: 0 })
+    fn split(self) -> (Self::Read, Self::Init, Self::Write) {
+        (FullRead { seq: 0 }, FullInit {}, FullWrite { seq: 0 })
     }
 }
 
 impl TransportRead for FullRead {
-    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, TransportError>, usize> {
+    type Transport = Full;
+
+    fn unpack(&mut self, buffer: &mut [u8]) -> UnpackResult {
         if buffer.len() < 4 {
-            return ControlFlow::Continue(4);
+            return UnpackResult::Continue { length: 4 };
         }
 
         let len = match i32::from_le_bytes(buffer[0..4].try_into().unwrap()) {
-            len @ ..0 => return ControlFlow::Break(Err(TransportError::Status(-len))),
-            len @ 0..12 => return ControlFlow::Break(Err(TransportError::BadLen(len))),
+            len @ ..0 => bail!(offset: 4 => Status(-len)),
+            len @ 0..12 => bail!(offset: 4 => BadLen(len)),
             len => len as usize,
         };
 
         if buffer.len() < len {
-            return ControlFlow::Continue(len);
+            return UnpackResult::Continue { length: len };
         }
 
         let seq = i32::from_le_bytes(buffer[4..8].try_into().unwrap());
 
         if seq != self.seq {
-            return ControlFlow::Break(Err(TransportError::BadSeq {
+            bail!(offset: 4 => BadSeq {
                 received: seq,
                 expected: self.seq,
-            }));
+            });
         }
 
         let received = u32::from_le_bytes(buffer[len - 4..len].try_into().unwrap());
@@ -59,18 +65,30 @@ impl TransportRead for FullRead {
         let computed = crc32fast::hash(&buffer[0..len - 4]);
 
         if received != computed {
-            return ControlFlow::Break(Err(TransportError::BadCrc { received, computed }));
+            bail!(offset: len => BadCrc { received, computed });
         }
 
         self.seq += 1;
 
-        let data = 8..len - 4;
-
-        ControlFlow::Break(Ok(Unpack::Packet(Packet { data })))
+        UnpackResult::Unpacked {
+            result: Ok(Unpack::Packet(Packet { data: 8..len - 4 })),
+            offset: len,
+        }
     }
 }
 
+impl TransportInit for FullInit {
+    type Transport = Full;
+
+    const SIZE: usize = 0;
+
+    #[inline]
+    fn init(self, _write: &mut FullWrite, _buffer: &mut unbite::DynBuf) {}
+}
+
 impl TransportWrite for FullWrite {
+    type Transport = Full;
+
     type Envelope = FullEnvelope;
 
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope) {

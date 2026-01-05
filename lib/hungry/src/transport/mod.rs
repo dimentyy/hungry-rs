@@ -1,11 +1,18 @@
 mod error;
 mod full;
 mod intermediate;
+
+#[cfg(feature = "obfuscated-transport")]
 mod obfuscated;
 
 use std::ops::{ControlFlow, Range};
 
 pub use error::TransportError;
+pub use full::Full;
+pub use intermediate::Intermediate;
+
+#[cfg(feature = "obfuscated-transport")]
+pub use obfuscated::Obfuscated;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct QuickAck {}
@@ -21,24 +28,60 @@ pub enum Unpack {
     QuickAck(QuickAck),
 }
 
-pub trait Transport {
-    type Read: TransportRead;
-    type Write: TransportWrite;
+#[derive(Debug, Eq, PartialEq)]
+pub enum UnpackResult {
+    Unpacked {
+        result: Result<Unpack, TransportError>,
+        offset: usize,
+    },
+    Continue {
+        length: usize,
+    },
+}
 
-    fn split(self) -> (Self::Read, Self::Write);
+macro_rules! bail {
+    (offset: $offset:expr => $variant:ident $( $tokens:tt )+ ) => {
+        return UnpackResult::Unpacked { result: Err(TransportError::$variant $( $tokens )+ ), offset: $offset }
+    };
+}
+
+pub(self) use bail;
+
+pub trait Transport {
+    type Read: TransportRead<Transport = Self>;
+    type Init: TransportInit<Transport = Self>;
+    type Write: TransportWrite<Transport = Self>;
+
+    fn split(self) -> (Self::Read, Self::Init, Self::Write);
 }
 
 pub trait TransportRead {
-    fn unpack(&mut self, buffer: &mut [u8]) -> ControlFlow<Result<Unpack, TransportError>, usize>;
+    type Transport: Transport<Read = Self>;
+
+    fn unpack(&mut self, buffer: &mut [u8]) -> UnpackResult;
+}
+
+pub trait TransportInit {
+    type Transport: Transport<Init = Self>;
+
+    const SIZE: usize;
+
+    fn init(self, write: &mut <Self::Transport as Transport>::Write, buffer: &mut unbite::DynBuf);
 }
 
 pub trait TransportWrite {
+    type Transport: Transport<Write = Self>;
+
     type Envelope: TransportEnvelope;
 
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: Self::Envelope);
 }
 
 pub trait TransportEnvelope {
-    #[must_use]
     fn open(buffer: &mut unbite::DynBuf) -> Self;
+}
+
+#[cfg(feature = "obfuscated-transport")]
+pub trait IdentifiableTransport: Transport {
+    const TRANSPORT_IDENTIFIER: [u8; 4];
 }

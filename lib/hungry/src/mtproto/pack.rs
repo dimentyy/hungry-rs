@@ -1,6 +1,5 @@
 use crate::mtproto::{
-    AuthKey, DecryptedMessage, EncryptedHeader, EncryptedMessage, EncryptedPadding, Msg,
-    PlainHeader, Side,
+    AuthKey, DecryptedMessage, EncryptedHeader, EncryptedPadding, Msg, PlainHeader, Side,
 };
 
 pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, message_id: i64) {

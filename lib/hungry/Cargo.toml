@@ -2,17 +2,23 @@
 name = "hungry"
 edition = "2024"
 
+[features]
+obfuscated-transport = ["dep:ctr"]
+
 [dependencies]
 hungry-tl = { path = "../hungry-tl" }
 
 unbite = { path = "../unbite" }
 
 aes = "0.9.0-rc.2"
+cipher = { version = "0.5.0-rc.3" }
 crc32fast = "1.5.0"
 crypto-bigint = "0.7.0-rc.13"
 digest = "0.11.0-rc.5"
 sha1 = "0.11.0-rc.3"
 sha2 = "0.11.0-rc.3"
+
+ctr = { version = "0.10.0-rc.2", optional = true }
 
 tokio = { version = "1.49.0", features = ["net", "sync"] }
 getrandom = "0.4.0-rc.0"

@@ -1,8 +1,7 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TransportError {
-    QuickAck,
     Status(i32),
     BadLen(i32),
     BadCrc { received: u32, computed: u32 },
@@ -16,7 +15,6 @@ impl fmt::Display for TransportError {
         f.write_str("transport error: ")?;
 
         match self {
-            QuickAck => write!(f, "quick ack is not supported"),
             Status(code) => write!(f, "status code: {code}"),
             BadLen(len) => write!(f, "bad len: {len}"),
             BadCrc { received, computed } => write!(

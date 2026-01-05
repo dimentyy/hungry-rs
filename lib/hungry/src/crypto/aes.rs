@@ -1,5 +1,5 @@
 use aes::Aes256;
-use aes::cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
+use cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 
 pub type AesIgeKey = [u8; 32];
 pub type AesIgeIv = [u8; 32];
