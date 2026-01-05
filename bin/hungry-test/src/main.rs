@@ -2,6 +2,7 @@ use std::future::poll_fn;
 
 use tokio::io::AsyncWriteExt;
 
+use hungry::reader::ReaderResult;
 use hungry::tl::ser::SerializeUnchecked;
 use hungry::tl::{ConstSerializedLen, Identifiable};
 use hungry::transport::{Transport as _, TransportInit, Unpack};
@@ -50,14 +51,20 @@ async fn async_main() -> anyhow::Result<()> {
 
     poll_fn(|cx| fut.poll(cx)).await?;
 
-    let unpack = dbg!(poll_fn(|cx| r.poll(cx)).await?);
+    let unpack = match dbg!(poll_fn(|cx| r.poll(cx)).await) {
+        ReaderResult::Reserve { .. } => todo!(),
+        ReaderResult::Unpack(unpack) => unpack,
+        ReaderResult::Error(err) => return Err(err.into()),
+    };
 
     let data = match unpack {
         Unpack::Packet(packet) => packet.data,
         Unpack::QuickAck(_) => todo!(),
     };
 
-    let _ = match dbg!(hungry::mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()])) {
+    let _ = match dbg!(hungry::mtproto::Message::unpack(
+        &r.buffer().as_slice()[data.clone()]
+    )) {
         hungry::mtproto::Message::Plain(message) => message,
         hungry::mtproto::Message::Encrypted(_) => todo!(),
     };

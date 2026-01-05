@@ -15,6 +15,13 @@ const BUFFER_NO_ROTATE_THRESHOLD: usize = 16 * 1024;
 pub trait ReaderDriver: AsyncRead + Unpin {}
 impl<T: AsyncRead + Unpin> ReaderDriver for T {}
 
+#[derive(Debug)]
+pub enum ReaderResult {
+    Reserve { bytes: usize },
+    Unpack(Unpack),
+    Error(ReaderError),
+}
+
 pub struct Reader<R: ReaderDriver, T: Transport> {
     driver: R,
     transport: T::Read,
@@ -52,7 +59,14 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         }
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Unpack, ReaderError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<ReaderResult> {
+        assert!(self.offset <= self.buffer.len());
+
+        if self.offset == self.buffer.len() {
+            self.offset = 0;
+            self.buffer.clear();
+        }
+
         'unpack: loop {
             let buffer = &mut self.buffer.as_mut_slice()[self.offset..];
 
@@ -60,12 +74,10 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
                 UnpackResult::Unpacked { result, offset } => {
                     self.offset += offset;
 
-                    if self.offset == self.buffer.len() {
-                        self.offset = 0;
-                        self.buffer.clear();
-                    }
-
-                    return Poll::Ready(Ok(result?));
+                    return Poll::Ready(match result {
+                        Ok(unpack) => ReaderResult::Unpack(unpack),
+                        Err(err) => ReaderResult::Error(ReaderError::Transport(err)),
+                    });
                 }
                 UnpackResult::Continue { length } => length,
             };
@@ -77,7 +89,9 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             self.rotate_buffer(length);
 
             loop {
-                ready!(self.poll_read(cx))?;
+                if let Err(err) = ready!(self.poll_read(cx)) {
+                    return Poll::Ready(ReaderResult::Error(ReaderError::Io(err)));
+                }
 
                 if self.buffer.len() >= self.offset + length {
                     continue 'unpack;
