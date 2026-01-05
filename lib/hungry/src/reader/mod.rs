@@ -83,7 +83,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             };
 
             if length > self.buffer.capacity() {
-                todo!()
+                return Poll::Ready(ReaderResult::Reserve { bytes: length })
             }
 
             self.rotate_buffer(length);
