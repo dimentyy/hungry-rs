@@ -1,5 +1,6 @@
 use std::{fmt, io};
 
+#[must_use]
 #[derive(Debug)]
 pub enum WriterError {
     Io(io::Error),

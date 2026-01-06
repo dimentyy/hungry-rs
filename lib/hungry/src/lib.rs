@@ -8,6 +8,8 @@ pub mod mtproto;
 pub mod reader;
 pub mod transport;
 pub mod writer;
+mod sender;
+mod pack;
 
 pub use crypto_bigint;
 
@@ -31,8 +33,8 @@ pub fn init<
 ) -> (reader::Reader<R, T>, T::Init, writer::Writer<W, T>) {
     let (reader_transport, init, writer_transport) = transport.split();
 
-    let writer = writer::Writer::new(writer, writer_transport);
     let reader = reader::Reader::new(reader, reader_transport, reader_buffer);
+    let writer = writer::Writer::new(writer, writer_transport);
 
     (reader, init, writer)
 }

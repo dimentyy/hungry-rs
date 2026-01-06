@@ -1,6 +1,7 @@
 use crate::Buf;
 use crate::inner::Inner;
 
+#[must_use]
 pub struct Raw<const N: usize> {
     pub(crate) inner: Inner,
 }

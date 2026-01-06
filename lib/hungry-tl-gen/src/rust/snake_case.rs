@@ -28,7 +28,7 @@ pub(crate) fn snake_case(s: &str) -> String {
             }
             c @ 'A'..='Z' => {
                 if matches!(previous, '0'..='9' | 'a'..='z')
-                    || (chars.peek().map_or(false, char::is_ascii_lowercase)
+                    || (chars.peek().is_some_and(char::is_ascii_lowercase)
                         && previous.is_ascii_uppercase())
                 {
                     s.push('_');

@@ -26,7 +26,7 @@ macro_rules! common_impl {
             pub fn len(&$self) -> usize {
                 $len
             }
-            
+
             #[inline]
             pub fn is_empty(&$self) -> bool {
                 $self.len() == 0

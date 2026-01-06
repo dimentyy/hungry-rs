@@ -24,7 +24,20 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         }
     }
 
+    #[must_use]
+    pub(crate) fn new_with_buffer(driver: Writer<W, T>, buffer: unbite::DynBuf) -> Self {
+        let mut buffers = VecDeque::with_capacity(1);
+        buffers.push_back(buffer);
+
+        Self {
+            error: None,
+            driver,
+            buffers,
+        }
+    }
+
     #[inline]
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.buffers.is_empty() && self.error.is_none()
     }
@@ -44,6 +57,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
         // Only unsplit with the last buffer. All packets are strictly ordered.
         if let Some(back) = self.buffers.back_mut()
+            && !back.has_spare_capacity()
             && back.can_unsplit_dyn_buf_back(&buffer)
         {
             back.unsplit_back(buffer);

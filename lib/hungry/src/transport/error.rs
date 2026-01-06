@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub enum TransportError {
     Status(i32),

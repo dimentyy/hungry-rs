@@ -86,7 +86,7 @@ impl<'a> Temp<'a> {
                             }
                             Entry::Vacant(entry) => {
                                 entry.insert({
-                                    let mut bare_types = vec![type_index];
+                                    let bare_types = vec![type_index];
 
                                     TempEnum { bare_types }
                                 });

@@ -2,6 +2,7 @@ use std::ptr::NonNull;
 
 use crate::Raw;
 
+#[must_use]
 pub struct Buf<const N: usize> {
     pub(crate) raw: Raw<N>,
     pub(crate) len: usize,

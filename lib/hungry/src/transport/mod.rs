@@ -58,6 +58,7 @@ pub trait Transport: crate::Sealed {
 
     type Envelope;
 
+    #[must_use]
     fn envelope(buffer: &mut unbite::DynBuf) -> Self::Envelope;
 }
 

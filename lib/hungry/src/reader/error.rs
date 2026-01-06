@@ -2,6 +2,7 @@ use std::{fmt, io};
 
 use crate::transport::TransportError;
 
+#[must_use]
 #[derive(Debug)]
 pub enum ReaderError {
     Io(io::Error),

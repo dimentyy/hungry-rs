@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 mod error;
-mod init;
 mod queued;
 
 use std::io;
@@ -15,6 +14,7 @@ use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 
 pub use error::WriterError;
+pub use queued::QueuedWriter;
 
 pub trait WriterDriver: AsyncWrite + Unpin {}
 impl<T: AsyncWrite + Unpin> WriterDriver for T {}

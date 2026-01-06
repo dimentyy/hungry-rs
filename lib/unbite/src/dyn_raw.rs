@@ -3,6 +3,7 @@ use std::hint::assert_unchecked;
 use crate::Raw;
 use crate::inner::Inner;
 
+#[must_use]
 pub struct DynRaw {
     pub(crate) inner: Inner,
     pub(crate) capacity: usize,

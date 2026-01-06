@@ -1,8 +1,8 @@
 mod big_int;
+mod buf;
 mod primitives;
 mod string;
 mod vec;
-mod buf;
 
 use std::ptr::NonNull;
 

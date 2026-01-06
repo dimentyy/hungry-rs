@@ -53,7 +53,7 @@ async fn async_main() -> anyhow::Result<()> {
     poll_fn(|cx| fut.poll(cx)).await?;
 
     let unpack = match dbg!(poll_fn(|cx| r.poll(cx)).await) {
-        ReaderResult::Reserve { .. } => todo!(),
+        ReaderResult::Reserve(_) => todo!(),
         ReaderResult::Unpack(unpack) => unpack,
         ReaderResult::Error(err) => return Err(err.into()),
     };

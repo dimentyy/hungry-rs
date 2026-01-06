@@ -124,7 +124,7 @@ fn push_module(
     _cfg: &Cfg,
     s: &mut String,
     _module: &str,
-    root: &Vec<&Ident>,
+    root: &[&Ident],
     mods: &IndexMap<&str, Vec<&Ident>>,
 ) -> Result<()> {
     if !root.is_empty() {

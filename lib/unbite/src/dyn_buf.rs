@@ -3,6 +3,7 @@ use std::ptr::NonNull;
 
 use crate::{Buf, DynRaw, Raw};
 
+#[must_use]
 pub struct DynBuf {
     pub(crate) raw: DynRaw,
     pub(crate) len: usize,

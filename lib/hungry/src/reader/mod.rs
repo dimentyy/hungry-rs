@@ -17,7 +17,7 @@ impl<T: AsyncRead + Unpin> ReaderDriver for T {}
 
 #[derive(Debug)]
 pub enum ReaderResult {
-    Reserve { bytes: usize },
+    Reserve(usize),
     Unpack(Unpack),
     Error(ReaderError),
 }
@@ -40,6 +40,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
     }
 
     #[inline]
+    #[must_use]
     pub fn buffer(&mut self) -> &mut unbite::DynBuf {
         &mut self.buffer
     }
@@ -83,13 +84,13 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
             };
 
             if length > self.buffer.capacity() {
-                return Poll::Ready(ReaderResult::Reserve { bytes: length });
+                return Poll::Ready(ReaderResult::Reserve(length));
             }
 
             self.rotate_buffer(length);
 
             loop {
-                if let Err(err) = ready!(self.poll_read(cx)) {
+                if let Err(err) = ready!(self.poll_checked(cx)) {
                     return Poll::Ready(ReaderResult::Error(ReaderError::Io(err)));
                 }
 
@@ -100,7 +101,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         }
     }
 
-    fn poll_read(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_checked(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         let spare_capacity_len = self.buffer.spare_capacity_len();
         let mut buf = ReadBuf::uninit(self.buffer.spare_capacity_mut());
 
