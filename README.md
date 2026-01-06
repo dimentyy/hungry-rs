@@ -24,6 +24,7 @@
 - [ ] Logging. `tracing` / `log`?
 - [ ] Lower amount of unsafe code in `hungry-tl` (current: ~5170).
 - [ ] Actual documentation.
++ [ ] Plain sender.
 - [ ] **Safe** serialization buffer. (`&mut [MaybeUninit<u8>]` => `&mut [u8]`)
   - [x] Base structure. See `hungry_tl::ser::buf`.
 + [ ] Stabilize `unbite` crate.
@@ -32,6 +33,7 @@
 - [ ] Follow all [security guidelines](https://core.telegram.org/mtproto/security_guidelines).
   - [x] "Checking SHA256 hash value of msg_key".
 + [ ] Authorization / Sign in.
+  - [ ] Full error handling.
   - [ ] Auth key generation.
   - [ ] Bot sign in via token.
   - [ ] Connection to different DC?
@@ -41,11 +43,11 @@
     - [x] Quick ACK.
     - [ ] Test.
   - [ ] Padded intermediate.
-  - [x] Full. (quick ACK is unavailable)
+  - [x] Full. (quick ACK is unavailable?)
   - [x] Obfuscation.
     - [ ] Test.
   - [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack) higher than transport functions.
-+[ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
++ [ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
   - [x] `OwnedWrite`?
 
 > The repository will be recreated once this project is complete and refactored.

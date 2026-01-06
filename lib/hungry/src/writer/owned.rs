@@ -17,10 +17,10 @@ impl<W: WriterDriver, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
     pub(crate) fn new(driver: Writer<W, T>, buffer: B) -> Self {
         Self {
             inner: Some(OwnedWriteInner { driver, buffer }),
-            pos: 0
+            pos: 0,
         }
     }
-    
+
     pub fn poll(
         &mut self,
         cx: &mut Context<'_>,

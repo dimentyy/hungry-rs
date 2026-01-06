@@ -14,3 +14,17 @@ pub fn trim_zeroes_left(x: &[u8]) -> &[u8] {
 
     &x[pos..]
 }
+
+pub fn factorize_pq(pq: u64) -> Option<(u64, u64)> {
+    let mut map = num_prime::nt_funcs::factorize64(pq);
+
+    if map.len() != 2 {
+        return None;
+    }
+
+    let (Some((p, 1)), Some((q, 1))) = (map.pop_first(), map.pop_last()) else {
+        return None;
+    };
+
+    Some((p, q))
+}

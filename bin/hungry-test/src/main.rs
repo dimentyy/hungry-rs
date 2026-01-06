@@ -42,50 +42,15 @@ async fn async_main() -> anyhow::Result<()> {
         mut buffer,
     } = poll_fn(|cx| w.poll(cx)).await?;
 
-    let envelope = Transport::envelope(&mut buffer);
-
-    let header = buffer.split_raw_front();
-
     let mut nonce = tl::Int128::default();
 
     getrandom::fill(nonce.as_mut())?;
 
     let req_pq_multi = hungry::auth::start(nonce);
 
-    buffer.init_with(|spare_capacity| {
-        let mut buf = tl::ser::Buf::uninit(spare_capacity);
+    let mut plain = hungry::plain::Plain::new(r, w);
 
-        buf.ser(&tl::mtproto::funcs::ReqPqMulti::CONSTRUCTOR_ID);
-        buf.ser(req_pq_multi.func());
-
-        buf.as_slice()
-    });
-
-    let mut fut = w.single_plain(envelope, header, &mut buffer, 0);
-
-    poll_fn(|cx| fut.poll(cx)).await?;
-
-    let unpack = match poll_fn(|cx| r.poll(cx)).await {
-        ReaderResult::Reserve(_) => todo!(),
-        ReaderResult::Unpack(unpack) => unpack,
-        ReaderResult::Error(err) => return Err(err.into()),
-    };
-
-    let data = match unpack {
-        Unpack::Packet(packet) => packet.data,
-        Unpack::QuickAck(_) => todo!(),
-    };
-
-    let _ = match mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()]) {
-        mtproto::Message::Plain(message) => message,
-        mtproto::Message::Encrypted(_) => todo!(),
-    };
-
-    let data = data.start + mtproto::PlainMessage::HEADER_LEN..data.end;
-
-    let mut buf = tl::de::Buf::new(&r.buffer().as_slice()[data]);
-
-    let tl::mtproto::enums::ResPq::ResPq(res_pq) = buf.de()?;
+    let tl::mtproto::enums::ResPq::ResPq(res_pq) = plain.send(&mut buffer, req_pq_multi.func()).await;
 
     let res_pq = req_pq_multi.res_pq(&res_pq)?;
 
@@ -108,46 +73,7 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    buffer.clear();
-
-    let envelope = Transport::envelope(&mut buffer);
-
-    let header = buffer.split_raw_front();
-
-    buffer.init_with(|spare_capacity| {
-        let mut buf = tl::ser::Buf::uninit(spare_capacity);
-
-        buf.ser(&tl::mtproto::funcs::ReqDhParams::CONSTRUCTOR_ID);
-        buf.ser(dbg!(func));
-
-        buf.as_slice()
-    });
-
-    let mut fut = w.single_plain(envelope, header, &mut buffer, 0);
-
-    poll_fn(|cx| fut.poll(cx)).await?;
-
-    let unpack = match poll_fn(|cx| r.poll(cx)).await {
-        ReaderResult::Reserve(_) => todo!(),
-        ReaderResult::Unpack(unpack) => unpack,
-        ReaderResult::Error(err) => return Err(err.into()),
-    };
-
-    let data = match unpack {
-        Unpack::Packet(packet) => packet.data,
-        Unpack::QuickAck(_) => todo!(),
-    };
-
-    let _ = match mtproto::Message::unpack(&r.buffer().as_slice()[data.clone()]) {
-        mtproto::Message::Plain(message) => message,
-        mtproto::Message::Encrypted(_) => todo!(),
-    };
-
-    let data = data.start + mtproto::PlainMessage::HEADER_LEN..data.end;
-
-    let mut buf = tl::de::Buf::new(&r.buffer().as_slice()[data]);
-
-    let _: tl::mtproto::enums::ServerDhParams = dbg!(buf.de()?);
+    let server_dh_params = dbg!(plain.send(&mut buffer, func).await);
 
     Ok(())
 }

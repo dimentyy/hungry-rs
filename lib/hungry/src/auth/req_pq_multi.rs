@@ -9,7 +9,7 @@ use tl::mtproto::{funcs, types};
 pub enum ResPqError {
     NonceMismatch,
     InvalidPqLen,
-    Factorization
+    Factorization,
 }
 
 impl fmt::Display for ResPqError {
@@ -21,7 +21,7 @@ impl fmt::Display for ResPqError {
         f.write_str(match self {
             NonceMismatch => "`nonce` mismatch",
             InvalidPqLen => "invalid `pq` length",
-            Factorization => "failed to factorize `pq`"
+            Factorization => "failed to factorize `pq`",
         })
     }
 }
@@ -72,19 +72,7 @@ impl ReqPqMulti {
 
         let pq = u64::from_be_bytes(response.pq.as_slice().try_into().unwrap());
 
-        let mut map = num_prime::nt_funcs::factorize64(pq);
-
-        if map.len() != 2 {
-            return Err(ResPqError::Factorization)
-        }
-
-        let Some((p, 1)) = map.pop_first() else {
-            return Err(ResPqError::Factorization)
-        };
-
-        let Some((q, 1)) = map.pop_last() else {
-            return Err(ResPqError::Factorization)
-        };
+        let (p, q) = crypto::factorize_pq(pq).ok_or(ResPqError::Factorization)?;
 
         Ok(auth::ResPq {
             nonce: self.func.nonce.clone(),

@@ -1,13 +1,13 @@
 #![forbid(clippy::undocumented_unsafe_blocks)]
 
 mod pack;
-mod plain;
 mod private;
 mod sender;
 
 pub mod auth;
 pub mod crypto;
 pub mod mtproto;
+pub mod plain;
 pub mod reader;
 pub mod transport;
 pub mod writer;
@@ -32,7 +32,10 @@ pub fn init<
     reader_buffer: unbite::DynBuf,
     writer: W,
     mut writer_buffer: unbite::DynBuf,
-) -> (reader::Reader<R, T>, writer::OwnedWrite<W, T, unbite::DynBuf>) {
+) -> (
+    reader::Reader<R, T>,
+    writer::OwnedWrite<W, T, unbite::DynBuf>,
+) {
     let (reader_transport, writer_transport) = transport.init(&mut writer_buffer);
 
     let reader = reader::Reader::new(reader, reader_transport, reader_buffer);
