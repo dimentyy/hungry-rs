@@ -2,6 +2,58 @@ use crate::transport::{
     Packet, Transport, TransportInit, TransportRead, TransportWrite, Unpack, UnpackResult,
 };
 
+/// # Intermediate
+///
+/// In case 4-byte data alignment is needed,
+/// an intermediate version of the original protocol may be used.
+///
+/// * Overhead: small
+/// * Minimum envelope length: 4 bytes
+/// * Maximum envelope length: 4 bytes
+///
+/// Payload structure:
+///
+/// ```
+/// +----+----...----+
+/// +len.+  payload  +
+/// +----+----...----+
+/// ```
+///
+/// Before sending anything into the underlying socket (see [transports]),
+/// the client must first send `0xeeeeeeee` as the first int (four bytes,
+/// the server **will not** send `0xeeeeeeee` as the first int in the first reply).
+/// Then, payloads are wrapped in the following envelope:
+///
+/// * Length: payload length encoded as 4 length bytes (little endian)
+/// * Payload: the MTProto payload
+///
+/// [Quick ACK »] may be enabled for this transport.
+///
+/// To request a quick ACK from the server for an encrypted MTProto payload,
+/// add `0x80000000` to the `len` field before encoding it (equivalent to doing
+/// `len = len | (1 << 31)`, i.e. set the most-significant bit of the length).
+///
+/// The server will send quick ACK tokens as a
+/// standalone 4-byte packet without a length header.
+///
+/// ```
+/// +----+
+/// |abcd|
+/// +----+
+/// ```
+///
+/// These quick ACK packets can be easily distinguished from normal
+/// intermediate packets because quick ACK tokens always have the
+/// most-significant bit of the last byte set, and trying to decode an ACK
+/// token as a little-endian 32-bit integer will always yield a value bigger
+/// than or equal to `0x80000000`, which can never be a valid packet length.
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/mtproto-transports#intermediate
+///
+/// [transports]: https://core.telegram.org/mtproto/transports
+/// [Quick ACK »]: https://core.telegram.org/mtproto/mtproto-transports#quick-ack
 #[derive(Default)]
 pub struct Intermediate;
 

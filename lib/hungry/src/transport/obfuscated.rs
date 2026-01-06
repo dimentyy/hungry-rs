@@ -6,6 +6,11 @@ use crate::transport::{
 
 type Cipher = ctr::Ctr128BE<aes::Aes256>;
 
+/// # Transport obfuscation
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/mtproto-transports#transport-obfuscation
 pub struct Obfuscated<T: IdentifiableTransport>(pub T);
 
 pub struct ObfuscatedRead<T: Transport> {

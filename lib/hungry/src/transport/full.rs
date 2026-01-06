@@ -3,6 +3,41 @@ use crate::transport::{
     UnpackResult, bail,
 };
 
+/// # Full
+///
+/// The basic MTProto transport protocol
+///
+/// * Overhead: medium
+/// * Minimum envelope length: 12 bytes (length+seqno+crc)
+/// * Maximum envelope length: 12 bytes (length+seqno+crc)
+///
+/// Payload structure:
+///
+/// ```
+/// +----+----+----...----+----+
+/// |len.|seq.|  payload  |crc.|
+/// +----+----+----...----+----+
+/// ```
+///
+/// Envelope description:
+///
+/// * Length: length+seqno+payload+crc length encoded as 4 length bytes
+///   (little endian, the length of the length field must be included, too)
+///
+/// * Seqno: the TCP sequence number for this TCP connection
+///   (different from the [MTProto sequence number]): the first
+///   packet sent is numbered 0, the next one 1, etc.
+///
+/// * Payload: MTProto payload
+///
+/// * Crc: 4 CRC32 bytes computed using length,
+///   sequence number, and payload together.
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/mtproto-transports#full
+///
+/// [MTProto sequence number]: https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
 #[derive(Default)]
 pub struct Full;
 
