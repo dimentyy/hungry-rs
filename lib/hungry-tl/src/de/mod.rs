@@ -22,10 +22,25 @@ pub trait Deserialize: SerializedLen + Sized {
 }
 
 pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
+    /// # Safety
+    ///
+    /// * The `buf` must be valid for at least [`SERIALIZED_LEN`] bytes.
+    ///
+    /// # Errors
+    ///
+    /// * When deserialized [`CONSTRUCTOR_ID`] does not match any variants.
+    ///
+    /// [`SERIALIZED_LEN`]: ConstSerializedLen::SERIALIZED_LEN
+    /// [`CONSTRUCTOR_ID`]: crate::Identifiable::CONSTRUCTOR_ID
     unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError>;
 }
 
 pub trait DeserializeInfallible: ConstSerializedLen + Sized {
+    /// # Safety
+    ///
+    /// * The `buf` must be valid for at least [`SERIALIZED_LEN`] bytes.
+    ///
+    /// [`SERIALIZED_LEN`]: ConstSerializedLen::SERIALIZED_LEN
     unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self;
 }
 

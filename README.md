@@ -30,8 +30,8 @@
 - [ ] Lower amount of unsafe code in `hungry-tl` (current: ~5170).
 - [ ] Actual documentation.
 + [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack).
-  - [ ] Unpacking from transport.
-    - [x] Intermediate
+  - [ ] Unpacking from transports.
+    - [x] Intermediate.
 
 > The repository will be recreated once this project is complete and refactored.
 

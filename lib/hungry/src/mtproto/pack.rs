@@ -24,12 +24,16 @@ pub fn pack_encrypted(
 
     let plaintext_len = buffer.len();
 
-    // TODO: allow custom padding length; currently minimum possible
+    // TODO: allow custom padding length; currently minimum possible.
     let random_padding_len = ((20 - (plaintext_len & 15)) & 15) + 12; // 12..28
 
     buffer.unsplit_raw_back(padding);
 
     getrandom::fill_uninit(&mut buffer.spare_capacity_mut()[..random_padding_len]).unwrap();
+
+    // TODO: safe way to 'fill' the uninitialized data?
+    // SAFETY: we have filled additional `random_padding_len` bytes.
+    unsafe { buffer.advance_unchecked(random_padding_len) };
 
     header.extend_from_slice(auth_key.id());
 
