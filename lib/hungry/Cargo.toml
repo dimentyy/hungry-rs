@@ -17,6 +17,7 @@ crypto-bigint = "0.7.0-rc.14"
 digest = "0.11.0-rc.5"
 sha1 = "0.11.0-rc.3"
 sha2 = "0.11.0-rc.3"
+num-prime = "0.4.4"
 
 ctr = { version = "0.10.0-rc.2", optional = true }
 
