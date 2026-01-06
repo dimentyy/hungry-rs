@@ -76,6 +76,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
                     self.offset += offset;
 
                     return Poll::Ready(match result {
+                        // Quick ACK is passed through.
                         Ok(unpack) => ReaderResult::Unpack(unpack),
                         Err(err) => ReaderResult::Error(ReaderError::Transport(err)),
                     });

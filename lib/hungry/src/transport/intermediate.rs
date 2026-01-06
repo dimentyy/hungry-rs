@@ -1,5 +1,5 @@
 use crate::transport::{
-    Packet, Transport, TransportInit, TransportRead, TransportWrite, Unpack, UnpackResult,
+    Packet, QuickAck, Transport, TransportInit, TransportRead, TransportWrite, Unpack, UnpackResult,
 };
 
 /// # Intermediate
@@ -105,11 +105,16 @@ impl TransportRead for IntermediateRead {
             return UnpackResult::Continue { length: 4 };
         }
 
-        let len = i32::from_le_bytes(buffer[0..4].try_into().unwrap()) as usize;
+        let len = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
 
-        if len >> 31 == 1 {
-            todo!("quick ack")
+        if len & const { 1 << 31 } != 0 {
+            return UnpackResult::Unpacked {
+                result: Ok(Unpack::QuickAck(QuickAck { token: len })),
+                offset: 4,
+            };
         }
+
+        let len = len as usize;
 
         if buffer.len() < len + 4 {
             return UnpackResult::Continue { length: len + 4 };

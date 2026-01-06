@@ -92,6 +92,7 @@ impl TransportRead for FullRead {
         }
 
         let len = match i32::from_le_bytes(buffer[0..4].try_into().unwrap()) {
+            // Maybe quick ACK is actually supported?
             len @ ..0 => bail!(offset: 4 => Status(-len)),
             len @ 0..12 => bail!(offset: 4 => BadLen(len)),
             len => len as usize,
