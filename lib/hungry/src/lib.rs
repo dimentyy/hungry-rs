@@ -1,6 +1,9 @@
 #![forbid(clippy::undocumented_unsafe_blocks)]
 
+mod pack;
+mod plain;
 mod private;
+mod sender;
 
 pub mod auth;
 pub mod crypto;
@@ -8,8 +11,8 @@ pub mod mtproto;
 pub mod reader;
 pub mod transport;
 pub mod writer;
-mod sender;
-mod pack;
+
+pub(crate) use private::Sealed;
 
 pub use crypto_bigint;
 
@@ -18,8 +21,6 @@ pub use unbite;
 pub use hungry_tl as tl;
 
 pub use tl::common;
-
-pub(crate) use private::Sealed;
 
 pub fn init<
     T: transport::Transport,

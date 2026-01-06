@@ -28,7 +28,7 @@ impl fmt::Display for Message {
 #[must_use]
 #[derive(Debug)]
 pub struct PlainMessage {
-    pub message_id: i64,
+    pub message_id: mtproto::MsgId,
     pub message_length: i32,
 }
 

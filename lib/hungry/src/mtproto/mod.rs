@@ -9,7 +9,7 @@ mod unpack;
 pub use auth_key::{AuthKey, MsgKey};
 pub use message::{DecryptedMessage, EncryptedMessage, Message, PlainMessage};
 pub use msg::Msg;
-pub use msg_id::{MsgId, MsgIds};
+pub use msg_id::{MsgId, MsgIds, msg_id};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
 

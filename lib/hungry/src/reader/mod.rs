@@ -15,6 +15,7 @@ const BUFFER_NO_ROTATE_THRESHOLD: usize = 16 * 1024;
 pub trait ReaderDriver: AsyncRead + Unpin {}
 impl<T: AsyncRead + Unpin> ReaderDriver for T {}
 
+#[must_use]
 #[derive(Debug)]
 pub enum ReaderResult {
     Reserve(usize),

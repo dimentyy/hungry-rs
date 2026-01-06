@@ -86,7 +86,7 @@ macro_rules! common_impl {
             #[inline]
             pub fn truncate(&mut $self, new_len: usize) {
                 if $self.len() > new_len {
-                    // SAFETY: truncating will not expose unitialzed data.
+                    // SAFETY: truncating will not expose uninitialized data.
                     unsafe { $self.set_len(new_len) }
                 }
             }
