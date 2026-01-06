@@ -31,14 +31,14 @@ pub fn init<
     reader: R,
     reader_buffer: unbite::DynBuf,
     writer: W,
-    
-    // FIXME
-    writer_buffer: &mut unbite::DynBuf,
-) -> (reader::Reader<R, T>, writer::Writer<W, T>) {
-    let (reader_transport, writer_transport) = transport.init(writer_buffer);
+    mut writer_buffer: unbite::DynBuf,
+) -> (reader::Reader<R, T>, writer::OwnedWrite<W, T>) {
+    let (reader_transport, writer_transport) = transport.init(&mut writer_buffer);
 
     let reader = reader::Reader::new(reader, reader_transport, reader_buffer);
-    let writer = writer::Writer::new(writer, writer_transport);
 
-    (reader, writer)
+    let writer = writer::Writer::new(writer, writer_transport);
+    let owned_write = writer::OwnedWrite::new(writer, writer_buffer);
+
+    (reader, owned_write)
 }

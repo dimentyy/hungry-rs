@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod owned;
 mod queued;
 
 use std::io;
@@ -14,6 +15,7 @@ use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 
 pub use error::WriterError;
+pub use owned::{OwnedWrite, OwnedWriteInner};
 pub use queued::QueuedWriter;
 
 pub trait WriterDriver: AsyncWrite + Unpin {}
@@ -28,11 +30,6 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
     #[inline]
     pub(crate) fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
-    }
-
-    #[inline]
-    pub fn driver(&mut self) -> &mut W {
-        &mut self.driver
     }
 
     fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {

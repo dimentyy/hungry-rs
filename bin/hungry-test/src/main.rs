@@ -18,13 +18,14 @@ async fn async_main() -> anyhow::Result<()> {
     let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
 
     let r_buffer = unbite::DynBuf::new(1024 * 1024);
-    let mut buffer = unbite::DynBuf::new(1024 * 1024);
+    let w_buffer = unbite::DynBuf::new(1024 * 1024);
 
-    let (mut r, mut w) = hungry::init(transport, r, r_buffer, w, &mut buffer);
+    let (mut r, mut w) = hungry::init(transport, r, r_buffer, w, w_buffer);
 
-    w.driver().write(buffer.as_slice()).await?;
-
-    buffer.clear();
+    let hungry::writer::OwnedWriteInner {
+        driver: mut w,
+        mut buffer,
+    } = poll_fn(|cx| w.poll(cx)).await?;
 
     let envelope = Transport::envelope(&mut buffer);
 
