@@ -1,17 +1,13 @@
+mod error;
+
 use std::future::poll_fn;
 
-use crate::reader::{Reader, ReaderDriver, ReaderError, ReaderResult};
+use crate::reader::{Reader, ReaderDriver, ReaderResult};
 use crate::transport::{Transport, Unpack};
-use crate::writer::{Writer, WriterDriver, WriterError};
+use crate::writer::{Writer, WriterDriver};
 use crate::{mtproto, tl};
 
-#[must_use]
-#[derive(Debug)]
-pub enum PlainError {
-    Reader(ReaderError),
-    Writer(WriterError),
-    EncryptedMessage(mtproto::EncryptedMessage),
-}
+pub use error::PlainError;
 
 #[must_use]
 pub struct Plain<T: Transport, R: ReaderDriver, W: WriterDriver> {
@@ -25,12 +21,11 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Plain<T, R, W> {
         Self { reader, writer }
     }
 
-    #[must_use]
     pub async fn send<F: tl::Function>(
         &mut self,
         buffer: &mut unbite::DynBuf,
         f: &F,
-    ) -> F::Response {
+    ) -> Result<F::Response, PlainError> {
         buffer.clear();
 
         let envelope = T::envelope(buffer);
@@ -48,28 +43,31 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Plain<T, R, W> {
 
         let mut fut = self.writer.single_plain(envelope, header, buffer, 0);
 
-        poll_fn(|cx| fut.poll(cx)).await.expect("todo");
+        poll_fn(|cx| fut.poll(cx)).await?;
 
         let unpack = match poll_fn(|cx| self.reader.poll(cx)).await {
             ReaderResult::Reserve(_) => todo!(),
             ReaderResult::Unpack(unpack) => unpack,
-            ReaderResult::Error(err) => todo!(),
+            ReaderResult::Error(err) => return Err(err.into()),
         };
 
         let data = match unpack {
             Unpack::Packet(packet) => packet.data,
-            Unpack::QuickAck(_) => todo!(),
+            Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let _ = match mtproto::Message::unpack(&self.reader.buffer().as_slice()[data.clone()]) {
+        let buf = &self.reader.buffer().as_slice()[data.clone()];
+
+        let message = match mtproto::Message::unpack(buf) {
             mtproto::Message::Plain(message) => message,
-            mtproto::Message::Encrypted(_) => todo!(),
+            mtproto::Message::Encrypted(message) => {
+                return Err(PlainError::EncryptedMessage(message));
+            }
         };
+        // TODO: msg_id, length check
 
-        let data = data.start + mtproto::PlainMessage::HEADER_LEN..data.end;
+        let mut buf = tl::de::Buf::new(&buf[mtproto::PlainMessage::HEADER_LEN..]);
 
-        let mut buf = tl::de::Buf::new(&self.reader.buffer().as_slice()[data]);
-
-        buf.de().expect("todo")
+        Ok(buf.de()?)
     }
 }

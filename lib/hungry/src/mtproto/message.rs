@@ -28,16 +28,16 @@ impl fmt::Display for Message {
 #[must_use]
 #[derive(Debug)]
 pub struct PlainMessage {
-    pub message_id: mtproto::MsgId,
-    pub message_length: i32,
+    pub id: mtproto::MsgId,
+    pub data_length: i32,
 }
 
 impl fmt::Display for PlainMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "plain message [message_id={:#018x}, message_length={}]",
-            self.message_id, self.message_length
+            "plain message [id={:#018x}, data_length={}]",
+            self.id, self.data_length
         )
     }
 }

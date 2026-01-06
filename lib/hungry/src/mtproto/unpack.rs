@@ -21,6 +21,7 @@ use crate::{crypto, tl};
 /// must be the same as the response to a failed `msg_key` check.
 ///
 /// ---
+///
 /// https://core.telegram.org/mtproto/security_guidelines#checking-sha256-hash-value-of-msg-key
 ///
 /// [MTProto 2.0 Description]: https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
@@ -29,6 +30,26 @@ use crate::{crypto, tl};
 pub struct MsgKeyCheckError {
     pub computed: MsgKey,
 }
+
+/// # Checking message length
+///
+/// The client **must** check that the length of the
+/// message or container obtained from the decrypted
+/// message (computed from its `length` field) does not
+/// exceed the total size of the plaintext, and that
+/// the difference (i.e. the length of the random padding)
+/// lies in the range from 12 to 1024 bytes.
+///
+/// The length should be always divisible by 4 and non-negative.
+/// On no account the client is to access data past the end
+/// of the decryption buffer containing the plaintext message.
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/security_guidelines#checking-message-length
+#[must_use]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvalidLengthError {}
 
 impl fmt::Display for MsgKeyCheckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -44,12 +65,12 @@ impl Message {
         let auth_key_id = i64::from_le_bytes(buffer[0..8].try_into().unwrap());
 
         let Some(auth_key_id) = std::num::NonZeroI64::new(auth_key_id) else {
-            let message_id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
-            let message_length = i32::from_le_bytes(buffer[16..20].try_into().unwrap());
+            let id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
+            let data_length = i32::from_le_bytes(buffer[16..20].try_into().unwrap());
 
             return Message::Plain(PlainMessage {
-                message_id,
-                message_length,
+                id,
+                data_length,
             });
         };
 

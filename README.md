@@ -32,6 +32,7 @@
   - [ ] Reduce split/unsplit mess.
 - [ ] Follow all [security guidelines](https://core.telegram.org/mtproto/security_guidelines).
   - [x] "Checking SHA256 hash value of msg_key".
+  - [ ] "Checking message length".
 + [ ] Authorization / Sign in.
   - [ ] Full error handling.
   - [ ] Auth key generation.

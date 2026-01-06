@@ -1,12 +1,6 @@
 use std::future::poll_fn;
 
-use tokio::io::AsyncWriteExt;
-
-use hungry::reader::ReaderResult;
-use hungry::transport::{Transport as _, Unpack};
-use hungry::{crypto_bigint, mtproto, tl, unbite};
-
-use tl::Identifiable;
+use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
@@ -50,7 +44,8 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut plain = hungry::plain::Plain::new(r, w);
 
-    let tl::mtproto::enums::ResPq::ResPq(res_pq) = plain.send(&mut buffer, req_pq_multi.func()).await;
+    let tl::mtproto::enums::ResPq::ResPq(res_pq) =
+        plain.send(&mut buffer, req_pq_multi.func()).await?;
 
     let res_pq = req_pq_multi.res_pq(&res_pq)?;
 
@@ -73,7 +68,7 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    let server_dh_params = dbg!(plain.send(&mut buffer, func).await);
+    let server_dh_params = dbg!(plain.send(&mut buffer, func).await?);
 
     Ok(())
 }
