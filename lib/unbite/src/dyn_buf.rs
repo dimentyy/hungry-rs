@@ -124,3 +124,9 @@ impl DynBuf {
         DynBuf { raw, len }
     }
 }
+
+impl AsRef<[u8]> for DynBuf {
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
+}

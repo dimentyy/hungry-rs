@@ -32,7 +32,7 @@ pub fn init<
     reader_buffer: unbite::DynBuf,
     writer: W,
     mut writer_buffer: unbite::DynBuf,
-) -> (reader::Reader<R, T>, writer::OwnedWrite<W, T>) {
+) -> (reader::Reader<R, T>, writer::OwnedWrite<W, T, unbite::DynBuf>) {
     let (reader_transport, writer_transport) = transport.init(&mut writer_buffer);
 
     let reader = reader::Reader::new(reader, reader_transport, reader_buffer);

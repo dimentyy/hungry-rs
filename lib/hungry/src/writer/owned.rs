@@ -1,19 +1,20 @@
-use crate::transport::Transport;
-use crate::writer::{Writer, WriterDriver, WriterError};
 use std::task::{Context, Poll, ready};
 
-pub struct OwnedWriteInner<W: WriterDriver, T: Transport> {
+use crate::transport::Transport;
+use crate::writer::{Writer, WriterDriver, WriterError};
+
+pub struct OwnedWriteInner<W: WriterDriver, T: Transport, B: AsRef<[u8]>> {
     pub driver: Writer<W, T>,
-    pub buffer: unbite::DynBuf,
+    pub buffer: B,
 }
 
-pub struct OwnedWrite<W: WriterDriver, T: Transport> {
-    inner: Option<OwnedWriteInner<W, T>>,
+pub struct OwnedWrite<W: WriterDriver, T: Transport, B: AsRef<[u8]>> {
+    inner: Option<OwnedWriteInner<W, T, B>>,
     pos: usize,
 }
 
-impl<W: WriterDriver, T: Transport> OwnedWrite<W, T> {
-    pub(crate) fn new(driver: Writer<W, T>, buffer: unbite::DynBuf) -> Self {
+impl<W: WriterDriver, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
+    pub(crate) fn new(driver: Writer<W, T>, buffer: B) -> Self {
         Self {
             inner: Some(OwnedWriteInner { driver, buffer }),
             pos: 0
@@ -23,12 +24,12 @@ impl<W: WriterDriver, T: Transport> OwnedWrite<W, T> {
     pub fn poll(
         &mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<OwnedWriteInner<W, T>, WriterError>> {
+    ) -> Poll<Result<OwnedWriteInner<W, T, B>, WriterError>> {
         let OwnedWriteInner { driver, buffer } =
             self.inner.as_mut().expect("called `poll` after completion");
 
         loop {
-            let buf = &buffer.as_slice()[self.pos..];
+            let buf = &buffer.as_ref()[self.pos..];
 
             if buf.is_empty() {
                 return Poll::Ready(Ok(self.inner.take().unwrap()));

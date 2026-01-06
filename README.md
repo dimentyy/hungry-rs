@@ -13,12 +13,9 @@
 
 ## TODO:
 
-- [ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
 - [ ] Generate an enum with all bare types (determined by `CONSTRUCTOR_ID`) wrapped in a `Box` to catch deserialization failures early.
-- [ ] Actually test `Obfuscated` transport.
 - [ ] Wrapper for storing precalculated serialized length.
 - [ ] `unbite::DynRaw` container to easily unsplit buffers after they are received?
-- [ ] Authorization / Sign in.
 - [ ] Write safety comments.
 - [ ] Remove `todo!()` panics.
 - [ ] Add other points here.
@@ -27,16 +24,29 @@
 - [ ] Logging. `tracing` / `log`?
 - [ ] Lower amount of unsafe code in `hungry-tl` (current: ~5170).
 - [ ] Actual documentation.
-+ [ ] **Safe** serialization buffer. (`&mut [MaybeUninit<u8>]` => `&mut [u8]`)
+- [ ] **Safe** serialization buffer. (`&mut [MaybeUninit<u8>]` => `&mut [u8]`)
   - [x] Base structure. See `hungry_tl::ser::buf`.
-- [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack).
-  - [ ] Unpacking from transports.
-    - [x] Intermediate.
 + [ ] Stabilize `unbite` crate.
   - [ ] Guarantee memory-safety.
   - [ ] Reduce split/unsplit mess.
 - [ ] Follow all [security guidelines](https://core.telegram.org/mtproto/security_guidelines).
   - [x] "Checking SHA256 hash value of msg_key".
++ [ ] Authorization / Sign in.
+  - [ ] Auth key generation.
+  - [ ] Bot sign in via token.
+  - [ ] Connection to different DC?
+- [ ] Transport.
+  - [ ] Abridged.
+  - [x] Intermediate.
+    - [x] Quick ACK.
+    - [ ] Test.
+  - [ ] Padded intermediate.
+  - [x] Full. (quick ACK is unavailable)
+  - [x] Obfuscation.
+    - [ ] Test.
+  - [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack) higher than transport functions.
+- [ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
+  - [x] `OwnedWrite`?
 
 > The repository will be recreated once this project is complete and refactored.
 
