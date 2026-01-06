@@ -13,7 +13,7 @@ use crate::transport::{
 ///
 /// Payload structure:
 ///
-/// ```
+/// ```text
 /// +----+----+----...----+----+
 /// |len.|seq.|  payload  |crc.|
 /// +----+----+----...----+----+

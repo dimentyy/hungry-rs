@@ -13,7 +13,7 @@ use crate::transport::{
 ///
 /// Payload structure:
 ///
-/// ```
+/// ```text
 /// +----+----...----+
 /// +len.+  payload  +
 /// +----+----...----+
@@ -36,7 +36,7 @@ use crate::transport::{
 /// The server will send quick ACK tokens as a
 /// standalone 4-byte packet without a length header.
 ///
-/// ```
+/// ```text
 /// +----+
 /// |abcd|
 /// +----+

@@ -39,14 +39,14 @@ async fn async_main() -> anyhow::Result<()> {
 
     let func = dbg!(tl::mtproto::funcs::ReqPqMulti { nonce });
 
-    unsafe {
-        let mut buf = buffer.as_non_null();
+    buffer.init_with(|spare_capacity| {
+        let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
-        buf = tl::mtproto::funcs::ReqPqMulti::CONSTRUCTOR_ID.serialize_unchecked(buf);
-        func.serialize_unchecked(buf);
+        buf.ser(&tl::mtproto::funcs::ReqPqMulti::CONSTRUCTOR_ID);
+        buf.ser(&func);
 
-        buffer.set_len(4 + tl::mtproto::funcs::ReqPqMulti::SERIALIZED_LEN);
-    }
+        buf.as_slice()
+    });
 
     let mut fut = w.single_plain(envelope, header, &mut buffer, 0);
 

@@ -1,3 +1,4 @@
+use std::mem::MaybeUninit;
 use std::{fmt, hash};
 
 use crypto_bigint::modular::{MontyForm, MontyParams};
@@ -7,7 +8,7 @@ use digest::Digest;
 
 use crate::{crypto, tl};
 
-use tl::{ConstSerializedLen, SerializedLen};
+use tl::ConstSerializedLen;
 
 /// 64 lower-order bits of SHA1 (server_public_key);
 /// the public key is represented as a bare type
@@ -66,15 +67,13 @@ impl RsaKey {
         let n = crypto::trim_zeroes_left(&n_bytes);
         let e = crypto::trim_zeroes_left(&e_bytes);
 
-        let n_len = n.serialized_len();
-        let e_len = e.serialized_len();
+        let mut buf = [const { MaybeUninit::uninit() }; <[u8; 256]>::SERIALIZED_LEN * 2];
+        let mut buf = tl::ser::Buf::uninit(&mut buf);
 
-        let mut buf = [0u8; <[u8; 256]>::SERIALIZED_LEN * 2];
+        buf.ser(n);
+        buf.ser(e);
 
-        tl::ser::safe(n, &mut buf[..n_len]);
-        tl::ser::safe(e, &mut buf[n_len..n_len + e_len]);
-
-        let sha1 = sha1::Sha1::digest(&buf[..n_len + e_len]);
+        let sha1 = sha1::Sha1::digest(buf.as_slice());
 
         i64::from_le_bytes(sha1[12..20].try_into().unwrap())
     }
