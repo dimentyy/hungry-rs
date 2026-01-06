@@ -63,6 +63,26 @@ macro_rules! common_impl {
                 unsafe { $self.set_len($self.len() + n) };
             }
 
+            /// # Safety
+            ///
+            /// * Returned slice must be valid: it must not exceed the capacity.
+            ///
+            /// # Panics
+            ///
+            /// * When provided slice does not start at the spare capacity.
+            #[inline]
+            pub fn init_with<F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(&mut $self, f: F) {
+                let slice = f($self.spare_capacity_mut());
+
+                let slice_ptr = slice.as_ptr();
+                let slice_len = slice.len();
+
+                assert_eq!(slice_ptr, $self.spare_capacity_ptr());
+
+                // SAFETY: slice is valid and belongs to the buffer.
+                unsafe { $self.advance_unchecked(slice_len) };
+            }
+
             #[inline]
             pub fn truncate(&mut $self, new_len: usize) {
                 if $self.len() > new_len {

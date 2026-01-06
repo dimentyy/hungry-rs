@@ -29,11 +29,11 @@ pub fn pack_encrypted(
 
     buffer.unsplit_raw_back(padding);
 
-    getrandom::fill_uninit(&mut buffer.spare_capacity_mut()[..random_padding_len]).unwrap();
+    buffer.init_with(|spare_capacity| {
+        let dest = &mut spare_capacity[..random_padding_len];
 
-    // TODO: safe way to 'fill' the uninitialized data?
-    // SAFETY: we have filled additional `random_padding_len` bytes.
-    unsafe { buffer.advance_unchecked(random_padding_len) };
+        getrandom::fill_uninit(dest).unwrap()
+    });
 
     header.extend_from_slice(auth_key.id());
 

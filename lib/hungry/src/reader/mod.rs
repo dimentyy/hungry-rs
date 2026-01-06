@@ -40,7 +40,6 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
     }
 
     #[inline]
-    #[must_use]
     pub fn buffer(&mut self) -> &mut unbite::DynBuf {
         &mut self.buffer
     }
