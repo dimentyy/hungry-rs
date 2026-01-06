@@ -1,5 +1,5 @@
 use crate::transport::{
-    Packet, QuickAck, Transport, TransportInit, TransportRead, TransportWrite, Unpack, UnpackResult,
+    Packet, QuickAck, Transport, TransportRead, TransportWrite, Unpack, UnpackResult,
 };
 
 /// # Intermediate
@@ -77,13 +77,15 @@ impl crate::Sealed for Intermediate {}
 
 impl Transport for Intermediate {
     type Read = IntermediateRead;
-    type Init = IntermediateInit;
     type Write = IntermediateWrite;
 
-    fn split(self) -> (Self::Read, Self::Init, Self::Write) {
+    const INIT_SIZE: usize = 4;
+
+    fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
+        writer_buffer.extend_from_array(&[0xee, 0xee, 0xee, 0xee]);
+
         (
             IntermediateRead { _private: () },
-            IntermediateInit { _private: () },
             IntermediateWrite { _private: () },
         )
     }
@@ -124,17 +126,6 @@ impl TransportRead for IntermediateRead {
             result: Ok(Unpack::Packet(Packet { data: 4..4 + len })),
             offset: len + 4,
         }
-    }
-}
-
-impl TransportInit for IntermediateInit {
-    type Transport = Intermediate;
-
-    const SIZE: usize = 4;
-
-    #[inline]
-    fn init(self, _write: &mut IntermediateWrite, buffer: &mut unbite::DynBuf) {
-        buffer.extend_from_array(&[0xee, 0xee, 0xee, 0xee])
     }
 }
 

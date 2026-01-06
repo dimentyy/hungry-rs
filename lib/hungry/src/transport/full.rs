@@ -1,6 +1,5 @@
 use crate::transport::{
-    Packet, Transport, TransportError, TransportInit, TransportRead, TransportWrite, Unpack,
-    UnpackResult, bail,
+    Packet, Transport, TransportError, TransportRead, TransportWrite, Unpack, UnpackResult, bail,
 };
 
 /// # Full
@@ -45,10 +44,6 @@ pub struct FullRead {
     seq: i32,
 }
 
-pub struct FullInit {
-    _private: (),
-}
-
 pub struct FullWrite {
     seq: i32,
 }
@@ -62,15 +57,12 @@ impl crate::Sealed for Full {}
 
 impl Transport for Full {
     type Read = FullRead;
-    type Init = FullInit;
     type Write = FullWrite;
 
-    fn split(self) -> (Self::Read, Self::Init, Self::Write) {
-        (
-            FullRead { seq: 0 },
-            FullInit { _private: () },
-            FullWrite { seq: 0 },
-        )
+    const INIT_SIZE: usize = 0;
+
+    fn init(self, _writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
+        (FullRead { seq: 0 }, FullWrite { seq: 0 })
     }
 
     type Envelope = FullEnvelope;
@@ -126,15 +118,6 @@ impl TransportRead for FullRead {
             offset: len,
         }
     }
-}
-
-impl TransportInit for FullInit {
-    type Transport = Full;
-
-    const SIZE: usize = 0;
-
-    #[inline]
-    fn init(self, _write: &mut FullWrite, _buffer: &mut unbite::DynBuf) {}
 }
 
 impl TransportWrite for FullWrite {

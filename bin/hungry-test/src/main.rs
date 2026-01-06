@@ -3,11 +3,10 @@ use std::future::poll_fn;
 use tokio::io::AsyncWriteExt;
 
 use hungry::reader::ReaderResult;
-use hungry::transport::{Transport as _, TransportInit, Unpack};
+use hungry::transport::{Transport as _, Unpack};
 use hungry::{mtproto, tl, unbite};
 
-use tl::ser::SerializeUnchecked;
-use tl::{ConstSerializedLen, Identifiable};
+use tl::Identifiable;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -19,11 +18,9 @@ async fn async_main() -> anyhow::Result<()> {
     let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
 
     let r_buffer = unbite::DynBuf::new(1024 * 1024);
-
-    let (mut r, init, mut w) = hungry::init(transport, r, r_buffer, w);
-
     let mut buffer = unbite::DynBuf::new(1024 * 1024);
-    init.init(&mut w.transport, &mut buffer);
+
+    let (mut r, mut w) = hungry::init(transport, r, r_buffer, w, &mut buffer);
 
     w.driver().write(buffer.as_slice()).await?;
 

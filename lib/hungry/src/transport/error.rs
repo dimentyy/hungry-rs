@@ -43,8 +43,14 @@ pub enum TransportError {
     /// [HTTP]: https://core.telegram.org/mtproto/transports#http
     /// [HTTPS]: https://core.telegram.org/mtproto/transports#https
     Status(i32),
+
+    /// Length field contains an invalid value, usually less than the minimum.
     BadLen(i32),
+
+    /// CRC-32 failed.
     BadCrc { received: u32, computed: u32 },
+
+    /// Bad sequence number.
     BadSeq { received: i32, expected: i32 },
 }
 

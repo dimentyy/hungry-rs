@@ -1,7 +1,7 @@
 use cipher::{KeyIvInit, StreamCipher};
 
 use crate::transport::{
-    IdentifiableTransport, Transport, TransportInit, TransportRead, TransportWrite, UnpackResult,
+    IdentifiableTransport, Transport, TransportRead, TransportWrite, UnpackResult,
 };
 
 type Cipher = ctr::Ctr128BE<aes::Aes256>;
@@ -19,11 +19,6 @@ pub struct ObfuscatedRead<T: Transport> {
     cipher: Cipher,
 }
 
-pub struct ObfuscatedInit<T: Transport> {
-    random: [u8; 64],
-    inner: T::Init,
-}
-
 pub struct ObfuscatedWrite<T: Transport> {
     inner: T::Write,
     cipher: Cipher,
@@ -33,12 +28,11 @@ impl<T: IdentifiableTransport> crate::Sealed for Obfuscated<T> {}
 
 impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
     type Read = ObfuscatedRead<T>;
-    type Init = ObfuscatedInit<T>;
     type Write = ObfuscatedWrite<T>;
 
-    fn split(self) -> (Self::Read, Self::Init, Self::Write) {
-        let (r, init, w) = self.0.split();
+    const INIT_SIZE: usize = T::INIT_SIZE + 64;
 
+    fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
         let mut random = [0; 64];
 
         loop {
@@ -50,6 +44,8 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
             }
         }
 
+        writer_buffer.extend_from_array(&random);
+
         let mut random_rev = [0; 48];
 
         for i in 0..48 {
@@ -59,19 +55,23 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
         let iv = random_rev[0..16].try_into().unwrap();
         let key = random_rev[16..48].try_into().unwrap();
 
+        let mut w_cipher = Cipher::new(key, iv);
+
+        let len = writer_buffer.len();
+
+        let (r, w) = self.0.init(writer_buffer);
+
+        w_cipher.apply_keystream(&mut writer_buffer.as_mut_slice()[len..]);
+
         (
             ObfuscatedRead {
                 tail: 0,
                 inner: r,
                 cipher: Cipher::new(key, iv),
             },
-            ObfuscatedInit {
-                random,
-                inner: init,
-            },
             ObfuscatedWrite {
                 inner: w,
-                cipher: Cipher::new(key, iv),
+                cipher: w_cipher,
             },
         )
     }
@@ -100,24 +100,6 @@ impl<T: IdentifiableTransport> TransportRead for ObfuscatedRead<T> {
         }
 
         unpack
-    }
-}
-
-impl<T: IdentifiableTransport> TransportInit for ObfuscatedInit<T> {
-    type Transport = Obfuscated<T>;
-
-    const SIZE: usize = 64 + T::Init::SIZE;
-
-    fn init(self, write: &mut ObfuscatedWrite<T>, buffer: &mut unbite::DynBuf) {
-        buffer.extend_from_array(&self.random);
-
-        let len = buffer.len();
-
-        self.inner.init(&mut write.inner, buffer);
-
-        let buf = &mut buffer.as_mut_slice()[len..];
-
-        write.cipher.apply_keystream(buf);
     }
 }
 
