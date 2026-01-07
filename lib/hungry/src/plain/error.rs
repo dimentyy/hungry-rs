@@ -9,7 +9,7 @@ use crate::{mtproto, tl};
 pub enum PlainError {
     Reader(ReaderError),
     Writer(WriterError),
-    EncryptedMessage(mtproto::EncryptedMessage),
+    EncryptedMessage(mtproto::ExternalHeader),
     Deserialization(tl::de::Error),
 }
 

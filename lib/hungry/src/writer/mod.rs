@@ -73,7 +73,7 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
         buffer: &'a mut unbite::DynBuf,
         padding: mtproto::EncryptedPadding,
         auth_key: &mtproto::AuthKey,
-        message: mtproto::DecryptedMessage,
+        message: mtproto::InternalHeader,
         msg: mtproto::Msg,
     ) -> Single<'a, W, T> {
         mtproto::pack_encrypted(header, buffer, padding, auth_key, message, msg);

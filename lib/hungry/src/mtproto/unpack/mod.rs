@@ -1,9 +1,7 @@
 mod error;
 
-use std::fmt;
-
 use crate::mtproto::{
-    AuthKey, DecryptedMessage, EncryptedMessage, Message, MsgKey, PlainMessage, Side,
+    AuthKey, InternalHeader, ExternalHeader, Message, MsgKey, PlainMessage, Side,
 };
 
 use crate::{crypto, tl};
@@ -11,7 +9,7 @@ use crate::{crypto, tl};
 pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
 
 impl Message {
-    /// Unpacks a [`Message`] enum for working with [`PlainMessage`] and [`EncryptedMessage`].
+    /// Unpacks a [`Message`] enum for working with [`PlainMessage`] and [`ExternalHeader`].
     pub fn unpack(buffer: &[u8]) -> Message {
         let auth_key_id = i64::from_le_bytes(buffer[0..8].try_into().unwrap());
 
@@ -24,20 +22,20 @@ impl Message {
 
         let msg_key = tl::Int128(buffer[8..24].try_into().unwrap());
 
-        Message::Encrypted(EncryptedMessage {
+        Message::Encrypted(ExternalHeader {
             auth_key_id,
             msg_key,
         })
     }
 }
 
-impl EncryptedMessage {
-    /// Decrypts the [`EncryptedMessage`] using [`AuthKey`] identified by the `auth_key_id` field.
+impl ExternalHeader {
+    /// Decrypts the [`ExternalHeader`] using [`AuthKey`] identified by the `auth_key_id` field.
     pub fn decrypt(
         self,
         auth_key: &AuthKey,
         buffer: &mut [u8],
-    ) -> Result<DecryptedMessage, MsgKeyCheckError> {
+    ) -> Result<(InternalHeader), MsgKeyCheckError> {
         let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&self.msg_key, Side::Server);
 
         crypto::aes_ige_decrypt(buffer, &aes_key, &mut aes_iv);
@@ -51,6 +49,6 @@ impl EncryptedMessage {
         let salt = i64::from_le_bytes(buffer[0..8].try_into().unwrap());
         let session_id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
 
-        Ok(DecryptedMessage { salt, session_id })
+        Ok(InternalHeader { salt, session_id })
     }
 }

@@ -89,7 +89,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         mut buffer: unbite::DynBuf,
         padding: mtproto::EncryptedPadding,
         auth_key: &mtproto::AuthKey,
-        message: mtproto::DecryptedMessage,
+        message: mtproto::InternalHeader,
         msg: mtproto::Msg,
     ) -> Option<unbite::DynRaw> {
         mtproto::pack_encrypted(header, &mut buffer, padding, auth_key, message, msg);
