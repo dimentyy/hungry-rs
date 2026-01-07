@@ -9,14 +9,31 @@ use crate::{crypto, mtproto, tl};
 /// prepended by a 32-byte fragment of the authorization key.
 ///
 /// ---
+///
 /// https://core.telegram.org/mtproto/description#message-key-msg-key
 pub type MsgKey = tl::Int128;
+
+/// The 64 lower-order bits of the SHA1 hash of the authorization key.
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
+pub type AuthKeyId = std::num::NonZeroI64;
+
+/// The 64 higher-order bits of the SHA1 hash of the authorization key.
+/// It must not be confused with auth_key_hash during the key exchange.
+///
+/// ---
+///
+/// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
+pub type AuthKeyAuxHash = [u8; 8];
 
 /// A 2048-bit key shared by the client device and the server,
 /// created upon user registration directly on the client device by
 /// exchanging Diffie-Hellman keys, and never transmitted over a network.
 ///
 /// ---
+///
 /// https://core.telegram.org/mtproto/description#authorization-key-auth-key
 #[must_use]
 #[derive(Clone)]
@@ -24,77 +41,70 @@ pub type MsgKey = tl::Int128;
 pub struct AuthKey {
     data: [u8; 256],
 
-    aux_hash: [u8; 8],
-    id: [u8; 8],
+    aux_hash: AuthKeyAuxHash,
+    id: AuthKeyId,
 }
 
 impl fmt::Display for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = u64::from_ne_bytes(self.id);
-
-        write!(f, "auth key [id={id:#018x}, ..]")
+        write!(f, "auth key [id={:#018x}, ..]", self.id.get().to_le())
     }
 }
 
 impl fmt::Debug for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let id = u64::from_ne_bytes(self.id);
-
         f.debug_struct("AuthKey")
-            .field("id", &format_args!("{id:#018x}"))
+            .field("id", &format_args!("{:#018x}", self.id.get().to_le()))
             .finish_non_exhaustive()
     }
 }
 
 impl AuthKey {
-    /// Create a new instance of [`AuthKey`] from its data.
-    pub fn new(data: [u8; 256]) -> Self {
+    /// Creates a new instance of [`AuthKey`] from its data.
+    ///
+    /// Returns `None` if the resulting [`AuthKeyId`] is zero.
+    pub fn new(data: [u8; 256]) -> Option<Self> {
         let hash = sha1::Sha1::digest(data);
 
         let aux_hash = hash[0..8].try_into().unwrap();
-        let id = hash[12..20].try_into().unwrap();
 
-        Self { data, aux_hash, id }
+        let id = std::num::NonZeroI64::new(i64::from_le_bytes(hash[12..20].try_into().unwrap()))?;
+
+        Some(Self { data, aux_hash, id })
     }
 
-    /// Actual underlying data used for cryptographic operations.
+    /// Returns underlying data used for cryptographic operations.
     #[inline]
     #[must_use]
     pub fn data(&self) -> &[u8; 256] {
         &self.data
     }
 
-    /// Consume the [`AuthKey`] returning its owned underling data.
+    /// Consumes the [`AuthKey`] returning its owned underling data.
     #[inline]
     #[must_use]
     pub fn into_inner(self) -> [u8; 256] {
         self.data
     }
 
-    /// The 64 higher-order bits of the SHA1 hash of the authorization key.
-    /// It must not be confused with auth_key_hash during the key exchange.
-    ///
-    /// ---
-    /// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
+    /// Returns [`AuthKeyAuxHash`] of this instance.
     #[inline]
     #[must_use]
-    pub fn aux_hash(&self) -> &[u8; 8] {
-        &self.aux_hash
+    pub fn aux_hash(&self) -> AuthKeyAuxHash {
+        self.aux_hash
     }
 
-    /// The 64 lower-order bits of the SHA1 hash of the authorization key.
-    ///
-    /// ---
-    /// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
+    /// Returns [`AuthKeyId`] of this instance.
     #[inline]
     #[must_use]
-    pub fn id(&self) -> &[u8; 8] {
-        &self.id
+    pub fn id(&self) -> AuthKeyId {
+        self.id
     }
 
-    /// Compute [`MsgKey`].
+    /// Computes [`MsgKey`].
     ///
     /// ---
+    ///
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     pub fn compute_msg_key(&self, plaintext: &[u8], side: mtproto::Side) -> MsgKey {
         let x = side.x();
@@ -111,6 +121,7 @@ impl AuthKey {
     /// Compute [`AesIgeKey`] and [`AesIgeIv`].
     ///
     /// ---
+    ///
     /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
     ///
     /// [`AesIgeKey`]: crypto::AesIgeKey

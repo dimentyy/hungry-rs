@@ -1,63 +1,14 @@
+mod error;
+
 use std::fmt;
 
 use crate::mtproto::{
     AuthKey, DecryptedMessage, EncryptedMessage, Message, MsgKey, PlainMessage, Side,
 };
+
 use crate::{crypto, tl};
 
-/// # Checking SHA256 hash value of msg_key
-///
-/// `msg_key` is used not only to compute the AES key and IV
-/// to decrypt the received message. After decryption,
-/// the client **MUST** check that `msg_key` is indeed
-/// equal to SHA256 of the plaintext obtained as the result
-/// of decryption (including the final 12...1024 padding bytes),
-/// prepended with 32 bytes taken from the `auth_key`,
-/// as explained in [MTProto 2.0 Description].
-///
-/// If an error is encountered before this check could  be performed, the
-/// client must perform the `msg_key` check anyway before returning any result.
-/// Note that the response to any error encountered before the `msg_key` check
-/// must be the same as the response to a failed `msg_key` check.
-///
-/// ---
-///
-/// https://core.telegram.org/mtproto/security_guidelines#checking-sha256-hash-value-of-msg-key
-///
-/// [MTProto 2.0 Description]: https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
-#[must_use]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MsgKeyCheckError {
-    pub computed: MsgKey,
-}
-
-/// # Checking message length
-///
-/// The client **must** check that the length of the
-/// message or container obtained from the decrypted
-/// message (computed from its `length` field) does not
-/// exceed the total size of the plaintext, and that
-/// the difference (i.e. the length of the random padding)
-/// lies in the range from 12 to 1024 bytes.
-///
-/// The length should be always divisible by 4 and non-negative.
-/// On no account the client is to access data past the end
-/// of the decryption buffer containing the plaintext message.
-///
-/// ---
-///
-/// https://core.telegram.org/mtproto/security_guidelines#checking-message-length
-#[must_use]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct InvalidLengthError {}
-
-impl fmt::Display for MsgKeyCheckError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("`msg_key` check error")
-    }
-}
-
-impl std::error::Error for MsgKeyCheckError {}
+pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
 
 impl Message {
     /// Unpacks a [`Message`] enum for working with [`PlainMessage`] and [`EncryptedMessage`].
@@ -68,10 +19,7 @@ impl Message {
             let id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
             let data_length = i32::from_le_bytes(buffer[16..20].try_into().unwrap());
 
-            return Message::Plain(PlainMessage {
-                id,
-                data_length,
-            });
+            return Message::Plain(PlainMessage { id, data_length });
         };
 
         let msg_key = tl::Int128(buffer[8..24].try_into().unwrap());

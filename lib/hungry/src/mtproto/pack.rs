@@ -35,7 +35,7 @@ pub fn pack_encrypted(
         getrandom::fill_uninit(dest).unwrap()
     });
 
-    header.extend_from_slice(auth_key.id());
+    header.extend_from_slice(&auth_key.id().get().to_le_bytes());
 
     // SAFETY: bytes in range 8..24 will be initialized with `msg_key`.
     unsafe { header.advance_unchecked(16) };

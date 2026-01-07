@@ -44,6 +44,24 @@ pub fn msg_id(unix_time: SystemTime) -> MsgId {
     secs << 32 | subsec_nanos << 2
 }
 
+/// Checks if [`MsgId`] can be accepted for given [`SystemTime`].
+///
+/// # Panics
+///
+/// * If the [`SystemTime`] is before [`UNIX_EPOCH`].
+#[inline]
+#[must_use]
+pub fn is_msg_id_valid(msg_id: MsgId, unix_time: SystemTime) -> bool {
+    let sys_secs = unix_time
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock time to be after the Unix epoch")
+        .as_secs();
+
+    let msg_secs = msg_id as u64 >> 32;
+
+    sys_secs - 300 < msg_secs && msg_secs < sys_secs + 30
+}
+
 /// [`MsgId`] counter for a single connection.
 #[must_use]
 pub struct MsgIds {

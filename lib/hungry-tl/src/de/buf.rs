@@ -84,7 +84,6 @@ impl<'a> Buf<'a> {
 
         let x = X::deserialize(self)?;
 
-        // TODO: proper checks
         assert_eq!(x.serialized_len(), len - self.len);
 
         Ok(x)
