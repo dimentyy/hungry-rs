@@ -8,6 +8,7 @@ use crate::writer::{Writer, WriterDriver};
 use crate::{mtproto, tl};
 
 pub use error::PlainError;
+use crate::mtproto::AuthKeyId;
 
 #[must_use]
 pub struct Plain<T: Transport, R: ReaderDriver, W: WriterDriver> {
@@ -58,15 +59,21 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Plain<T, R, W> {
 
         let buf = &self.reader.buffer().as_slice()[data.clone()];
 
-        let message = match mtproto::Message::unpack(buf) {
-            mtproto::Message::Plain(message) => message,
-            mtproto::Message::Encrypted(message) => {
-                return Err(PlainError::EncryptedMessage(message));
-            }
-        };
-        // TODO: msg_id, length check
+        if buf.len() < mtproto::UnencryptedHeader::LEN {
+            todo!()
+        }
 
-        let mut buf = tl::de::Buf::new(&buf[mtproto::PlainMessage::HEADER_LEN..]);
+        let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
+
+        if let Some(auth_key_id) = mtproto::auth_key_id(auth_key_id) {
+            todo!()
+        }
+
+        let (header, buf) = buf.split_first_chunk().unwrap();
+
+        let header = mtproto::UnencryptedHeader::unpack(header);
+        
+        let mut buf = tl::de::Buf::new(buf);
 
         Ok(buf.de()?)
     }

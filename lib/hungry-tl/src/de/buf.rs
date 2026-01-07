@@ -48,13 +48,13 @@ impl<'a> Buf<'a> {
     #[inline(always)]
     pub fn check_len(&mut self, n: usize) -> Result<(), EndOfBufferError> {
         if self.len < n {
-            return Err(EndOfBufferError {});
+            return Err(EndOfBufferError);
         }
 
         Ok(())
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn advance(&mut self, n: usize) -> Result<NonNull<u8>, EndOfBufferError> {
         self.check_len(n)?;
 
@@ -77,6 +77,13 @@ impl<'a> Buf<'a> {
 
             ptr
         }
+    }
+
+    #[inline(always)]
+    pub fn take_exactly<const N: usize>(&mut self) -> Result<&'a [u8; N], EndOfBufferError> {
+        let ptr = self.advance(N)?.cast();
+
+        Ok(unsafe { ptr.as_ref() })
     }
 
     pub fn de<X: Deserialize>(&mut self) -> Result<X, Error> {

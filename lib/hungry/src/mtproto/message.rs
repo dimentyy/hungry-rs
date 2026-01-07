@@ -2,68 +2,53 @@ use std::fmt;
 
 use crate::mtproto;
 
-/// Represents either [`PlainMessage`] or [`ExternalHeader`] deserialized via [`unpack`] method.
-///
-/// [`unpack`]: Message::unpack
-#[must_use]
-#[derive(Debug)]
-pub enum Message {
-    Plain(PlainMessage),
-    Encrypted(ExternalHeader),
-}
-
-impl fmt::Display for Message {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Message::Plain(message) => message.fmt(f),
-            Message::Encrypted(message) => message.fmt(f),
-        }
-    }
-}
-
 /// # Unencrypted Messages
 ///
 /// Special plain-text messages may be used to create
 /// an authorization key as well as to perform a time
-/// synchronization. They begin with auth_key_id = 0 
-/// (64 bits) which means that there is no auth_key. 
-/// This is followed directly by the message body in 
+/// synchronization. They begin with auth_key_id = 0
+/// (64 bits) which means that there is no auth_key.
+/// This is followed directly by the message body in
 /// serialized format without internal or external headers.
 /// A message identifier (64 bits) and body length in
 /// bytes (32 bytes) are added before the message body.
 ///
-/// Only a very limited number of 
-/// messages of special types can 
+/// Only a very limited number of
+/// messages of special types can
 /// be transmitted as plain text.
 ///
 /// ---
-/// https://core.telegram.org/mtproto/description#unencrypted-message
+/// https://core.telegram.org/mtproto/description#unencrypted-messages
 #[must_use]
 #[derive(Debug)]
-pub struct PlainMessage {
+pub struct UnencryptedHeader {
     pub id: mtproto::MsgId,
     pub data_length: i32,
 }
 
-impl fmt::Display for PlainMessage {
+impl fmt::Display for UnencryptedHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "plain message [id={:#018x}, data_length={}]",
+            "unencrypted message [id={:#018x}, data_length={}]",
             self.id, self.data_length
         )
     }
 }
 
-impl PlainMessage {
-    /// Header length of the [`PlainMessage`] in bytes.
+impl UnencryptedHeader {
+    /// Length of the [`UnencryptedHeader`] in bytes.
     ///
-    /// # Header layout
+    /// # Layout
     ///
-    /// | auth_key_id | message_id | message_data_length |
-    /// |-------------|------------|---------------------|
-    /// | int64       | int64      | int32               |
-    pub const HEADER_LEN: usize = 8 + 8 + 4;
+    /// | auth_key_id = `0` | message_id | message_data_length |
+    /// |-------------------|------------|---------------------|
+    /// | int64             | int64      | int32               |
+    ///
+    /// ---
+    ///
+    /// https://core.telegram.org/mtproto/description#unencrypted-message
+    pub const LEN: usize = 8 + 8 + 4;
 }
 
 /// # External (cryptographic) Header
@@ -87,7 +72,7 @@ impl fmt::Display for ExternalHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "encrypted message [auth_key_id=0x{:016x}, msg_key={:032x}]",
+            "external header [auth_key_id=0x{:016x}, msg_key={:032x}]",
             self.auth_key_id,
             i128::from_ne_bytes(self.msg_key.0)
         )
@@ -131,7 +116,7 @@ impl fmt::Display for InternalHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "decrypted message [salt={:#018x}, session_id={:#018x}]",
+            "internal header [salt={:#018x}, session_id={:#018x}]",
             self.salt, self.session_id
         )
     }

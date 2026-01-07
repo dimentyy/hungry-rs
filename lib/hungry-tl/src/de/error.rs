@@ -68,7 +68,7 @@ impl std::error::Error for Error {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EndOfBufferError {}
+pub struct EndOfBufferError;
 
 impl fmt::Display for EndOfBufferError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

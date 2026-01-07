@@ -1,41 +1,44 @@
 mod error;
 
-use crate::mtproto::{
-    AuthKey, InternalHeader, ExternalHeader, Message, MsgKey, PlainMessage, Side,
-};
+use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, Side, UnencryptedHeader};
 
 use crate::{crypto, tl};
 
-pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
+pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, PlainUnpackError};
 
-impl Message {
-    /// Unpacks a [`Message`] enum for working with [`PlainMessage`] and [`ExternalHeader`].
-    pub fn unpack(buffer: &[u8]) -> Message {
-        let auth_key_id = i64::from_le_bytes(buffer[0..8].try_into().unwrap());
+#[inline]
+#[must_use]
+pub fn auth_key_id(buf: &[u8; 8]) -> Option<AuthKeyId> {
+    let auth_key_id = i64::from_le_bytes(*buf);
 
-        let Some(auth_key_id) = std::num::NonZeroI64::new(auth_key_id) else {
-            let id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
-            let data_length = i32::from_le_bytes(buffer[16..20].try_into().unwrap());
+    std::num::NonZeroI64::new(auth_key_id)
+}
 
-            return Message::Plain(PlainMessage { id, data_length });
-        };
+impl UnencryptedHeader {
+    pub fn unpack(buf: &[u8; 12]) -> Self {
+        let id = i64::from_le_bytes(buf[0..8].try_into().unwrap());
+        let data_length = i32::from_le_bytes(buf[8..12].try_into().unwrap());
 
-        let msg_key = tl::Int128(buffer[8..24].try_into().unwrap());
-
-        Message::Encrypted(ExternalHeader {
-            auth_key_id,
-            msg_key,
-        })
+        Self { id, data_length }
     }
 }
 
 impl ExternalHeader {
+    pub fn unpack(auth_key_id: AuthKeyId, buf: &[u8; 16]) -> Self {
+        Self {
+            auth_key_id,
+            msg_key: tl::Int128(*buf),
+        }
+    }
+
     /// Decrypts the [`ExternalHeader`] using [`AuthKey`] identified by the `auth_key_id` field.
     pub fn decrypt(
         self,
         auth_key: &AuthKey,
         buffer: &mut [u8],
-    ) -> Result<(InternalHeader), MsgKeyCheckError> {
+    ) -> Result<InternalHeader, MsgKeyCheckError> {
+        assert_eq!(auth_key.id(), self.auth_key_id);
+
         let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&self.msg_key, Side::Server);
 
         crypto::aes_ige_decrypt(buffer, &aes_key, &mut aes_iv);
