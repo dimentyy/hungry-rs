@@ -4,6 +4,7 @@ use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use container::Container;
 use crate::mtproto;
 use crate::reader::{Reader, ReaderError};
 use crate::transport::Transport;
@@ -14,23 +15,11 @@ pub enum SenderError {
     Writer(WriterError),
 }
 
-impl From<ReaderError> for SenderError {
-    #[inline]
-    fn from(value: ReaderError) -> Self {
-        Self::Reader(value)
-    }
-}
-
-impl From<WriterError> for SenderError {
-    #[inline]
-    fn from(value: WriterError) -> Self {
-        Self::Writer(value)
-    }
-}
-
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
+
+    container: Container<T>,
 
     auth_key: mtproto::AuthKey,
     session: mtproto::Session,
@@ -48,6 +37,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             reader,
             writer,
 
+            // FIXME
+            container: Container::new(unbite::DynBuf::new(1_000_000)),
+
             auth_key,
             session,
         }
@@ -55,11 +47,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     fn push_completed_writer_buffer(&mut self, buffer: unbite::DynBuf) {}
 
+    fn take_container(&mut self) -> Container<T> {
+        todo!()
+    }
+
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
-        if !self.writer.is_empty() {
+        if !self.writer.is_empty() || !self.container.is_empty() {
             loop {
-                let Poll::Ready(buffer) = self.writer.poll(cx)? else {
-                    break;
+                let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
+                    if self.container.is_empty() {
+                        break;
+                    }
+
+                    let container = self.take_container();
+
+                    continue;
                 };
 
                 self.push_completed_writer_buffer(buffer);

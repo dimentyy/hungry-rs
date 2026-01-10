@@ -2,13 +2,13 @@
 
 mod pack;
 mod private;
-mod sender;
 
 pub mod auth;
 pub mod crypto;
 pub mod mtproto;
 pub mod plain;
 pub mod reader;
+pub mod sender;
 pub mod transport;
 pub mod writer;
 

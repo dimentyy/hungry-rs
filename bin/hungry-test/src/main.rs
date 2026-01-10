@@ -91,7 +91,13 @@ async fn async_main() -> anyhow::Result<()> {
 
     let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
 
-    dbg!(auth_key);
+    let (r, w) = plain.into_inner();
+
+    let w = hungry::writer::QueuedWriter::new(w);
+
+    let session = getrandom::u64()? as i64;
+
+    let sender = hungry::sender::Sender::new(r, w, auth_key, session);
 
     Ok(())
 }

@@ -2,11 +2,11 @@ use crate::mtproto::{
     AuthKey, InternalHeader, EncryptedHeader, EncryptedPadding, Msg, PlainHeader, Side,
 };
 
-pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, message_id: i64) {
+pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
     let mut header = header.into_buf();
 
     header.extend_from_slice(&0i64.to_le_bytes()); // auth_key_id
-    header.extend_from_slice(&message_id.to_le_bytes());
+    header.extend_from_slice(&id.to_le_bytes()); // message_id
     header.extend_from_slice(&(buffer.len() as i32).to_le_bytes()); // message_data_length
 
     buffer.unsplit_buf_front(header);

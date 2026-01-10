@@ -22,6 +22,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
     pub fn new(reader: Reader<R, T>, writer: Writer<W, T>) -> Self {
         Self { reader, writer }
     }
+    
+    #[inline]
+    pub fn into_inner(self) -> (Reader<R, T>, Writer<W, T>) {
+        (self.reader, self.writer)
+    }
 
     pub async fn send<F: tl::Function>(
         &mut self,
