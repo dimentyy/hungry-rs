@@ -1,29 +1,31 @@
 mod error;
 
-use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, Side, UnencryptedHeader};
+use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, Side, PlainMsgHeader};
 
 use crate::{crypto, tl};
 
-pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, PlainUnpackError};
+pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
 
 #[inline]
 #[must_use]
-pub fn auth_key_id(buf: &[u8; 8]) -> Option<AuthKeyId> {
-    let auth_key_id = i64::from_le_bytes(*buf);
+pub fn auth_key_id(buf: [u8; 8]) -> Option<AuthKeyId> {
+    let auth_key_id = i64::from_le_bytes(buf);
 
     std::num::NonZeroI64::new(auth_key_id)
 }
 
-impl UnencryptedHeader {
-    pub fn unpack(buf: &[u8; 12]) -> Self {
-        let id = i64::from_le_bytes(buf[0..8].try_into().unwrap());
-        let data_length = i32::from_le_bytes(buf[8..12].try_into().unwrap());
-
-        Self { id, data_length }
+impl PlainMsgHeader {
+    #[inline]
+    pub fn unpack(buf: [u8; 12]) -> Self {
+        Self {
+            message_id: i64::from_le_bytes(buf[0..8].try_into().unwrap()),
+            message_data_length: i32::from_le_bytes(buf[8..12].try_into().unwrap()),
+        }
     }
 }
 
 impl ExternalHeader {
+    #[inline]
     pub fn unpack(auth_key_id: AuthKeyId, buf: &[u8; 16]) -> Self {
         Self {
             auth_key_id,

@@ -17,7 +17,7 @@ pub fn pack_encrypted(
     buffer: &mut unbite::DynBuf,
     padding: EncryptedPadding,
     auth_key: &AuthKey,
-    message: InternalHeader,
+    internal: InternalHeader,
     msg: Msg,
 ) {
     let mut header = header.into_buf();
@@ -40,8 +40,8 @@ pub fn pack_encrypted(
     // SAFETY: bytes in range 8..24 will be initialized with `msg_key`.
     unsafe { header.advance_unchecked(16) };
 
-    header.extend_from_array(&message.salt.to_le_bytes());
-    header.extend_from_array(&message.session_id.to_le_bytes());
+    header.extend_from_array(&internal.salt.to_le_bytes());
+    header.extend_from_array(&internal.session_id.to_le_bytes());
     header.extend_from_array(&msg.msg_id.to_le_bytes());
     header.extend_from_array(&msg.seq_no.to_le_bytes());
     header.extend_from_array(&(plaintext_len as i32).to_le_bytes());

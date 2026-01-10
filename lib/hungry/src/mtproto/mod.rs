@@ -7,16 +7,16 @@ mod seq_no;
 mod unpack;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
-pub use message::{ExternalHeader, InternalHeader, UnencryptedHeader};
+pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
 pub use msg::Msg;
-pub use msg_id::{MsgId, MsgIds, msg_id};
+pub use msg_id::{MsgId, MsgIds, msg_id, is_msg_id_valid};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
 pub use unpack::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, auth_key_id};
 
 pub const MAX_ENCRYPTED_PADDING: usize = 1024;
 
-pub type PlainHeader = unbite::Raw<{ UnencryptedHeader::LEN }>;
+pub type PlainHeader = unbite::Raw<{ PlainMsgHeader::LEN }>;
 
 pub type EncryptedHeader =
     unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + Msg::HEADER_LEN }>;

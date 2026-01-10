@@ -108,9 +108,3 @@ impl fmt::Display for MsgIdCheckError {
 }
 
 impl std::error::Error for MsgIdCheckError {}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PlainUnpackError {
-    InsufficientData,
-    InvalidDataLength
-}

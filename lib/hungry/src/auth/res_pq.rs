@@ -27,9 +27,10 @@ impl ResPq {
     ) -> auth::ReqDhParams<'a> {
         let fingerprint = server_public_key.fingerprint();
 
-        if !self.server_public_key_fingerprints.contains(&fingerprint) {
-            panic!("invalid fingerprint of the provided `server_public_key`")
-        }
+        assert!(
+            self.server_public_key_fingerprints.contains(&fingerprint),
+            "invalid fingerprint of the provided `server_public_key`"
+        );
 
         let pq_inner_data: enums::PQInnerData = types::PQInnerData {
             pq: self.pq.clone(),

@@ -8,7 +8,6 @@ use crate::writer::{Writer, WriterDriver};
 use crate::{mtproto, tl};
 
 pub use error::PlainError;
-use crate::mtproto::AuthKeyId;
 
 #[must_use]
 pub struct Plain<T: Transport, R: ReaderDriver, W: WriterDriver> {
@@ -59,20 +58,30 @@ impl<T: Transport, R: ReaderDriver, W: WriterDriver> Plain<T, R, W> {
 
         let buf = &self.reader.buffer().as_slice()[data.clone()];
 
-        if buf.len() < mtproto::UnencryptedHeader::LEN {
+        if buf.len() < mtproto::PlainMsgHeader::LEN {
             todo!()
         }
 
         let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
 
-        if let Some(auth_key_id) = mtproto::auth_key_id(auth_key_id) {
+        if let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) {
             todo!()
         }
 
         let (header, buf) = buf.split_first_chunk().unwrap();
 
-        let header = mtproto::UnencryptedHeader::unpack(header);
-        
+        let header = mtproto::PlainMsgHeader::unpack(*header);
+
+        if !mtproto::is_msg_id_valid(header.message_id, std::time::SystemTime::now()) {
+            todo!()
+        }
+
+        let data_length = header.message_data_length;
+
+        if data_length < 0 || data_length as usize != buf.len() || !buf.len().is_multiple_of(4) {
+            todo!()
+        }
+
         let mut buf = tl::de::Buf::new(buf);
 
         Ok(buf.de()?)

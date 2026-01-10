@@ -4,6 +4,8 @@ use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
+use hungry::tl::mtproto::enums;
+
 const ADDR: &str = "149.154.167.40:443";
 
 const N: &str = "253428894488404155649716895907134732068988477590847790525820265945460224638539\
@@ -68,7 +70,28 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    let server_dh_params = dbg!(plain.send(&mut buffer, func).await?);
+    let enums::ServerDhParams::ServerDhParamsOk(server_dh_params) =
+        plain.send(&mut buffer, func).await?
+    else {
+        todo!()
+    };
+
+    let server_dh_params = req_dh_params.server_dh_params_ok(&server_dh_params)?;
+
+    let mut b = [0; 256];
+    getrandom::fill(&mut b)?;
+
+    let set_client_dh_params = server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0);
+
+    let enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
+        plain.send(&mut buffer, set_client_dh_params.func()).await?
+    else {
+        todo!()
+    };
+
+    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
+
+    dbg!(auth_key);
 
     Ok(())
 }

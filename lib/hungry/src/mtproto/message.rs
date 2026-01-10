@@ -18,26 +18,27 @@ use crate::mtproto;
 /// be transmitted as plain text.
 ///
 /// ---
+///
 /// https://core.telegram.org/mtproto/description#unencrypted-messages
 #[must_use]
 #[derive(Debug)]
-pub struct UnencryptedHeader {
-    pub id: mtproto::MsgId,
-    pub data_length: i32,
+pub struct PlainMsgHeader {
+    pub message_id: mtproto::MsgId,
+    pub message_data_length: i32,
 }
 
-impl fmt::Display for UnencryptedHeader {
+impl fmt::Display for PlainMsgHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "unencrypted message [id={:#018x}, data_length={}]",
-            self.id, self.data_length
+            "plain msg header [message_id={:#018x}, message_data_length={}]",
+            self.message_id, self.message_data_length
         )
     }
 }
 
-impl UnencryptedHeader {
-    /// Length of the [`UnencryptedHeader`] in bytes.
+impl PlainMsgHeader {
+    /// Length of the [`PlainMsgHeader`] in bytes.
     ///
     /// # Layout
     ///
