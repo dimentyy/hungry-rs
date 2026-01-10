@@ -6,7 +6,7 @@ mod queued;
 
 use std::io;
 use std::num::NonZeroUsize;
-use std::pin::pin;
+use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
 use tokio::io::AsyncWrite;
@@ -18,22 +18,19 @@ pub use error::WriterError;
 pub use owned::{OwnedWrite, OwnedWriteInner};
 pub use queued::QueuedWriter;
 
-pub trait WriterDriver: AsyncWrite + Unpin {}
-impl<T: AsyncWrite + Unpin> WriterDriver for T {}
-
-pub struct Writer<W: WriterDriver, T: Transport> {
+pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
     pub driver: W,
     pub transport: T::Write,
 }
 
-impl<W: WriterDriver, T: Transport> Writer<W, T> {
+impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     #[inline]
     pub(crate) fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
     }
 
     fn poll_checked(&mut self, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<NonZeroUsize>> {
-        let n = ready!(pin!(&mut self.driver).poll_write(cx, buf))?;
+        let n = ready!(Pin::new(&mut self.driver).poll_write(cx, buf))?;
 
         assert!(
             n <= buf.len(),
@@ -96,13 +93,13 @@ impl<W: WriterDriver, T: Transport> Writer<W, T> {
     }
 }
 
-pub struct Single<'a, W: WriterDriver, T: Transport> {
+pub struct Single<'a, W: AsyncWrite + Unpin, T: Transport> {
     writer: &'a mut Writer<W, T>,
     buffer: &'a mut unbite::DynBuf,
     pos: usize,
 }
 
-impl<'a, W: WriterDriver, T: Transport> Single<'a, W, T> {
+impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
     #[inline]
     #[must_use]
     pub fn pos(self) -> usize {

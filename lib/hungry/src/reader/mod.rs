@@ -1,19 +1,16 @@
 mod error;
 
 use std::io;
-use std::pin::pin;
+use std::pin::{pin, Pin};
 use std::task::{Context, Poll, ready};
 
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::transport::{Transport, TransportRead, Unpack, UnpackResult};
 
 pub use error::ReaderError;
 
 const BUFFER_NO_ROTATE_THRESHOLD: usize = 16 * 1024;
-
-pub trait ReaderDriver: AsyncRead + Unpin {}
-impl<T: AsyncRead + Unpin> ReaderDriver for T {}
 
 #[must_use]
 #[derive(Debug)]
@@ -23,14 +20,14 @@ pub enum ReaderResult {
     Error(ReaderError),
 }
 
-pub struct Reader<R: ReaderDriver, T: Transport> {
+pub struct Reader<R: AsyncRead + Unpin, T: Transport> {
     driver: R,
     transport: T::Read,
     buffer: unbite::DynBuf,
     offset: usize,
 }
 
-impl<R: ReaderDriver, T: Transport> Reader<R, T> {
+impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     pub(crate) fn new(driver: R, transport: T::Read, buffer: unbite::DynBuf) -> Self {
         Self {
             driver,
@@ -106,7 +103,7 @@ impl<R: ReaderDriver, T: Transport> Reader<R, T> {
         let spare_capacity_len = self.buffer.spare_capacity_len();
         let mut buf = ReadBuf::uninit(self.buffer.spare_capacity_mut());
 
-        ready!(pin!(&mut self.driver).poll_read(cx, &mut buf))?;
+        ready!(Pin::new(&mut self.driver).poll_read(cx, &mut buf))?;
 
         let n = buf.filled().len();
 

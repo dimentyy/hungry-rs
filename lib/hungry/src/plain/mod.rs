@@ -2,20 +2,22 @@ mod error;
 
 use std::future::poll_fn;
 
-use crate::reader::{Reader, ReaderDriver, ReaderResult};
+use tokio::io::{AsyncRead, AsyncWrite};
+
+use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Transport, Unpack};
-use crate::writer::{Writer, WriterDriver};
+use crate::writer::{Writer};
 use crate::{mtproto, tl};
 
 pub use error::PlainError;
 
 #[must_use]
-pub struct Plain<T: Transport, R: ReaderDriver, W: WriterDriver> {
+pub struct Plain<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
     writer: Writer<W, T>,
 }
 
-impl<T: Transport, R: ReaderDriver, W: WriterDriver> Plain<T, R, W> {
+impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
     #[inline]
     pub fn new(reader: Reader<R, T>, writer: Writer<W, T>) -> Self {
         Self { reader, writer }

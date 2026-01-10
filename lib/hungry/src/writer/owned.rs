@@ -1,20 +1,22 @@
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
-use crate::transport::Transport;
-use crate::writer::{Writer, WriterDriver, WriterError};
+use tokio::io::AsyncWrite;
 
-pub struct OwnedWriteInner<W: WriterDriver, T: Transport, B: AsRef<[u8]>> {
+use crate::transport::Transport;
+use crate::writer::{Writer, WriterError};
+
+pub struct OwnedWriteInner<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> {
     pub driver: Writer<W, T>,
     pub buffer: B,
 }
 
-pub struct OwnedWrite<W: WriterDriver, T: Transport, B: AsRef<[u8]>> {
+pub struct OwnedWrite<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> {
     inner: Option<OwnedWriteInner<W, T, B>>,
     pos: usize,
 }
 
-impl<W: WriterDriver, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
+impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
     pub(crate) fn new(driver: Writer<W, T>, buffer: B) -> Self {
         Self {
             inner: Some(OwnedWriteInner { driver, buffer }),
@@ -43,9 +45,13 @@ impl<W: WriterDriver, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
     }
 }
 
-impl<W: WriterDriver, T: Transport, B: AsRef<[u8]> + Unpin> Future for OwnedWrite<W, T, B> {
+impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]> + Unpin> Future for OwnedWrite<W, T, B>
+where
+    T::Write: Unpin,
+{
     type Output = Result<OwnedWriteInner<W, T, B>, WriterError>;
 
+    #[inline]
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.get_mut().poll(cx)
     }
