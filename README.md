@@ -51,6 +51,9 @@
   - [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack) higher than transport functions.
 + [ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
   - [x] `OwnedWrite`?
+- [ ] Encrypted sender.
+  - [ ] Message container.
+  - [ ] Gzipping.
 
 > The repository will be recreated once this project is complete and refactored.
 
