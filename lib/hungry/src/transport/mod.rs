@@ -48,7 +48,7 @@ macro_rules! bail {
 
 use bail;
 
-pub trait Transport: crate::Sealed {
+pub trait Transport: crate::Sealed + Unpin {
     type Read: TransportRead<Transport = Self>;
     type Write: TransportWrite<Transport = Self>;
 
@@ -62,13 +62,13 @@ pub trait Transport: crate::Sealed {
     fn envelope(buffer: &mut unbite::DynBuf) -> Self::Envelope;
 }
 
-pub trait TransportRead {
+pub trait TransportRead: Unpin {
     type Transport: Transport<Read = Self>;
 
     fn unpack(&mut self, buffer: &mut [u8]) -> UnpackResult;
 }
 
-pub trait TransportWrite {
+pub trait TransportWrite: Unpin {
     type Transport: Transport<Write = Self>;
 
     fn pack(

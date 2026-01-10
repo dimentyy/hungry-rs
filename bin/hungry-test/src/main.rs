@@ -31,12 +31,12 @@ async fn async_main() -> anyhow::Result<()> {
     let r_buffer = unbite::DynBuf::new(1024 * 1024);
     let w_buffer = unbite::DynBuf::new(1024 * 1024);
 
-    let (mut r, mut w) = hungry::init(transport, r, r_buffer, w, w_buffer);
+    let (r, w) = hungry::init(transport, r, r_buffer, w, w_buffer);
 
     let hungry::writer::OwnedWriteInner {
-        driver: mut w,
+        driver: w,
         mut buffer,
-    } = poll_fn(|cx| w.poll(cx)).await?;
+    } = w.await?;
 
     let mut nonce = tl::Int128::default();
 

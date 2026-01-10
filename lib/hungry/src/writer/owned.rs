@@ -1,3 +1,4 @@
+use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
 use crate::transport::Transport;
@@ -39,5 +40,13 @@ impl<W: WriterDriver, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
 
             self.pos += n.get();
         }
+    }
+}
+
+impl<W: WriterDriver, T: Transport, B: AsRef<[u8]> + Unpin> Future for OwnedWrite<W, T, B> {
+    type Output = Result<OwnedWriteInner<W, T, B>, WriterError>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.get_mut().poll(cx)
     }
 }
