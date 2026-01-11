@@ -5,6 +5,13 @@ edition = "2024"
 [features]
 obfuscated-transport = ["dep:ctr"]
 
+[dev-dependencies]
+criterion = "0.8.1"
+
+[[bench]]
+name = "aes"
+harness = false
+
 [dependencies]
 hungry-tl = { path = "../hungry-tl" }
 

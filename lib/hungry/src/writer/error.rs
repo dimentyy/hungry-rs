@@ -18,13 +18,6 @@ impl fmt::Display for WriterError {
     }
 }
 
-impl From<io::Error> for WriterError {
-    #[inline]
-    fn from(value: io::Error) -> Self {
-        Self::Io(value)
-    }
-}
-
 impl std::error::Error for WriterError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use WriterError::*;

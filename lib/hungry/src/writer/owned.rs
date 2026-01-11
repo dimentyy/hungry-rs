@@ -38,7 +38,7 @@ impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
                 return Poll::Ready(Ok(self.inner.take().unwrap()));
             }
 
-            let n = ready!(driver.poll_checked(cx, buf))?;
+            let n = ready!(driver.poll_checked(cx, buf)).map_err(WriterError::Io)?;
 
             self.pos += n.get();
         }

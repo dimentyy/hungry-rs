@@ -4,70 +4,68 @@ use cipher::{BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 pub type AesIgeKey = [u8; 32];
 pub type AesIgeIv = [u8; 32];
 
+/// Decrypts a `buffer` using AES-256-IGE algorithm in-place.
+///
+/// # Panics
+///
+/// * If the `buffer` length in bytes is not a multiple of 16.
 #[track_caller]
 pub fn aes_ige_decrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
     assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(key.into());
 
-    let (iv1, iv2) = iv.split_at_mut(16);
+    let (c, p) = iv.split_at_mut(16);
+    let c: &mut [u8; 16] = c.try_into().unwrap();
+    let p: &mut [u8; 16] = p.try_into().unwrap();
 
-    let mut next_iv1 = [0u8; 16];
+    for block in buffer.chunks_exact_mut(16) {
+        let block: &mut [u8; 16] = block.try_into().unwrap();
 
-    for block in buffer.as_chunks_mut().0 {
-        // next iv1 = block (ciphertext)
-        next_iv1.copy_from_slice(block);
-
-        // block (ciphertext) XOR iv2 (previous plaintext)
         for i in 0..16 {
-            block[i] ^= iv2[i]
+            p[i] ^= block[i]
         }
 
-        cipher.decrypt_block(block.into());
+        cipher.decrypt_block(p.into());
 
-        // block (plaintext) XOR iv1 (previous ciphertext)
         for i in 0..16 {
-            block[i] ^= iv1[i]
+            p[i] ^= c[i]
         }
 
-        // iv1 = next iv1 (ciphertext)
-        iv1.copy_from_slice(&next_iv1);
-
-        // iv2 = block (plaintext)
-        iv2.copy_from_slice(block);
+        *c = *block;
+        *block = *p;
     }
 }
 
+/// Encrypts a `buffer` using AES-256-IGE algorithm in-place.
+///
+/// # Panics
+///
+/// * If the `buffer` length in bytes is not a multiple of 16.
 #[track_caller]
 pub fn aes_ige_encrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
     assert!(buffer.len().is_multiple_of(16));
 
     let cipher = Aes256::new(key.into());
 
-    let (iv1, iv2) = iv.split_at_mut(16);
+    let (c, p) = iv.split_at_mut(16);
+    let c: &mut [u8; 16] = c.try_into().unwrap();
+    let p: &mut [u8; 16] = p.try_into().unwrap();
 
-    let mut next_iv2 = [0u8; 16];
+    for block in buffer.chunks_exact_mut(16) {
+        let block: &mut [u8; 16] = block.try_into().unwrap();
 
-    for block in buffer.as_chunks_mut().0 {
-        // next iv2 = block (plaintext)
-        next_iv2.copy_from_slice(block);
-
-        // block (plaintext) XOR iv1 (previous ciphertext)
         for i in 0..16 {
-            block[i] ^= iv1[i]
+            c[i] ^= block[i]
         }
 
-        cipher.encrypt_block(block.into());
+        cipher.encrypt_block(c.into());
 
-        // block (ciphertext) XOR iv2 (previous plaintext)
         for i in 0..16 {
-            block[i] ^= iv2[i]
+            c[i] ^= p[i]
         }
 
-        // iv1 = block (ciphertext)
-        iv1.copy_from_slice(block);
-
-        // iv2 = next iv2 (plaintext)
-        iv2.copy_from_slice(&next_iv2);
+        *p = *block;
+        *block = *c;
     }
 }

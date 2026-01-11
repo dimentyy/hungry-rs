@@ -19,8 +19,8 @@ pub use owned::{OwnedWrite, OwnedWriteInner};
 pub use queued::QueuedWriter;
 
 pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
-    pub driver: W,
-    pub transport: T::Write,
+    driver: W,
+    transport: T::Write,
 }
 
 impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
@@ -114,7 +114,7 @@ impl<'a, W: AsyncWrite + Unpin, T: Transport> Single<'a, W, T> {
                 return Poll::Ready(Ok(()));
             }
 
-            let n = ready!(self.writer.poll_checked(cx, buf))?;
+            let n = ready!(self.writer.poll_checked(cx, buf)).map_err(WriterError::Io)?;
 
             self.pos += n.get();
         }

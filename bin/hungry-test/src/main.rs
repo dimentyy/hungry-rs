@@ -97,7 +97,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()? as i64;
 
-    let sender = hungry::sender::Sender::new(r, w, auth_key, session);
+    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session);
 
     Ok(())
 }

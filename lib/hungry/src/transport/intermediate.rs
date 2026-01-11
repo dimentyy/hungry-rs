@@ -61,10 +61,6 @@ pub struct IntermediateRead {
     _private: (),
 }
 
-pub struct IntermediateInit {
-    _private: (),
-}
-
 pub struct IntermediateWrite {
     _private: (),
 }

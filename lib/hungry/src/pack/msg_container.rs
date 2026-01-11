@@ -69,6 +69,7 @@ impl MsgContainer {
 
             buf.ser(&msg);
             buf.ser(&(x.serialized_len() as i32));
+            buf.ser(&X::CONSTRUCTOR_ID);
             buf.ser(x);
 
             buf.as_slice()

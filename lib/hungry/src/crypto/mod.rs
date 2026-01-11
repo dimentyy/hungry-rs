@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+// #![forbid(unsafe_code)]
 
 mod aes;
 mod rsa;
@@ -8,7 +8,7 @@ pub use rsa::{RsaKey, RsaKeyFingerprint};
 
 #[must_use]
 pub fn trim_zeroes_left(x: &[u8]) -> &[u8] {
-    let Some(pos) = x.iter().position(|&x| x != 0) else {
+    let Some(pos) = x.iter().position(|x| *x != 0) else {
         return &[0];
     };
 
