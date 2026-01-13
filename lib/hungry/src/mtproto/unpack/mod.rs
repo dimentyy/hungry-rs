@@ -26,10 +26,10 @@ impl PlainMsgHeader {
 
 impl ExternalHeader {
     #[inline]
-    pub fn unpack(auth_key_id: AuthKeyId, buf: &[u8; 16]) -> Self {
+    pub fn unpack(auth_key_id: AuthKeyId, buf: [u8; 16]) -> Self {
         Self {
             auth_key_id,
-            msg_key: tl::Int128(*buf),
+            msg_key: tl::Int128(buf),
         }
     }
 

@@ -4,7 +4,7 @@ use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
-use hungry::tl::mtproto::enums;
+use hungry::tl::mtproto::{enums, funcs};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -97,7 +97,13 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()? as i64;
 
-    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session);
+    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
+
+    sender.invoke(&funcs::Ping { ping_id: 123, });
+
+    loop {
+        let _ = dbg!(poll_fn(|cx| sender.poll(cx)).await);
+    }
 
     Ok(())
 }

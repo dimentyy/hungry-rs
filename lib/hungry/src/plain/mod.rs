@@ -63,7 +63,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
             Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let buf = &self.reader.buffer().as_slice()[data.clone()];
+        let buf = &self.reader.buffer().as_slice()[data];
 
         if buf.len() < mtproto::PlainMsgHeader::LEN {
             todo!()
