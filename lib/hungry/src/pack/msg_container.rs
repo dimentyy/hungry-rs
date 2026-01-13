@@ -68,7 +68,7 @@ impl MsgContainer {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
             buf.ser(&msg);
-            buf.ser(&(x.serialized_len() as i32));
+            buf.ser(&(x.serialized_len() as i32 + 4));
             buf.ser(&X::CONSTRUCTOR_ID);
             buf.ser(x);
 
