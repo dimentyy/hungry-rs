@@ -101,7 +101,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    pub fn invoke<F: tl::Function>(&mut self, f: &F) {
+    pub fn invoke<F: tl::Function>(&mut self, f: &tl::ConstructorId<F>) {
         self.container.push(
             mtproto::Msg {
                 msg_id: self.msg_ids.get(std::time::SystemTime::now()),

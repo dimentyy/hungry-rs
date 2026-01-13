@@ -21,13 +21,13 @@ pub struct Bytes(pub Vec<u8>);
 
 impl Bytes {
     #[inline]
-    pub const unsafe fn from_ref(r: &Vec<u8>) -> &Self {
+    pub const fn from_ref(r: &Vec<u8>) -> &Self {
         // SAFETY: `Bytes` is `#[repr(transparent)]` over `Vec<u8>`.
         unsafe { &*ptr::from_ref(r).cast() }
     }
 
     #[inline]
-    pub const unsafe fn from_mut(r: &mut Vec<u8>) -> &mut Self {
+    pub const fn from_mut(r: &mut Vec<u8>) -> &mut Self {
         // SAFETY: `Bytes` is `#[repr(transparent)]` over `Vec<u8>`.
         unsafe { &mut *ptr::from_mut(r).cast() }
     }

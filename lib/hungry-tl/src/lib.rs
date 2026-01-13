@@ -6,6 +6,9 @@ pub mod de;
 pub mod ser;
 
 pub use hungry_common as common;
+use std::borrow::Borrow;
+use std::ptr;
+use std::ptr::NonNull;
 
 pub use common::tl::*;
 
@@ -77,4 +80,38 @@ const_serialized_len!(u32, i32, i64, f64, Int128, Int256);
 
 impl ConstSerializedLen for bool {
     const SERIALIZED_LEN: usize = u32::SERIALIZED_LEN;
+}
+
+#[repr(transparent)]
+pub struct ConstructorId<X: Function>(pub X);
+
+impl<X: Function> ConstructorId<X> {
+    #[inline]
+    pub const fn from_ref(r: &X) -> &Self {
+        // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
+        unsafe { &*ptr::from_ref(r).cast() }
+    }
+
+    #[inline]
+    pub const fn from_mut(r: &mut X) -> &mut Self {
+        // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
+        unsafe { &mut *ptr::from_mut(r).cast() }
+    }
+}
+
+impl<X: Function> SerializedLen for ConstructorId<X> {
+    #[inline(always)]
+    fn serialized_len(&self) -> usize {
+        4 + self.0.serialized_len()
+    }
+}
+
+impl<X: Function> ser::SerializeUnchecked for ConstructorId<X> {
+    #[inline(always)]
+    unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
+        unsafe {
+            buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
+            self.0.serialize_unchecked(buf)
+        }
+    }
 }

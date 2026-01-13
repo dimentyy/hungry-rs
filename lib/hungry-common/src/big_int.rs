@@ -18,13 +18,13 @@ macro_rules! big_int {
 
         impl $typ {
             #[inline]
-            pub const unsafe fn from_ref(r: &[u8; $len]) -> &Self {
+            pub const fn from_ref(r: &[u8; $len]) -> &Self {
                 // SAFETY: `$typ` is `#[repr(transparent)]` over `[u8; $len]`.
                 unsafe { &*ptr::from_ref(r).cast() }
             }
 
             #[inline]
-            pub const unsafe fn from_mut(r: &mut [u8; $len]) -> &mut Self {
+            pub const fn from_mut(r: &mut [u8; $len]) -> &mut Self {
                 // SAFETY: `$typ` is `#[repr(transparent)]` over `[u8; $len]`.
                 unsafe { &mut *ptr::from_mut(r).cast() }
             }

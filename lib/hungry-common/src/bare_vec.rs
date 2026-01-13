@@ -18,13 +18,13 @@ pub struct BareVec<T>(pub Vec<T>);
 
 impl<T> BareVec<T> {
     #[inline]
-    pub const unsafe fn from_ref(r: &Vec<T>) -> &Self {
+    pub const fn from_ref(r: &Vec<T>) -> &Self {
         // SAFETY: `BareVec<T>` is `#[repr(transparent)]` over `Vec<T>`.
         unsafe { &*ptr::from_ref(r).cast() }
     }
 
     #[inline]
-    pub const unsafe fn from_mut(r: &mut Vec<T>) -> &mut Self {
+    pub const fn from_mut(r: &mut Vec<T>) -> &mut Self {
         // SAFETY: `BareVec<V>` is `#[repr(transparent)]` over `Vec<T>`.
         unsafe { &mut *ptr::from_mut(r).cast() }
     }

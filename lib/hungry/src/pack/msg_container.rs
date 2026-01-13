@@ -2,7 +2,7 @@ use crate::mtproto::Msg;
 
 use crate::tl;
 
-use tl::{ConstSerializedLen, Identifiable};
+use tl::{ConstSerializedLen, Identifiable, SerializedLen};
 
 pub struct MsgContainer {
     header: unbite::Raw<8>,
@@ -59,7 +59,7 @@ impl MsgContainer {
         self.buffer.spare_capacity_len() >= Msg::HEADER_LEN + len
     }
 
-    pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &X) {
+    pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
         if !self.can_push(x.serialized_len()) {
             panic!("msg container buffer does not have enough capacity");
         }
@@ -68,8 +68,7 @@ impl MsgContainer {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
             buf.ser(&msg);
-            buf.ser(&(x.serialized_len() as i32 + 4));
-            buf.ser(&X::CONSTRUCTOR_ID);
+            buf.ser(&(x.serialized_len() as i32));
             buf.ser(x);
 
             buf.as_slice()

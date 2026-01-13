@@ -99,7 +99,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
-    sender.invoke(&funcs::Ping { ping_id: 123, });
+    sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 123 }));
 
     loop {
         let _ = dbg!(poll_fn(|cx| sender.poll(cx)).await);

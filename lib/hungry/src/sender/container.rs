@@ -39,7 +39,7 @@ impl<T: Transport> Container<T> {
         self.container.can_push(len)
     }
 
-    pub(super) fn push<X: tl::Function>(&mut self, msg: Msg, x: &X) {
+    pub(super) fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
         self.container.push(msg, x);
     }
 
