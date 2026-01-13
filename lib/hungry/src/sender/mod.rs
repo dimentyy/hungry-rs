@@ -1,22 +1,19 @@
 mod container;
+mod error;
 
 use std::mem;
 use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::reader::{Reader, ReaderError, ReaderResult};
-use crate::transport::{Transport, Unpack};
-use crate::writer::{QueuedWriter, WriterError};
+use crate::reader::{Reader, ReaderResult};
+use crate::transport::{Packet, Transport, Unpack};
+use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
 
 use container::Container;
 
-#[derive(Debug)]
-pub enum SenderError {
-    Reader(ReaderError),
-    Writer(WriterError),
-}
+pub use error::SenderError;
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
@@ -142,49 +139,55 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 Unpack::QuickAck(_) => todo!(),
             };
 
-            let buf = &mut self.reader.buffer().as_mut_slice()[packet.data];
-
-            if buf.len() < mtproto::PlainMsgHeader::LEN {
-                todo!()
-            }
-
-            let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
-
-            let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
-                todo!()
-            };
-
-            if auth_key_id != self.auth_key.id() {
-                todo!()
-            }
-
-            let (header, buf) = buf.split_first_chunk_mut().unwrap();
-
-            let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
-
-            let internal = external.decrypt(&self.auth_key, buf).expect("todo");
-
-            if internal.session_id != self.session {
-                todo!()
-            }
-
-            let mut buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
-
-            let msg = dbg!(buf.de::<mtproto::Msg>().expect("todo"));
-
-            if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
-                todo!()
-            }
-
-            // TODO: check seq no
-
-            let len = buf.de::<i32>().expect("todo");
-
-            let id = buf.de::<u32>().expect("todo");
-
-            println!("{id:#010x}");
+            self.packet(packet)?;
         }
 
         Poll::Pending
+    }
+
+    fn packet(&mut self, packet: Packet) -> Result<(), SenderError> {
+        let buf = &mut self.reader.buffer().as_mut_slice()[packet.data];
+
+        if buf.len() < mtproto::ExternalHeader::LEN + mtproto::InternalHeader::LEN {
+            return Err(SenderError::Todo("too small"));
+        }
+
+        let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
+
+        let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
+            return Err(SenderError::Todo("plain message"));
+        };
+
+        if auth_key_id != self.auth_key.id() {
+            return Err(SenderError::Todo("invalid auth key id"))
+        }
+
+        let (header, buf) = buf.split_first_chunk_mut().unwrap();
+
+        let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
+
+        let internal = external.decrypt(&self.auth_key, buf).expect("todo");
+
+        if internal.session_id != self.session {
+            return Err(SenderError::Todo("invalid session"))
+        }
+
+        let mut buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
+
+        let msg = buf.de::<mtproto::Msg>().expect("todo");
+
+        if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
+            return Err(SenderError::Todo("invalid msg id"))
+        }
+
+        // TODO: check seq no
+
+        let len = buf.de::<i32>().expect("todo");
+
+        let id = buf.de::<u32>().expect("todo");
+
+        println!("{id:#010x}");
+
+        Ok(())
     }
 }
