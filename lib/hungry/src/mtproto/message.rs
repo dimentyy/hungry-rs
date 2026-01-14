@@ -19,7 +19,7 @@ use crate::mtproto;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#unencrypted-messages
+/// <https://core.telegram.org/mtproto/description#unencrypted-messages>
 #[must_use]
 #[derive(Debug)]
 pub struct PlainMsgHeader {
@@ -48,7 +48,7 @@ impl PlainMsgHeader {
     ///
     /// ---
     ///
-    /// https://core.telegram.org/mtproto/description#unencrypted-message
+    /// <https://core.telegram.org/mtproto/description#unencrypted-message>
     pub const LEN: usize = 8 + 8 + 4;
 }
 
@@ -61,7 +61,7 @@ impl PlainMsgHeader {
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#external-cryptographic-header
+/// <https://core.telegram.org/mtproto/description#external-cryptographic-header>
 #[must_use]
 #[derive(Debug)]
 pub struct ExternalHeader {
@@ -91,7 +91,7 @@ impl ExternalHeader {
     ///
     /// ---
     ///
-    /// https://core.telegram.org/mtproto/description#encrypted-message
+    /// <https://core.telegram.org/mtproto/description#encrypted-message>
     pub const LEN: usize = 8 + 16;
 }
 
@@ -105,7 +105,7 @@ impl ExternalHeader {
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#internal-cryptographic-header
+/// <https://core.telegram.org/mtproto/description#internal-cryptographic-header>
 #[must_use]
 #[derive(Debug)]
 pub struct InternalHeader {
@@ -134,6 +134,6 @@ impl InternalHeader {
     ///
     /// ---
     ///
-    /// https://core.telegram.org/mtproto/description#encrypted-message-encrypted-data
+    /// <https://core.telegram.org/mtproto/description#encrypted-message-encrypted-data>
     pub const LEN: usize = 8 + 8;
 }

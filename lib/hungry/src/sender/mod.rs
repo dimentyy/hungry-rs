@@ -59,11 +59,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
-        eprintln!("TODO: push_completed_writer_buffer")
+        eprintln!("TODO: push_completed_writer_buffer");
     }
 
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
-        eprintln!("TODO: push_immediate_writer_buffer")
+        eprintln!("TODO: push_immediate_writer_buffer");
     }
 
     // FIXME

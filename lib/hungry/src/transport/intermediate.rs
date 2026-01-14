@@ -50,7 +50,7 @@ use crate::transport::{
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/mtproto-transports#intermediate
+/// <https://core.telegram.org/mtproto/mtproto-transports#intermediate>
 ///
 /// [transports]: https://core.telegram.org/mtproto/transports
 /// [Quick ACK »]: https://core.telegram.org/mtproto/mtproto-transports#quick-ack

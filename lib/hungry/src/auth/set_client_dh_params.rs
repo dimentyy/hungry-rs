@@ -56,13 +56,14 @@ fn new_nonce_hash(auth_key: &mtproto::AuthKey, new_nonce: &[u8; 32], number: u8)
 
 impl SetClientDhParams {
     #[inline]
+    #[must_use]
     pub fn func(&self) -> &funcs::SetClientDhParams {
         &self.func
     }
 
     pub fn dh_gen_ok(
-        self,
-        response: types::DhGenOk,
+        &self,
+        response: &types::DhGenOk,
     ) -> Result<(mtproto::AuthKey, mtproto::Salt), DhGenOkError> {
         use DhGenOkError::*;
 

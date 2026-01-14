@@ -15,6 +15,9 @@ pub const fn byte(x: u8) -> [u8; 2] {
     (x + const { b'0' as u16 * 0x0101 } + offset).to_ne_bytes()
 }
 
+/// # Errors
+///
+/// * Returns the first `fmt::Error` if any underlying operation fails.
 pub fn bytes_fmt(bytes: &[u8], f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.write_str("x\"")?;
 
@@ -41,6 +44,10 @@ pub fn bytes_fmt(bytes: &[u8], f: &mut fmt::Formatter<'_>) -> fmt::Result {
     f.write_str("\"")
 }
 
+/// # Panics
+///
+/// * If the provided string `s` contains invalid hexadecimal characters.
+/// * If the constant `N` is not an exact number of decoded bytes.
 pub const fn decode<const N: usize>(s: &str) -> [u8; N] {
     #[inline(always)]
     const fn nibble(x: u8) -> u8 {

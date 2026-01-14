@@ -24,17 +24,17 @@ impl<T: Transport> Container<T> {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     pub(super) fn len(&self) -> usize {
         self.container.len()
     }
 
-    #[inline(always)]
+    #[inline]
     pub(super) fn is_empty(&self) -> bool {
         self.container.is_empty()
     }
 
-    #[inline(always)]
+    #[inline]
     pub(super) fn can_push(&self, len: usize) -> bool {
         self.container.can_push(len)
     }

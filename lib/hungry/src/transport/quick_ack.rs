@@ -35,7 +35,7 @@
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/mtproto-transports#quick-ack
+/// <https://core.telegram.org/mtproto/mtproto-transports#quick-ack>
 ///
 /// [message key]: https://core.telegram.org/mtproto/description#message-key-msg-key
 #[derive(Debug, Eq, PartialEq)]

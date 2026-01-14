@@ -34,7 +34,7 @@ pub enum TransportError {
     ///
     /// ---
     ///
-    /// https://cork.telegram.org/mtproto/mtproto-transports#transport-errors
+    /// <https://cork.telegram.org/mtproto/mtproto-transports#transport-errors>
     ///
     /// [container]: https://core.telegram.org/mtproto/service_messages#simple-container
     /// [service message limits]: https://core.telegram.org/mtproto/service_messages_about_messages#acknowledgment-of-receipt

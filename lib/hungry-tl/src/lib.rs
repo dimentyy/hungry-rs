@@ -1,4 +1,8 @@
-extern crate core;
+#![deny(
+    // clippy::missing_panics_doc,
+    // clippy::missing_errors_doc,
+    unused_imports,
+)]
 
 mod flags;
 
@@ -9,12 +13,12 @@ pub use hungry_common as common;
 
 pub use common::tl::*;
 
-#[allow(unused_imports, unused_mut, clippy::all)]
+#[allow(unused_imports, clippy::module_inception)]
 pub mod api {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/api/mod.rs"));
 }
 
-#[allow(unused_imports, unused_mut, clippy::all)]
+#[allow(unused_imports, clippy::module_inception)]
 pub mod mtproto {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/mtproto/mod.rs"));
 }

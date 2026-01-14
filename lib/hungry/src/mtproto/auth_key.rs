@@ -12,14 +12,14 @@ use common::infallible;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#message-key-msg-key
+/// <https://core.telegram.org/mtproto/description#message-key-msg-key>
 pub type MsgKey = tl::Int128;
 
 /// The 64 lower-order bits of the SHA1 hash of the authorization key.
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#key-identifier-auth-key-id
+/// <https://core.telegram.org/mtproto/description#key-identifier-auth-key-id>
 pub type AuthKeyId = std::num::NonZeroI64;
 
 /// The 64 higher-order bits of the SHA1 hash of the authorization key.
@@ -27,7 +27,7 @@ pub type AuthKeyId = std::num::NonZeroI64;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
+/// <https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways>
 pub type AuthKeyAuxHash = [u8; 8];
 
 /// A 2048-bit key shared by the client device and the server,
@@ -36,7 +36,7 @@ pub type AuthKeyAuxHash = [u8; 8];
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#authorization-key-auth-key
+/// <https://core.telegram.org/mtproto/description#authorization-key-auth-key>
 #[must_use]
 #[derive(Clone)]
 #[repr(align(8))]
@@ -65,14 +65,17 @@ impl AuthKey {
     /// Creates a new instance of [`AuthKey`] from its data.
     ///
     /// Returns `None` if the resulting [`AuthKeyId`] is zero.
+    #[must_use]
     pub fn new(data: [u8; 256]) -> Option<Self> {
         let hash = sha1::Sha1::digest(data);
 
-        let aux_hash = hash[0..8].try_into().unwrap();
+        infallible! {
+            let aux_hash = hash[0..8].try_into().unwrap();
 
-        let id = std::num::NonZeroI64::new(i64::from_le_bytes(infallible!(
-            hash[12..20].try_into().unwrap()
-        )))?;
+            let id = std::num::NonZeroI64::new(i64::from_le_bytes(
+                hash[12..20].try_into().unwrap()
+            ))?;
+        }
 
         Some(Self { data, aux_hash, id })
     }
@@ -109,7 +112,8 @@ impl AuthKey {
     ///
     /// ---
     ///
-    /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
+    /// <https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector>
+    #[must_use]
     pub fn compute_msg_key(&self, plaintext: &[u8], side: mtproto::Side) -> MsgKey {
         let x = side.x();
 
@@ -126,7 +130,7 @@ impl AuthKey {
     ///
     /// ---
     ///
-    /// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
+    /// <https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector>
     ///
     /// [`AesIgeKey`]: crypto::AesIgeKey
     /// [`AesIgeIv`]: crypto::AesIgeIv

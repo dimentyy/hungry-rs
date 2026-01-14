@@ -23,7 +23,7 @@ use std::fmt;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
+/// <https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno>
 pub type SeqNo = i32;
 
 #[must_use]

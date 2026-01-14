@@ -23,7 +23,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/description#message-identifier-msg-id
+/// <https://core.telegram.org/mtproto/description#message-identifier-msg-id>
 pub type MsgId = i64;
 
 /// Calculates a new [`MsgId`] from given `unix_time`.
@@ -38,8 +38,8 @@ pub fn msg_id(unix_time: SystemTime) -> MsgId {
         .duration_since(UNIX_EPOCH)
         .expect("system clock time to be after the Unix epoch");
 
-    let secs = unix_time.as_secs() as i64;
-    let subsec_nanos = unix_time.subsec_nanos() as i64;
+    let secs = unix_time.as_secs().cast_signed();
+    let subsec_nanos = i64::from(unix_time.subsec_nanos());
 
     secs << 32 | subsec_nanos << 2
 }
@@ -57,7 +57,7 @@ pub fn is_msg_id_valid(msg_id: MsgId, unix_time: SystemTime) -> bool {
         .expect("system clock time to be after the Unix epoch")
         .as_secs();
 
-    let msg_secs = msg_id as u64 >> 32;
+    let msg_secs = msg_id.cast_unsigned() >> 32;
 
     sys_secs - 300 < msg_secs && msg_secs < sys_secs + 30
 }

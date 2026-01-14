@@ -2,12 +2,13 @@
 #![forbid(unsafe_code)]
 
 mod category;
-mod code;
 mod config;
-mod meta;
+mod code;
 
-pub(crate) mod read;
 pub(crate) mod rust;
+
+pub mod meta;
+pub mod read;
 
 pub(crate) use config::Cfg;
 

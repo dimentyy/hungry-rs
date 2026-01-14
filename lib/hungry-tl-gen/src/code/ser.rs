@@ -89,14 +89,13 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
     s.push_str(" crate::ser::SerializeUnchecked for ");
     push_escaped(s, &x.ident.actual);
     push_function_generics(s, &x.generic_args, false);
-    s.push_str(" {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        ");
 
     if x.args.is_empty() {
-        s.push_str("buf\n    }\n}\n");
+        s.push_str(" {\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        buf\n    }\n}\n");
         return;
     }
 
-    s.push_str("unsafe {\n");
+    s.push_str(" {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n");
 
     for arg in &x.args {
         let (_, _) = match &arg.typ {

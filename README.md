@@ -54,7 +54,7 @@
 - [ ] Encrypted sender.
   - [ ] Message container.
   - [ ] Gzipping.
-+ [ ] Use `#[forbid(clippy::todo)]` `#[forbid(unsafe_code)]` as much as possible.
++ [ ] Use `#[forbid(clippy::todo)]` and `#[forbid(unsafe_code)]` as much as possible.
 
 > The repository will be recreated once this project is complete and refactored.
 

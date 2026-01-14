@@ -1,4 +1,10 @@
-#![forbid(clippy::undocumented_unsafe_blocks)]
+#![forbid(
+    clippy::undocumented_unsafe_blocks,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::missing_safety_doc,
+    unused_imports
+)]
 
 mod bare_vec;
 mod big_int;
@@ -16,8 +22,14 @@ pub mod tl {
 
 #[macro_export]
 macro_rules! infallible {
-    { $( $reason:literal ; )? $( $result:tt )+ } => {
-        #[expect(clippy::missing_panics_doc $( , reason = $reason )? )]
-        $( $result )+
+    ( $e:expr ) => (
+        #[expect(clippy::missing_panics_doc)]
+        $e
+    );
+    { $( $s:stmt );+ $( ; )? } => {
+        $(
+            #[expect(clippy::missing_panics_doc)]
+            $s;
+        )+
     };
 }

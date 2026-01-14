@@ -290,7 +290,7 @@ impl<'a> Data<'a> {
 
             let ident = rust::snake_case(arg.ident);
 
-            if let Some(_) = args.insert(arg.ident, Arg { ident, typ }) {
+            if let Some(_x) = args.insert(arg.ident, Arg { ident, typ }) {
                 todo!()
             }
         }

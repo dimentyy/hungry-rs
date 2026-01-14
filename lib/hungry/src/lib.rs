@@ -3,8 +3,12 @@
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::missing_safety_doc,
+    clippy::perf,
     unused_imports,
+    clippy::pedantic,
 )]
+
+#![allow(clippy::enum_glob_use)]
 
 mod private;
 

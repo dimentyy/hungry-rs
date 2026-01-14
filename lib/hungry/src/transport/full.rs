@@ -34,7 +34,7 @@ use crate::transport::{
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/mtproto-transports#full
+/// <https://core.telegram.org/mtproto/mtproto-transports#full>
 ///
 /// [MTProto sequence number]: https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno
 #[derive(Default)]
@@ -125,7 +125,9 @@ impl TransportWrite for FullWrite {
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: FullEnvelope) {
         let mut header = envelope.header.into_buf();
 
-        let len = 4 + 4 + buffer.len() as i32 + 4;
+        let len = 4 + 4 + buffer.len() + 4;
+
+        let len: i32 = len.try_into().expect("`buffer` to not exceed `i32` limit");
 
         header.extend_from_array(&len.to_le_bytes());
         header.extend_from_array(&self.seq.to_le_bytes());

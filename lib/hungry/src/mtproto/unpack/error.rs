@@ -18,7 +18,7 @@ use crate::mtproto;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/security_guidelines#checking-sha256-hash-value-of-msg-key
+/// <https://core.telegram.org/mtproto/security_guidelines#checking-sha256-hash-value-of-msg-key>
 ///
 /// [MTProto 2.0 Description]: https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
 #[must_use]
@@ -50,7 +50,7 @@ impl std::error::Error for MsgKeyCheckError {}
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/security_guidelines#checking-message-length
+/// <https://core.telegram.org/mtproto/security_guidelines#checking-message-length>
 #[must_use]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MessageLengthCheckError {
@@ -93,7 +93,7 @@ impl std::error::Error for MessageLengthCheckError {}
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/security_guidelines#checking-msg-id
+/// <https://core.telegram.org/mtproto/security_guidelines#checking-msg-id>
 ///
 /// [Mobile Protocol: Service Messages]: https://core.telegram.org/mtproto/service_messages
 #[derive(Clone, Debug, Eq, PartialEq)]

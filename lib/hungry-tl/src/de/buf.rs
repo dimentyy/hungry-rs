@@ -65,6 +65,9 @@ impl<'a> Buf<'a> {
         Ok(ptr)
     }
 
+    /// # Safety
+    ///
+    /// * Provided offset `n` must be less or equal to the [`Buf::len`].
     #[inline(always)]
     pub unsafe fn advance_unchecked(&mut self, n: usize) -> NonNull<u8> {
         unsafe {

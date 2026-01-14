@@ -7,7 +7,7 @@ use tl::{ConstSerializedLen, Identifiable, SerializedLen};
 pub struct MsgContainer {
     header: unbite::Raw<8>,
     buffer: unbite::DynBuf,
-    length: usize,
+    length: u32,
 }
 
 impl Identifiable for MsgContainer {
@@ -37,7 +37,7 @@ impl MsgContainer {
     #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
-        self.length
+        self.length as usize
     }
 
     #[inline]
@@ -54,15 +54,17 @@ impl MsgContainer {
             .checked_sub(Msg::HEADER_LEN)
     }
 
-    #[inline(always)]
+    #[inline]
+    #[must_use]
     pub fn can_push(&self, len: usize) -> bool {
         self.buffer.spare_capacity_len() >= Msg::HEADER_LEN + len
     }
 
     pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
-        if !self.can_push(x.serialized_len()) {
-            panic!("msg container buffer does not have enough capacity");
-        }
+        assert!(
+            self.can_push(x.serialized_len()),
+            "msg container buffer does not have enough capacity"
+        );
 
         self.buffer.init_with(|spare_capacity| {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
@@ -81,7 +83,7 @@ impl MsgContainer {
         let mut header = self.header.into_buf();
 
         header.extend_from_array(&Self::CONSTRUCTOR_ID.to_le_bytes());
-        header.extend_from_array(&(self.length as u32).to_le_bytes());
+        header.extend_from_array(&self.length.to_le_bytes());
 
         self.buffer.unsplit_buf_front(header);
 

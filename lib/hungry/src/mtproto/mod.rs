@@ -35,7 +35,8 @@ pub type EncryptedPadding = unbite::Raw<MAX_ENCRYPTED_PADDING>;
 /// client sessions; clients should be able to handle this.
 ///
 /// ---
-/// https://core.telegram.org/mtproto/description#session
+///
+/// <https://core.telegram.org/mtproto/description#session>
 pub type Session = i64;
 
 /// # Server Salt
@@ -48,7 +49,8 @@ pub type Session = i64;
 /// with adjusting the client clock to a moment in the distant future.
 ///
 /// ---
-/// https://core.telegram.org/mtproto/description#server-salt
+///
+/// <https://core.telegram.org/mtproto/description#server-salt>
 pub type Salt = i64;
 
 /// For MTProto 2.0, the algorithm for computing
@@ -57,7 +59,8 @@ pub type Salt = i64;
 /// server and x = 8 for those from server to client.
 ///
 /// ---
-/// https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector
+///
+/// <https://core.telegram.org/mtproto/description#defining-aes-key-and-initialization-vector>
 #[must_use]
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
