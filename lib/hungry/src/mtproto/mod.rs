@@ -9,7 +9,7 @@ mod unpack;
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
 pub use msg::Msg;
-pub use msg_id::{MsgId, MsgIds, msg_id, is_msg_id_valid};
+pub use msg_id::{MsgId, MsgIds, is_msg_id_valid, msg_id};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
 pub use unpack::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, auth_key_id};
@@ -70,8 +70,8 @@ pub enum Side {
 }
 
 impl Side {
+    #[inline]
     #[must_use]
-    #[inline(always)]
     pub const fn x(self) -> usize {
         self as usize
     }

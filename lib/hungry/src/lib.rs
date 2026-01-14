@@ -5,10 +5,13 @@
     clippy::missing_safety_doc,
     clippy::perf,
     unused_imports,
-    clippy::pedantic,
+    clippy::pedantic
 )]
-
-#![allow(clippy::enum_glob_use)]
+#![allow(
+    clippy::enum_glob_use,
+    clippy::doc_markdown,
+    clippy::unreadable_literal
+)]
 
 mod private;
 

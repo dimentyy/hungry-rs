@@ -1,5 +1,5 @@
 use crate::mtproto::{
-    AuthKey, InternalHeader, EncryptedHeader, EncryptedPadding, Msg, PlainHeader, Side,
+    AuthKey, EncryptedHeader, EncryptedPadding, InternalHeader, Msg, PlainHeader, Side,
 };
 
 pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
@@ -7,7 +7,7 @@ pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
 
     header.extend_from_slice(&0i64.to_le_bytes()); // auth_key_id
     header.extend_from_slice(&id.to_le_bytes()); // message_id
-    header.extend_from_slice(&(buffer.len() as i32).to_le_bytes()); // message_data_length
+    header.extend_from_slice(&i32::try_from(buffer.len()).unwrap().to_le_bytes()); // message_data_length
 
     buffer.unsplit_buf_front(header);
 }
@@ -44,7 +44,7 @@ pub fn pack_encrypted(
     header.extend_from_array(&internal.session_id.to_le_bytes());
     header.extend_from_array(&msg.msg_id.to_le_bytes());
     header.extend_from_array(&msg.seq_no.to_le_bytes());
-    header.extend_from_array(&(plaintext_len as i32).to_le_bytes());
+    header.extend_from_array(&i32::try_from(plaintext_len).unwrap().to_le_bytes());
 
     buffer.unsplit_buf_front(header);
 

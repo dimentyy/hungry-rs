@@ -57,7 +57,7 @@ impl MsgContainer {
     #[inline]
     #[must_use]
     pub fn can_push(&self, len: usize) -> bool {
-        self.buffer.spare_capacity_len() >= Msg::HEADER_LEN + len
+        len + Msg::HEADER_LEN <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
     }
 
     pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
