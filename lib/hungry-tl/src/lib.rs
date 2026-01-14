@@ -6,9 +6,6 @@ pub mod de;
 pub mod ser;
 
 pub use hungry_common as common;
-use std::borrow::Borrow;
-use std::ptr;
-use std::ptr::NonNull;
 
 pub use common::tl::*;
 
@@ -89,13 +86,13 @@ impl<X: Function> ConstructorId<X> {
     #[inline]
     pub const fn from_ref(r: &X) -> &Self {
         // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
-        unsafe { &*ptr::from_ref(r).cast() }
+        unsafe { &*std::ptr::from_ref(r).cast() }
     }
 
     #[inline]
     pub const fn from_mut(r: &mut X) -> &mut Self {
         // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
-        unsafe { &mut *ptr::from_mut(r).cast() }
+        unsafe { &mut *std::ptr::from_mut(r).cast() }
     }
 }
 
@@ -108,7 +105,7 @@ impl<X: Function> SerializedLen for ConstructorId<X> {
 
 impl<X: Function> ser::SerializeUnchecked for ConstructorId<X> {
     #[inline(always)]
-    unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
+    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {
         unsafe {
             buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
             self.0.serialize_unchecked(buf)

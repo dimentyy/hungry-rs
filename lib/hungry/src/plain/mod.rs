@@ -22,7 +22,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
     pub fn new(reader: Reader<R, T>, writer: Writer<W, T>) -> Self {
         Self { reader, writer }
     }
-    
+
     #[inline]
     pub fn into_inner(self) -> (Reader<R, T>, Writer<W, T>) {
         (self.reader, self.writer)
@@ -58,12 +58,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
             ReaderResult::Error(err) => return Err(err.into()),
         };
 
-        let data = match unpack {
-            Unpack::Packet(packet) => packet.data,
+        let packet = match unpack {
+            Unpack::Packet(packet) => packet,
             Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let buf = &self.reader.buffer().as_slice()[data];
+        let buf = self.reader.as_mut_slice(packet);
 
         if buf.len() < mtproto::PlainMsgHeader::LEN {
             todo!()
@@ -71,7 +71,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
 
         let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
 
-        if let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) {
+        if let Some(_auth_key_id) = mtproto::auth_key_id(*auth_key_id) {
             todo!()
         }
 

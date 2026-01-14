@@ -24,6 +24,20 @@ impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
         }
     }
 
+    /// Consumes the [`OwnedWrite`] returning its inner data with the current position.
+    ///
+    /// # Panics
+    ///
+    /// * If the method was called after completion.
+    pub fn into_inner(self) -> (OwnedWriteInner<W, T, B>, usize) {
+        let inner = self.inner.expect("called `into_inner` after completion");
+
+        (inner, self.pos)
+    }
+
+    /// # Panics
+    ///
+    /// * If the method was called after completion.
     pub fn poll(
         &mut self,
         cx: &mut Context<'_>,

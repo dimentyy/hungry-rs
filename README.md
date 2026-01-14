@@ -49,11 +49,12 @@
   - [x] Obfuscation.
     - [ ] Test.
   - [ ] Support [quick ACKs](https://core.telegram.org/mtproto/mtproto-transports#quick-ack) higher than transport functions.
-+ [ ] Nice way to `TransportInit::init`. Future constructed with a buffer that returns an owned `Writer` / `QueuedWriter` with a buffer queued (without futures to await)?
++ [x] Nice way to initialize transport.
   - [x] `OwnedWrite`?
 - [ ] Encrypted sender.
   - [ ] Message container.
   - [ ] Gzipping.
++ [ ] Use `#[forbid(clippy::todo)]` `#[forbid(unsafe_code)]` as much as possible.
 
 > The repository will be recreated once this project is complete and refactored.
 

@@ -1,4 +1,4 @@
-#![forbid(unsafe_code)]
+#![forbid(unsafe_code, clippy::todo)]
 
 mod aes;
 mod rsa;
@@ -15,6 +15,7 @@ pub fn trim_zeroes_left(x: &[u8]) -> &[u8] {
     &x[pos..]
 }
 
+#[must_use]
 pub fn factorize_pq(pq: u64) -> Option<(u64, u64)> {
     let mut map = num_prime::nt_funcs::factorize64(pq);
 

@@ -11,7 +11,6 @@ macro_rules! big_int {
             "int", $bit, " ", $rep, "*[ int ] = Int", $bit, ";\
             \n```",
         )]
-        #[must_use]
         #[repr(transparent)]
         #[derive(Clone, Default, Eq, PartialEq)]
         pub struct $typ(pub [u8; $len]);

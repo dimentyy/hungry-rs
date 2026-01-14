@@ -1,11 +1,17 @@
-#![forbid(clippy::undocumented_unsafe_blocks)]
+#![deny(
+    clippy::undocumented_unsafe_blocks,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::missing_safety_doc,
+    unused_imports,
+)]
 
-mod pack;
 mod private;
 
 pub mod auth;
 pub mod crypto;
 pub mod mtproto;
+pub mod pack;
 pub mod plain;
 pub mod reader;
 pub mod sender;

@@ -3,7 +3,9 @@ use std::fmt;
 use crypto_bigint::{Encoding, Odd, U2048};
 use digest::Digest;
 
-use crate::{auth, crypto, tl};
+use crate::{auth, common, crypto, tl};
+
+use common::infallible;
 
 use tl::Int256;
 use tl::mtproto::{enums, funcs, types};
@@ -103,7 +105,7 @@ impl ReqDhParams<'_> {
 
         sha1::Sha1::new_with_prefix(&self.new_nonce)
             .chain_update(&response.server_nonce)
-            .finalize_into((&mut tmp_aes_key[..20]).try_into().unwrap());
+            .finalize_into(infallible!((&mut tmp_aes_key[..20]).try_into().unwrap()));
 
         let server_new_sha1 = sha1::Sha1::new_with_prefix(&response.server_nonce)
             .chain_update(&self.new_nonce)
@@ -119,7 +121,7 @@ impl ReqDhParams<'_> {
 
         sha1::Sha1::new_with_prefix(&self.new_nonce)
             .chain_update(&self.new_nonce)
-            .finalize_into((&mut tmp_aes_iv[8..28]).try_into().unwrap());
+            .finalize_into(infallible!((&mut tmp_aes_iv[8..28]).try_into().unwrap()));
 
         tmp_aes_iv[28..].copy_from_slice(&self.new_nonce[..4]);
 
@@ -139,7 +141,7 @@ impl ReqDhParams<'_> {
 
         let answer = buf.de()?;
 
-        let len = (answer_with_hash.len() - 20 - buf.len());
+        let len = answer_with_hash.len() - 20 - buf.len();
         let answer_sha1 = sha1::Sha1::digest(&answer_with_hash[20..20 + len]);
 
         if &answer_with_hash[..20] != answer_sha1.as_slice() {

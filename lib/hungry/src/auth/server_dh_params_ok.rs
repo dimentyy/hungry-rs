@@ -27,7 +27,7 @@ impl ServerDhParamsOk {
     }
 
     pub fn set_client_dh_params(&self, b: U2048, retry_id: i64) -> auth::SetClientDhParams {
-        let one = U2048::one();
+        let _one = U2048::one();
 
         let g = U2048::from_u32(self.g as u32);
 

@@ -23,13 +23,13 @@ pub fn aes_ige_decrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
         let block: &mut [u8; 16] = block.try_into().unwrap();
 
         for i in 0..16 {
-            p[i] ^= block[i]
+            p[i] ^= block[i];
         }
 
         cipher.decrypt_block(p.into());
 
         for i in 0..16 {
-            p[i] ^= c[i]
+            p[i] ^= c[i];
         }
 
         *c = *block;
@@ -56,13 +56,13 @@ pub fn aes_ige_encrypt(buffer: &mut [u8], key: &AesIgeKey, iv: &mut AesIgeIv) {
         let block: &mut [u8; 16] = block.try_into().unwrap();
 
         for i in 0..16 {
-            c[i] ^= block[i]
+            c[i] ^= block[i];
         }
 
         cipher.encrypt_block(c.into());
 
         for i in 0..16 {
-            c[i] ^= p[i]
+            c[i] ^= p[i];
         }
 
         *p = *block;

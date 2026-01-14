@@ -1,12 +1,14 @@
+#![forbid(clippy::todo)]
+
 mod error;
 
 use std::io;
-use std::pin::{pin, Pin};
+use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncRead, ReadBuf};
 
-use crate::transport::{Transport, TransportRead, Unpack, UnpackResult};
+use crate::transport::{Packet, Transport, TransportRead, Unpack, UnpackResult};
 
 pub use error::ReaderError;
 
@@ -38,8 +40,8 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     }
 
     #[inline]
-    pub fn buffer(&mut self) -> &mut unbite::DynBuf {
-        &mut self.buffer
+    pub fn as_mut_slice(&mut self, packet: Packet) -> &mut [u8] {
+        &mut self.buffer.as_mut_slice()[packet.data]
     }
 
     fn rotate_buffer(&mut self, packet_len: usize) {
@@ -57,6 +59,9 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         }
     }
 
+    /// # Panics
+    ///
+    /// * If the inner `buffer` length was truncated externally.
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<ReaderResult> {
         assert!(self.offset <= self.buffer.len());
 

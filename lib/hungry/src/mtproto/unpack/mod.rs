@@ -1,8 +1,10 @@
 mod error;
 
-use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, Side, PlainMsgHeader};
+use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, PlainMsgHeader, Side};
 
-use crate::{crypto, tl};
+use crate::{common, crypto, tl};
+
+use common::infallible;
 
 pub use error::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
 
@@ -17,10 +19,10 @@ pub fn auth_key_id(buf: [u8; 8]) -> Option<AuthKeyId> {
 impl PlainMsgHeader {
     #[inline]
     pub fn unpack(buf: [u8; 12]) -> Self {
-        Self {
+        infallible!(Self {
             message_id: i64::from_le_bytes(buf[0..8].try_into().unwrap()),
             message_data_length: i32::from_le_bytes(buf[8..12].try_into().unwrap()),
-        }
+        })
     }
 }
 

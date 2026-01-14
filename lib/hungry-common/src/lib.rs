@@ -13,3 +13,11 @@ pub mod tl {
     pub use big_int::{Int128, Int256};
     pub use bytes::Bytes;
 }
+
+#[macro_export]
+macro_rules! infallible {
+    { $( $reason:literal ; )? $( $result:tt )+ } => {
+        #[expect(clippy::missing_panics_doc $( , reason = $reason )? )]
+        $( $result )+
+    };
+}

@@ -4,6 +4,7 @@ use std::task::{Context, Poll};
 
 use tokio::io::AsyncWrite;
 
+use crate::common::infallible;
 use crate::mtproto;
 use crate::transport::{Transport, TransportWrite};
 use crate::writer::{Writer, WriterError};
@@ -134,7 +135,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
                 continue;
             }
 
-            return Poll::Ready(Ok(self.buffers.pop_front().unwrap()));
+            return Poll::Ready(Ok(infallible!(self.buffers.pop_front().unwrap())));
         }
     }
 }

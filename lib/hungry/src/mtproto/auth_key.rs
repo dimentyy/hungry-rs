@@ -2,7 +2,9 @@ use std::fmt;
 
 use digest::Digest;
 
-use crate::{crypto, mtproto, tl};
+use crate::{common, crypto, mtproto, tl};
+
+use common::infallible;
 
 /// The middle 128 bits of the SHA-256 hash of the message to be encrypted
 /// (including the internal header and the padding bytes for MTProto),
@@ -68,7 +70,9 @@ impl AuthKey {
 
         let aux_hash = hash[0..8].try_into().unwrap();
 
-        let id = std::num::NonZeroI64::new(i64::from_le_bytes(hash[12..20].try_into().unwrap()))?;
+        let id = std::num::NonZeroI64::new(i64::from_le_bytes(infallible!(
+            hash[12..20].try_into().unwrap()
+        )))?;
 
         Some(Self { data, aux_hash, id })
     }
@@ -115,7 +119,7 @@ impl AuthKey {
             .finalize();
 
         // * msg_key = substr(msg_key_large, 8, 16);
-        tl::Int128(msg_key_large[8..24].try_into().unwrap())
+        tl::Int128(infallible!(msg_key_large[8..24].try_into().unwrap()))
     }
 
     /// Compute [`AesIgeKey`] and [`AesIgeIv`].

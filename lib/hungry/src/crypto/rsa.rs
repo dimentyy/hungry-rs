@@ -6,7 +6,9 @@ use crypto_bigint::{ConstOne, Odd, U2048};
 
 use digest::Digest;
 
-use crate::{crypto, tl};
+use crate::{common, crypto, tl};
+
+use common::infallible;
 
 use tl::ConstSerializedLen;
 
@@ -19,10 +21,10 @@ use tl::ConstSerializedLen;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/auth_key#2-server-sends-response-of-the-form
+/// <https://core.telegram.org/mtproto/auth_key#2-server-sends-response-of-the-form>
 pub type RsaKeyFingerprint = i64;
 
-/// https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows
+/// <https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows>
 #[must_use]
 #[derive(Clone, Eq)]
 pub struct RsaKey {
@@ -78,6 +80,11 @@ impl RsaKey {
         i64::from_le_bytes(sha1[12..20].try_into().unwrap())
     }
 
+    /// Constructs a new `RsaKey` instance from its `n` and `e` components.
+    ///
+    /// # Panics
+    ///
+    /// * If provided components are invalid.
     #[inline]
     #[track_caller]
     pub fn new(n: Odd<U2048>, e: Odd<U2048>) -> Self {
@@ -140,7 +147,7 @@ impl RsaKey {
 
         sha2::Sha256::new_with_prefix(temp_key)
             .chain_update(data_with_padding)
-            .finalize_into(hash.try_into().unwrap());
+            .finalize_into(infallible!(hash.try_into().unwrap()));
 
         // * aes_encrypted := AES256_IGE(data_with_hash, temp_key, 0);
         // -- AES256-IGE encryption with zero IV.
@@ -150,7 +157,7 @@ impl RsaKey {
         // * temp_key_xor := temp_key XOR SHA256(aes_encrypted);
         // -- adjusted key, 32 bytes
         sha2::Sha256::new_with_prefix(aes_encrypted)
-            .finalize_into(temp_key_xor.try_into().unwrap());
+            .finalize_into(infallible!(temp_key_xor.try_into().unwrap()));
 
         for i in 0..32 {
             temp_key_xor[i] ^= temp_key[i];

@@ -146,7 +146,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn packet(&mut self, packet: Packet) -> Result<(), SenderError> {
-        let buf = &mut self.reader.buffer().as_mut_slice()[packet.data];
+        let buf = self.reader.as_mut_slice(packet);
 
         if buf.len() < mtproto::ExternalHeader::LEN + mtproto::InternalHeader::LEN {
             return Err(SenderError::Todo("too small"));
@@ -182,7 +182,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         // TODO: check seq no
 
-        let len = buf.de::<i32>().expect("todo");
+        let _len = buf.de::<i32>().expect("todo");
 
         let id = buf.de::<u32>().expect("todo");
 
