@@ -54,6 +54,7 @@ pub trait Transport: crate::Sealed {
 
     const INIT_SIZE: usize;
 
+    #[must_use]
     fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write);
 
     type Envelope;

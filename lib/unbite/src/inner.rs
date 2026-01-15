@@ -5,12 +5,29 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 macro_rules! cold_panic {
-    ($func:ident => $( $args:tt )* ) => {
+    ( $func:ident => $( $args:tt )* ) => {
         #[cold]
         #[track_caller]
         #[inline(never)]
         fn $func() -> ! {
             panic!( $( $args )* );
+        }
+
+        $func()
+    };
+}
+
+macro_rules! safe_abort {
+    ( $func:ident => $s:literal ) => {
+        #[cold]
+        #[track_caller]
+        #[inline(never)]
+        fn $func() -> ! {
+            const BUF: &'static [u8] = concat!("\n", $s, "\n").as_bytes();
+
+            let mut stderr = std::io::stderr().lock();
+            let _ = std::io::Write::write_all(&mut stderr, BUF);
+            std::process::abort();
         }
 
         $func()
@@ -150,11 +167,11 @@ impl AllocPtr {
         }
 
         if previous == 0 {
-            cold_panic!(ref_count_underflow => "ref_count underflow");
+            safe_abort!(ref_count_underflow => "ref_count underflow");
         }
 
         if const { !DEALLOCATE } {
-            cold_panic!(ref_count_reached_0 => "ref_count reached 0 during non-deallocating drop");
+            safe_abort!(ref_count_reached_0 => "ref_count reached 0 during non-deallocating drop");
         }
 
         #[cfg(feature = "debug")]

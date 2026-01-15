@@ -83,12 +83,14 @@ impl TransportRead for FullRead {
             return UnpackResult::Continue { length: 4 };
         }
 
-        let len = match i32::from_le_bytes(buffer[0..4].try_into().unwrap()) {
-            len @ ..0 => bail!(offset: 4 => Status(-len)),
-            len @ 0..12 => bail!(offset: 4 => BadLen(len)),
+        let got = i32::from_le_bytes(buffer[0..4].try_into().unwrap());
 
-            #[expect(clippy::cast_sign_loss)]
-            len => len as usize,
+        let Ok(len) = usize::try_from(got) else {
+            bail!(offset: 4 => Status(-got));
+        };
+
+        if len < 12 {
+            bail!(offset: 4 => BadLen(got));
         };
 
         if buffer.len() < len {
@@ -129,7 +131,7 @@ impl TransportWrite for FullWrite {
 
         let len = 4 + 4 + buffer.len() + 4;
 
-        let len: i32 = len.try_into().expect("`buffer` to not exceed `i32` limit");
+        let len: i32 = len.try_into().unwrap();
 
         header.extend_from_array(&len.to_le_bytes());
         header.extend_from_array(&self.seq.to_le_bytes());
