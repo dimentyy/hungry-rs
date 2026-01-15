@@ -3,6 +3,22 @@ use std::num::NonZeroI64;
 
 use crate::mtproto;
 
+/// # Checking session_id
+///
+/// The client is to check that the `session_id` 
+/// field in the decrypted message indeed equals to
+/// that of an active session created by the client.
+#[derive(Debug, Eq, PartialEq)]
+pub struct SessionIdError(pub mtproto::Session);
+
+impl fmt::Display for SessionIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "received unexpected `session_id`: {:#018x}", self.0)
+    }
+}
+
+impl std::error::Error for SessionIdError {}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct AuthKeyIdError(pub Option<mtproto::AuthKeyId>);
 

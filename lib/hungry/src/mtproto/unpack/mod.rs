@@ -6,7 +6,9 @@ use crate::{common, crypto, tl};
 
 use common::infallible;
 
-pub use error::{AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError};
+pub use error::{
+    AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
+};
 
 #[inline]
 #[must_use]

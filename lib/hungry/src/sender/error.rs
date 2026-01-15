@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::mtproto::{MsgKeyCheckError, AuthKeyIdError};
+use crate::mtproto::{MsgKeyCheckError, AuthKeyIdError, SessionIdError};
 use crate::reader::ReaderError;
 use crate::writer::WriterError;
 
@@ -11,6 +11,7 @@ pub enum SenderError {
 
     AuthKeyId(AuthKeyIdError),
     MsgKeyCheck(MsgKeyCheckError),
+    SessionId(SessionIdError),
 
     Todo(&'static str),
 }
@@ -27,6 +28,7 @@ impl fmt::Display for SenderError {
 
             AuthKeyId(err) => err.fmt(f),
             MsgKeyCheck(err) => err.fmt(f),
+            SessionId(err) => err.fmt(f),
 
             Todo(todo) => f.write_str(todo),
         }
@@ -43,6 +45,7 @@ impl std::error::Error for SenderError {
 
             AuthKeyId(err) => err,
             MsgKeyCheck(err) => err,
+            SessionId(err) => err,
 
             Todo(_) => return None,
         })

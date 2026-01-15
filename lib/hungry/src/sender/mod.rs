@@ -203,7 +203,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let internal = external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
 
         if internal.session_id != self.session {
-            return Err(Todo("invalid session"));
+            return Err(SessionId(mtproto::SessionIdError(internal.session_id)));
         }
 
         let buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);

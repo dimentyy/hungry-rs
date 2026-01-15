@@ -12,7 +12,10 @@ pub use msg::Msg;
 pub use msg_id::{MsgId, MsgIds, is_msg_id_valid, msg_id};
 pub use pack::{pack_encrypted, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
-pub use unpack::{MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, auth_key_id, AuthKeyIdError};
+pub use unpack::{
+    AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
+    auth_key_id,
+};
 
 pub const MAX_ENCRYPTED_PADDING: usize = 1024;
 
