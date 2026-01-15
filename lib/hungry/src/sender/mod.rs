@@ -137,7 +137,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         self.get_container(len).push(msg, f);
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+    pub fn poll<'a>(
+        &'a mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<tl::de::Buf<'a>, SenderError>> {
         if !self.writer.is_empty() || self.container.is_some() {
             loop {
                 let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
@@ -154,7 +157,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             }
         }
 
-        while let Poll::Ready(result) = self.reader.poll(cx) {
+        if let Poll::Ready(result) = self.reader.poll(cx) {
             let unpack = match result {
                 ReaderResult::Reserve(_) => todo!(),
                 ReaderResult::Unpack(unpack) => unpack,
@@ -166,13 +169,15 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 Unpack::QuickAck(_) => todo!(),
             };
 
-            self.packet(packet)?;
+            let buf = self.packet(packet)?;
+
+            return Poll::Ready(Ok(buf));
         }
 
         Poll::Pending
     }
 
-    fn packet(&mut self, packet: Packet) -> Result<(), SenderError> {
+    fn packet(&'_ mut self, packet: Packet) -> Result<tl::de::Buf<'_>, SenderError> {
         pub use SenderError::*;
 
         let buf = self.reader.as_mut_slice(packet);
@@ -201,22 +206,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Err(Todo("invalid session"));
         }
 
-        let mut buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
+        let buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
 
-        let msg = buf.de::<mtproto::Msg>().expect("todo");
-
-        if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
-            return Err(Todo("invalid msg id"));
-        }
-
-        // TODO: check seq no
-
-        let _len = buf.de::<i32>().expect("todo");
-
-        let id = buf.de::<u32>().expect("todo");
-
-        println!("{id:#010x}");
-
-        Ok(())
+        Ok(buf)
     }
 }

@@ -1,9 +1,10 @@
 use std::future::poll_fn;
-
-use hungry::{crypto_bigint, tl, unbite};
+use std::task::{ready, Poll};
+use hungry::{crypto_bigint, mtproto, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
-
+use hungry::sender::SenderError;
+use hungry::sender::SenderError::Todo;
 use hungry::tl::mtproto::{enums, funcs};
 
 const ADDR: &str = "149.154.167.40:443";
@@ -99,10 +100,32 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
-    sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 123 }));
-
     loop {
-        let _ = dbg!(poll_fn(|cx| sender.poll(cx)).await);
+        println!("\n\n===============================\n\n");
+
+        sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
+
+        poll_fn(|cx| {
+            let mut buf = ready!(sender.poll(cx))?;
+
+            let msg = buf.de::<mtproto::Msg>().expect("todo");
+
+            if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
+                todo!()
+            }
+
+            // TODO: check seq no
+
+            let _len = buf.de::<i32>().expect("todo");
+
+            let id = buf.de::<u32>().expect("todo");
+
+            println!("{id:#010x}");
+
+            Poll::Ready(Ok::<_, SenderError>(()))
+        }).await?;
+
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
     }
 
     Ok(())
