@@ -184,11 +184,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
 
         let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
-            return Err(Todo("plain message"));
+            return Err(AuthKeyId(mtproto::AuthKeyIdError(None)));
         };
 
         if auth_key_id != self.auth_key.id() {
-            return Err(Todo("invalid auth key id"));
+            return Err(AuthKeyId(mtproto::AuthKeyIdError(Some(auth_key_id))));
         }
 
         let (header, buf) = buf.split_first_chunk_mut().unwrap();

@@ -1,6 +1,20 @@
 use std::fmt;
+use std::num::NonZeroI64;
 
 use crate::mtproto;
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct AuthKeyIdError(pub Option<mtproto::AuthKeyId>);
+
+impl fmt::Display for AuthKeyIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let auth_key_id = self.0.map(NonZeroI64::get).unwrap_or(0);
+
+        write!(f, "received unexpected `auth_key_id`: {auth_key_id:#018x}")
+    }
+}
+
+impl std::error::Error for AuthKeyIdError {}
 
 /// # Checking SHA256 hash value of msg_key
 ///
