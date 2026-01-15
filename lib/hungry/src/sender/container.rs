@@ -1,48 +1,45 @@
 use std::num::NonZeroU32;
 
-use crate::mtproto::{EncryptedHeader, EncryptedPadding, Msg};
+use crate::mtproto::{EncryptedEnvelope, Msg};
 use crate::pack::{MsgContainer, MsgContainerResult};
 use crate::tl;
 use crate::transport::{Transport, TransportEnvelope};
 
 pub(super) struct Container<T: Transport> {
     transport: T::Envelope,
-    header: EncryptedHeader,
-    pad: EncryptedPadding,
-    container: MsgContainer,
+    encrypted: EncryptedEnvelope,
+    raw_inner: MsgContainer,
 }
 
 impl<T: Transport> Container<T> {
     pub(crate) fn new(mut buffer: unbite::DynBuf) -> Container<T> {
         let transport = T::envelope(&mut buffer);
-        let header = buffer.split_raw_front();
-        let pad = buffer.split_raw_back();
+        let encrypted = EncryptedEnvelope::new(&mut buffer);
 
         Self {
             transport,
-            header,
-            pad,
-            container: MsgContainer::new(buffer),
+            encrypted,
+            raw_inner: MsgContainer::new(buffer),
         }
     }
 
     #[inline]
     pub(super) fn len(&self) -> usize {
-        self.container.len()
+        self.raw_inner.len()
     }
 
     #[inline]
     pub(super) fn is_empty(&self) -> bool {
-        self.container.is_empty()
+        self.raw_inner.is_empty()
     }
 
     #[inline]
     pub(super) fn can_push(&self, len: usize) -> bool {
-        self.container.can_push(len)
+        self.raw_inner.can_push(len)
     }
 
     pub(super) fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
-        self.container.push(msg, x);
+        self.raw_inner.push(msg, x);
     }
 
     /// # Panics
@@ -53,35 +50,26 @@ impl<T: Transport> Container<T> {
     ) -> (
         ContainerResult,
         T::Envelope,
-        EncryptedHeader,
-        EncryptedPadding,
+        EncryptedEnvelope,
         unbite::DynBuf,
     ) {
         use MsgContainerResult::*;
 
-        let (result, buffer) = match self.container.finalize() {
+        let (result, buffer) = match self.raw_inner.finalize() {
             Msg { mut header, buffer } => {
-                self.header.swap(&mut header);
+                self.encrypted.header_swap(&mut header);
                 self.transport.header_swap(&mut header);
 
                 (ContainerResult::Header(header), buffer)
             }
-            MsgContainer { length, buffer } => {
-                (ContainerResult::Length(length), buffer)
-            }
+            MsgContainer { length, buffer } => (ContainerResult::Length(length), buffer),
         };
 
-        (
-            result,
-            self.transport,
-            self.header,
-            self.pad,
-            buffer,
-        )
+        (result, self.transport, self.encrypted, buffer)
     }
 }
 
 pub(super) enum ContainerResult {
     Header(unbite::Raw<8>),
-    Length(NonZeroU32)
+    Length(NonZeroU32),
 }

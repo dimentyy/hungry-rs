@@ -86,14 +86,13 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     pub fn queue(
         &mut self,
         transport: T::Envelope,
-        header: mtproto::EncryptedHeader,
+        encrypted: mtproto::EncryptedEnvelope,
         mut buffer: unbite::DynBuf,
-        padding: mtproto::EncryptedPadding,
         auth_key: &mtproto::AuthKey,
         internal: mtproto::InternalHeader,
         msg: mtproto::Msg,
     ) -> Option<unbite::DynRaw> {
-        mtproto::pack_encrypted(header, &mut buffer, padding, auth_key, internal, msg);
+        encrypted.pack(&mut buffer, auth_key, internal, msg);
 
         self.queue_impl(buffer, transport)
     }

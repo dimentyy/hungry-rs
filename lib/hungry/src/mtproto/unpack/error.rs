@@ -5,9 +5,13 @@ use crate::mtproto;
 
 /// # Checking session_id
 ///
-/// The client is to check that the `session_id` 
+/// The client is to check that the `session_id`
 /// field in the decrypted message indeed equals to
 /// that of an active session created by the client.
+///
+/// ---
+///
+/// <https://core.telegram.org/mtproto/security_guidelines#checking-session-id>
 #[derive(Debug, Eq, PartialEq)]
 pub struct SessionIdError(pub mtproto::Session);
 
@@ -24,7 +28,7 @@ pub struct AuthKeyIdError(pub Option<mtproto::AuthKeyId>);
 
 impl fmt::Display for AuthKeyIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let auth_key_id = self.0.map(NonZeroI64::get).unwrap_or(0);
+        let auth_key_id = self.0.map_or(0, NonZeroI64::get);
 
         write!(f, "received unexpected `auth_key_id`: {auth_key_id:#018x}")
     }

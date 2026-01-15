@@ -10,7 +10,7 @@ pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
 pub use msg::Msg;
 pub use msg_id::{MsgId, MsgIds, is_msg_id_valid, msg_id};
-pub use pack::{pack_encrypted, pack_plain};
+pub use pack::{EncryptedEnvelope, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};
 pub use unpack::{
     AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
@@ -20,11 +20,6 @@ pub use unpack::{
 pub const MAX_ENCRYPTED_PADDING: usize = 1024;
 
 pub type PlainHeader = unbite::Raw<{ PlainMsgHeader::LEN }>;
-
-pub type EncryptedHeader =
-    unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + Msg::HEADER_LEN }>;
-
-pub type EncryptedPadding = unbite::Raw<MAX_ENCRYPTED_PADDING>;
 
 /// # Session
 ///

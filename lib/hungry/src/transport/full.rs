@@ -92,7 +92,7 @@ impl TransportRead for FullRead {
 
         if len < 12 {
             bail!(offset: 4 => BadLen(got));
-        };
+        }
 
         if buffer.len() < len {
             return UnpackResult::Continue { length: len };
@@ -152,6 +152,6 @@ impl TransportWrite for FullWrite {
 impl TransportEnvelope for FullEnvelope {
     #[inline]
     fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>) {
-        self.header.swap(buffer)
+        self.header.swap(buffer);
     }
 }

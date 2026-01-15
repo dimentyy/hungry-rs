@@ -82,8 +82,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         if self
             .container
             .as_ref()
-            .map(|c| c.can_push(len))
-            .unwrap_or(false)
+            .is_some_and(|c| c.can_push(len))
         {
             return self.container.as_mut().unwrap();
         }
@@ -98,18 +97,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
-        let (result, envelope, header, pad, buffer) = container.finalize();
+        let (result, transport, encrypted, buffer) = container.finalize();
 
         match result {
             ContainerResult::Header(header) => self.push_container_header_buffer(header),
             ContainerResult::Length(_length) => {} // TODO: inspection.
-        };
+        }
 
         let buffer = self.writer.queue(
-            envelope,
-            header,
+            transport,
+            encrypted,
             buffer,
-            pad,
             &self.auth_key,
             mtproto::InternalHeader {
                 salt: self.salt,

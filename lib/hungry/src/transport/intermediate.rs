@@ -146,6 +146,6 @@ impl super::IdentifiableTransport for Intermediate {
 impl TransportEnvelope for IntermediateEnvelope {
     #[inline]
     fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>) {
-        self.header.swap(buffer)
+        self.header.swap(buffer);
     }
 }

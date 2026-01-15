@@ -65,17 +65,16 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
 
     pub fn single<'a>(
         &'a mut self,
-        envelope: T::Envelope,
-        header: mtproto::EncryptedHeader,
+        transport: T::Envelope,
+        encrypted: mtproto::EncryptedEnvelope,
         buffer: &'a mut unbite::DynBuf,
-        padding: mtproto::EncryptedPadding,
         auth_key: &mtproto::AuthKey,
         message: mtproto::InternalHeader,
         msg: mtproto::Msg,
     ) -> Single<'a, W, T> {
-        mtproto::pack_encrypted(header, buffer, padding, auth_key, message, msg);
+        encrypted.pack(buffer, auth_key, message, msg);
 
-        self.single_impl(buffer, envelope)
+        self.single_impl(buffer, transport)
     }
 
     fn single_impl<'a>(

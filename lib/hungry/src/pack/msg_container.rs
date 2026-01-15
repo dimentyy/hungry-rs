@@ -62,6 +62,7 @@ impl MsgContainer {
         len + Msg::HEADER_LEN <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
     }
 
+    #[expect(clippy::needless_pass_by_value)]
     pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
         assert!(
             self.can_push(x.serialized_len()),
@@ -72,7 +73,7 @@ impl MsgContainer {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
             buf.ser(&msg);
-            buf.ser(&(x.serialized_len() as i32));
+            buf.ser(&i32::try_from(x.serialized_len()).unwrap());
             buf.ser(x);
 
             buf.as_slice()
@@ -108,6 +109,7 @@ impl MsgContainer {
     }
 }
 
+#[must_use]
 pub enum MsgContainerResult {
     Msg {
         header: unbite::Raw<8>,

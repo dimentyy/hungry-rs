@@ -1,5 +1,5 @@
 use crate::mtproto::{
-    AuthKey, EncryptedHeader, EncryptedPadding, InternalHeader, Msg, PlainHeader, Side,
+    AuthKey, ExternalHeader, InternalHeader, MAX_ENCRYPTED_PADDING, Msg, PlainHeader, Side,
 };
 
 pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
@@ -12,49 +12,67 @@ pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
     buffer.unsplit_buf_front(header);
 }
 
-pub fn pack_encrypted(
-    header: EncryptedHeader,
-    buffer: &mut unbite::DynBuf,
-    padding: EncryptedPadding,
-    auth_key: &AuthKey,
-    internal: InternalHeader,
-    msg: Msg,
-) {
-    let mut header = header.into_buf();
+pub struct EncryptedEnvelope {
+    header: unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + Msg::HEADER_LEN }>,
+    padding: unbite::Raw<MAX_ENCRYPTED_PADDING>,
+}
 
-    let plaintext_len = buffer.len();
+impl EncryptedEnvelope {
+    pub fn new(buffer: &mut unbite::DynBuf) -> Self {
+        let header = buffer.split_raw_front();
+        let padding = buffer.split_raw_back();
 
-    // TODO: allow custom padding length; currently minimum possible.
-    let random_padding_len = ((20 - (plaintext_len & 15)) & 15) + 12; // 12..28
+        Self { header, padding }
+    }
 
-    buffer.unsplit_raw_back(padding);
+    pub fn header_swap<const N: usize>(&mut self, other: &mut unbite::Raw<N>) {
+        self.header.swap(other);
+    }
 
-    buffer.init_with(|spare_capacity| {
-        let dest = &mut spare_capacity[..random_padding_len];
+    #[expect(clippy::needless_pass_by_value)]
+    pub fn pack(
+        self,
+        buffer: &mut unbite::DynBuf,
+        auth_key: &AuthKey,
+        internal: InternalHeader,
+        msg: Msg,
+    ) {
+        let mut header = self.header.into_buf();
 
-        getrandom::fill_uninit(dest).unwrap()
-    });
+        let plaintext_len = buffer.len();
 
-    header.extend_from_slice(&auth_key.id().get().to_le_bytes());
+        // TODO: allow custom padding length; currently minimum possible.
+        let random_padding_len = ((20 - (plaintext_len & 15)) & 15) + 12; // 12..28
 
-    // SAFETY: bytes in range 8..24 will be initialized with `msg_key`.
-    unsafe { header.advance_unchecked(16) };
+        buffer.unsplit_raw_back(self.padding);
 
-    header.extend_from_array(&internal.salt.to_le_bytes());
-    header.extend_from_array(&internal.session_id.to_le_bytes());
-    header.extend_from_array(&msg.msg_id.to_le_bytes());
-    header.extend_from_array(&msg.seq_no.to_le_bytes());
-    header.extend_from_array(&i32::try_from(plaintext_len).unwrap().to_le_bytes());
+        buffer.init_with(|spare_capacity| {
+            let dest = &mut spare_capacity[..random_padding_len];
 
-    buffer.unsplit_buf_front(header);
+            getrandom::fill_uninit(dest).unwrap()
+        });
 
-    let (h, plaintext) = buffer.as_mut_slice().split_at_mut(24);
+        header.extend_from_slice(&auth_key.id().get().to_le_bytes());
 
-    let msg_key = auth_key.compute_msg_key(plaintext, Side::Client);
+        // SAFETY: bytes in range 8..24 will be initialized with `msg_key`.
+        unsafe { header.advance_unchecked(16) };
 
-    h[8..24].copy_from_slice(msg_key.as_ref());
+        header.extend_from_array(&internal.salt.to_le_bytes());
+        header.extend_from_array(&internal.session_id.to_le_bytes());
+        header.extend_from_array(&msg.msg_id.to_le_bytes());
+        header.extend_from_array(&msg.seq_no.to_le_bytes());
+        header.extend_from_array(&i32::try_from(plaintext_len).unwrap().to_le_bytes());
 
-    let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
+        buffer.unsplit_buf_front(header);
 
-    crate::crypto::aes_ige_encrypt(plaintext, &aes_key, &mut aes_iv);
+        let (h, plaintext) = buffer.as_mut_slice().split_at_mut(24);
+
+        let msg_key = auth_key.compute_msg_key(plaintext, Side::Client);
+
+        h[8..24].copy_from_slice(msg_key.as_ref());
+
+        let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&msg_key, Side::Client);
+
+        crate::crypto::aes_ige_encrypt(plaintext, &aes_key, &mut aes_iv);
+    }
 }
