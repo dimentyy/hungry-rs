@@ -1,7 +1,9 @@
+use std::num::NonZeroU32;
+
 use crate::mtproto::{EncryptedHeader, EncryptedPadding, Msg};
-use crate::pack::MsgContainer;
+use crate::pack::{MsgContainer, MsgContainerResult};
 use crate::tl;
-use crate::transport::Transport;
+use crate::transport::{Transport, TransportEnvelope};
 
 pub(super) struct Container<T: Transport> {
     transport: T::Envelope,
@@ -43,19 +45,43 @@ impl<T: Transport> Container<T> {
         self.container.push(msg, x);
     }
 
+    /// # Panics
+    ///
+    /// * If no messages were pushed to the container.
     pub(super) fn finalize(
-        self,
+        mut self,
     ) -> (
+        ContainerResult,
         T::Envelope,
         EncryptedHeader,
         EncryptedPadding,
         unbite::DynBuf,
     ) {
+        use MsgContainerResult::*;
+
+        let (result, buffer) = match self.container.finalize() {
+            Msg { mut header, buffer } => {
+                self.header.swap(&mut header);
+                self.transport.header_swap(&mut header);
+
+                (ContainerResult::Header(header), buffer)
+            }
+            MsgContainer { length, buffer } => {
+                (ContainerResult::Length(length), buffer)
+            }
+        };
+
         (
+            result,
             self.transport,
             self.header,
             self.pad,
-            self.container.finalize(),
+            buffer,
         )
     }
+}
+
+pub(super) enum ContainerResult {
+    Header(unbite::Raw<8>),
+    Length(NonZeroU32)
 }

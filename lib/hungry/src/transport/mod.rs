@@ -57,7 +57,7 @@ pub trait Transport: crate::Sealed {
     #[must_use]
     fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write);
 
-    type Envelope;
+    type Envelope: TransportEnvelope;
 
     #[must_use]
     fn envelope(buffer: &mut unbite::DynBuf) -> Self::Envelope;
@@ -77,6 +77,10 @@ pub trait TransportWrite {
         buffer: &mut unbite::DynBuf,
         envelope: <Self::Transport as Transport>::Envelope,
     );
+}
+
+pub trait TransportEnvelope {
+    fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>);
 }
 
 #[cfg(feature = "obfuscated-transport")]

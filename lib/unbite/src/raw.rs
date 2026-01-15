@@ -1,3 +1,5 @@
+use std::mem::swap;
+
 use crate::Buf;
 use crate::inner::Inner;
 
@@ -49,5 +51,13 @@ impl<const N: usize> Raw<N> {
         r.inner.drop_non_deallocating();
 
         Raw { inner: l.inner }
+    }
+
+    #[inline]
+    pub fn swap<const O: usize>(&mut self, other: &mut Raw<O>) {
+        assert!(self.can_unsplit_raw_back(other));
+
+        other.inner.bytes = self.inner.bytes;
+        self.inner.bytes = unsafe { self.inner.bytes.add(O) };
     }
 }

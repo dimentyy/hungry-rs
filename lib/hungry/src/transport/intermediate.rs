@@ -1,5 +1,6 @@
 use crate::transport::{
-    Packet, QuickAck, Transport, TransportRead, TransportWrite, Unpack, UnpackResult,
+    Packet, QuickAck, Transport, TransportEnvelope, TransportRead, TransportWrite, Unpack,
+    UnpackResult,
 };
 
 /// # Intermediate
@@ -140,4 +141,11 @@ impl TransportWrite for IntermediateWrite {
 #[cfg(feature = "obfuscated-transport")]
 impl super::IdentifiableTransport for Intermediate {
     const TRANSPORT_IDENTIFIER: [u8; 4] = [0xee, 0xee, 0xee, 0xee];
+}
+
+impl TransportEnvelope for IntermediateEnvelope {
+    #[inline]
+    fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>) {
+        self.header.swap(buffer)
+    }
 }

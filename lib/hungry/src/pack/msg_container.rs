@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use crate::mtproto::Msg;
 
 use crate::tl;
@@ -79,7 +81,19 @@ impl MsgContainer {
         self.length += 1;
     }
 
-    pub fn finalize(mut self) -> unbite::DynBuf {
+    /// # Panics
+    /// 
+    /// * If no messages were pushed to the container.
+    pub fn finalize(mut self) -> MsgContainerResult {
+        let length = NonZeroU32::new(self.length).expect("at least one msg in a container");
+
+        if length.get() == 1 {
+            return MsgContainerResult::Msg {
+                header: self.header,
+                buffer: self.buffer,
+            };
+        }
+
         let mut header = self.header.into_buf();
 
         header.extend_from_array(&Self::CONSTRUCTOR_ID.to_le_bytes());
@@ -87,6 +101,20 @@ impl MsgContainer {
 
         self.buffer.unsplit_buf_front(header);
 
-        self.buffer
+        MsgContainerResult::MsgContainer {
+            length,
+            buffer: self.buffer,
+        }
     }
+}
+
+pub enum MsgContainerResult {
+    Msg {
+        header: unbite::Raw<8>,
+        buffer: unbite::DynBuf,
+    },
+    MsgContainer {
+        length: NonZeroU32,
+        buffer: unbite::DynBuf,
+    },
 }

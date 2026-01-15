@@ -89,7 +89,7 @@ async fn async_main() -> anyhow::Result<()> {
         todo!()
     };
 
-    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(dh_gen_ok)?;
+    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(&dh_gen_ok)?;
 
     let (r, w) = plain.into_inner();
 

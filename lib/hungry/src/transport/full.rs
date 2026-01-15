@@ -1,5 +1,6 @@
 use crate::transport::{
-    Packet, Transport, TransportError, TransportRead, TransportWrite, Unpack, UnpackResult, bail,
+    Packet, Transport, TransportEnvelope, TransportError, TransportRead, TransportWrite, Unpack,
+    UnpackResult, bail,
 };
 
 /// # Full
@@ -145,5 +146,12 @@ impl TransportWrite for FullWrite {
         buffer.extend_from_array(&crc32.to_le_bytes());
 
         self.seq += 1;
+    }
+}
+
+impl TransportEnvelope for FullEnvelope {
+    #[inline]
+    fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>) {
+        self.header.swap(buffer)
     }
 }
