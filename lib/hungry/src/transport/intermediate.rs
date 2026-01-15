@@ -132,7 +132,7 @@ impl TransportWrite for IntermediateWrite {
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: IntermediateEnvelope) {
         let mut header = envelope.header.into_buf();
 
-        header.extend_from_array(&buffer.len().to_le_bytes());
+        header.extend_from_array(&i32::try_from(buffer.len()).unwrap().to_le_bytes());
 
         buffer.unsplit_buf_front(header);
     }
