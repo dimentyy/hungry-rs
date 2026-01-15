@@ -25,7 +25,7 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     // FIXME
     salt: mtproto::Salt,
 
-    container: Container<T>,
+    container: Option<Container<T>>,
 
     msg_ids: mtproto::MsgIds,
     seq_nos: mtproto::SeqNos,
@@ -50,8 +50,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             salt,
 
-            // FIXME
-            container: Container::new(unbite::DynBuf::new(100_000)),
+            container: None,
 
             msg_ids: mtproto::MsgIds::new(std::time::SystemTime::now()),
             seq_nos: mtproto::SeqNos::new(),
@@ -70,12 +69,32 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         eprintln!("TODO: push_container_header_buffer");
     }
 
-    // FIXME
-    fn take_container(&mut self) -> Container<T> {
-        mem::replace(
-            &mut self.container,
-            Container::new(unbite::DynBuf::new(100_000)),
-        )
+    fn take_container(&mut self) -> Option<Container<T>> {
+        mem::take(&mut self.container)
+    }
+
+    fn new_container(&mut self, len: usize) -> Container<T> {
+        // FIXME
+        Container::new(unbite::DynBuf::new(len + 100_000))
+    }
+
+    fn get_container(&mut self, len: usize) -> &mut Container<T> {
+        if self
+            .container
+            .as_ref()
+            .map(|c| c.can_push(len))
+            .unwrap_or(false)
+        {
+            return self.container.as_mut().unwrap();
+        }
+
+        if let Some(container) = self.take_container() {
+            self.queue_container_write(container);
+        }
+
+        let new = self.new_container(len);
+
+        self.container.insert(new)
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
@@ -108,24 +127,23 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     pub fn invoke<F: tl::Function>(&mut self, f: &tl::ConstructorId<F>) {
-        self.container.push(
-            mtproto::Msg {
-                msg_id: self.msg_ids.get(std::time::SystemTime::now()),
-                seq_no: self.seq_nos.get_content_related(),
-            },
-            f,
-        );
+        let msg = mtproto::Msg {
+            msg_id: self.msg_ids.get(std::time::SystemTime::now()),
+            seq_no: self.seq_nos.get_content_related(),
+        };
+
+        let len = tl::SerializedLen::serialized_len(f);
+
+        self.get_container(len).push(msg, f);
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
-        if !self.writer.is_empty() || !self.container.is_empty() {
+        if !self.writer.is_empty() || self.container.is_some() {
             loop {
                 let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
-                    if self.container.is_empty() {
+                    let Some(container) = self.take_container() else {
                         break;
-                    }
-
-                    let container = self.take_container();
+                    };
 
                     self.queue_container_write(container);
 
@@ -155,30 +173,32 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn packet(&mut self, packet: Packet) -> Result<(), SenderError> {
+        pub use SenderError::*;
+
         let buf = self.reader.as_mut_slice(packet);
 
         if buf.len() < mtproto::ExternalHeader::LEN + mtproto::InternalHeader::LEN {
-            return Err(SenderError::Todo("too small"));
+            return Err(Todo("too small"));
         }
 
         let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
 
         let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
-            return Err(SenderError::Todo("plain message"));
+            return Err(Todo("plain message"));
         };
 
         if auth_key_id != self.auth_key.id() {
-            return Err(SenderError::Todo("invalid auth key id"));
+            return Err(Todo("invalid auth key id"));
         }
 
         let (header, buf) = buf.split_first_chunk_mut().unwrap();
 
         let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
 
-        let internal = external.decrypt(&self.auth_key, buf).expect("todo");
+        let internal = external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
 
         if internal.session_id != self.session {
-            return Err(SenderError::Todo("invalid session"));
+            return Err(Todo("invalid session"));
         }
 
         let mut buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
@@ -186,7 +206,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let msg = buf.de::<mtproto::Msg>().expect("todo");
 
         if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
-            return Err(SenderError::Todo("invalid msg id"));
+            return Err(Todo("invalid msg id"));
         }
 
         // TODO: check seq no

@@ -82,7 +82,7 @@ impl MsgContainer {
     }
 
     /// # Panics
-    /// 
+    ///
     /// * If no messages were pushed to the container.
     pub fn finalize(mut self) -> MsgContainerResult {
         let length = NonZeroU32::new(self.length).expect("at least one msg in a container");
