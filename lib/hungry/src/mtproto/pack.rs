@@ -13,7 +13,7 @@ pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
 }
 
 pub struct EncryptedEnvelope {
-    header: unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + Msg::HEADER_LEN }>,
+    header: unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + 16 }>,
     padding: unbite::Raw<MAX_ENCRYPTED_PADDING>,
 }
 

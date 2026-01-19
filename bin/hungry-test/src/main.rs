@@ -1,12 +1,12 @@
-use hungry::{crypto_bigint, mtproto, tl, unbite};
 use std::future::poll_fn;
 use std::task::{Poll, ready};
 
+use hungry::{crypto_bigint, mtproto, tl, unbite};
+
 use crypto_bigint::{Odd, U2048};
-use hungry::sender::SenderError;
-use hungry::sender::SenderError::Todo;
+
 use hungry::tl::Identifiable;
-use hungry::tl::mtproto::{enums, funcs};
+use hungry::tl::mtproto::{enums, funcs, types};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -48,8 +48,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut plain = hungry::plain::Plain::new(r, w);
 
-    let tl::mtproto::enums::ResPq::ResPq(res_pq) =
-        plain.send(&mut buffer, req_pq_multi.func()).await?;
+    let enums::ResPq::ResPq(res_pq) = plain.send(&mut buffer, req_pq_multi.func()).await?;
 
     let res_pq = req_pq_multi.res_pq(&res_pq)?;
 
@@ -108,56 +107,42 @@ async fn async_main() -> anyhow::Result<()> {
         poll_fn(|cx| {
             let mut buf = ready!(sender.poll(cx))?;
 
-            let msg = buf.de::<mtproto::Msg>().expect("todo");
+            let mut de = mtproto::MsgDe::deserialize(&mut buf)?;
 
-            if !mtproto::is_msg_id_valid(msg.msg_id, std::time::SystemTime::now()) {
+            if !mtproto::is_msg_id_valid(de.msg.msg_id, std::time::SystemTime::now()) {
                 todo!()
             }
 
             // TODO: check seq no
 
-            let _len = buf.de::<i32>().expect("todo");
+            let id = u32::from_le_bytes(*de.buf.peek_exactly()?);
 
-            let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-            let msgs = if id == 0x73f1f8dc {
-                println!("msg container");
-
-                let Ok(_) = buf.advance(4) else {
-                    unreachable!()
-                };
-
-                hungry::unpack::MsgContainer::new(buf)?.collect::<Result<Vec<_>, _>>()?
-            } else {
-                vec![(msg, buf)]
-            };
-
-            for (msg, mut buf) in msgs {
+            let handle: fn(mtproto::MsgDe) -> anyhow::Result<()> = |mtproto::MsgDe { msg, mut buf }| {
                 let id = u32::from_le_bytes(*buf.take_exactly()?);
 
                 match id {
-                    tl::mtproto::types::NewSessionCreated::CONSTRUCTOR_ID => {
-                        let new_session_created: tl::mtproto::types::NewSessionCreated = buf.de()?;
+                    types::NewSessionCreated::CONSTRUCTOR_ID => {
+                        let new_session_created: types::NewSessionCreated = buf.de()?;
 
                         dbg!(new_session_created);
                     }
-                    tl::mtproto::types::BadMsgNotification::CONSTRUCTOR_ID => {
-                        let bad_msg_notification: tl::mtproto::types::BadMsgNotification = buf.de()?;
+                    types::BadMsgNotification::CONSTRUCTOR_ID => {
+                        let bad_msg_notification: types::BadMsgNotification = buf.de()?;
 
                         dbg!(bad_msg_notification);
                     }
-                    tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID => {
-                        let msgs_ack: tl::mtproto::types::MsgsAck = buf.de()?;
+                    types::MsgsAck::CONSTRUCTOR_ID => {
+                        let msgs_ack: types::MsgsAck = buf.de()?;
 
                         dbg!(msgs_ack);
                     }
-                    tl::mtproto::types::Pong::CONSTRUCTOR_ID => {
-                        let pong: tl::mtproto::types::Pong = buf.de()?;
+                    types::Pong::CONSTRUCTOR_ID => {
+                        let pong: types::Pong = buf.de()?;
 
                         dbg!(pong);
                     }
-                    tl::mtproto::types::FutureSalts::CONSTRUCTOR_ID => {
-                        let future_salts: tl::mtproto::types::FutureSalts = buf.de()?;
+                    types::FutureSalts::CONSTRUCTOR_ID => {
+                        let future_salts: types::FutureSalts = buf.de()?;
 
                         dbg!(future_salts);
                     }
@@ -165,6 +150,22 @@ async fn async_main() -> anyhow::Result<()> {
                         println!("{msg:?} {id:#010x}");
                     }
                 }
+
+                Ok(())
+            };
+
+            if id == 0x73f1f8dc {
+                println!("msg_container");
+
+                let Ok(_) = de.buf.advance(4) else {
+                    unreachable!()
+                };
+
+                for msg in hungry::unpack::MsgContainer::new(de.buf)? {
+                    handle(msg?)?;
+                }
+            } else {
+                handle(de)?;
             }
 
             Poll::Ready(Ok::<_, anyhow::Error>(()))

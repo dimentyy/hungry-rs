@@ -1,20 +1,19 @@
 use std::num::NonZeroU32;
 
-use crate::mtproto::{EncryptedEnvelope, Msg};
 use crate::pack::MsgContainer;
-use crate::tl;
 use crate::transport::Transport;
+use crate::{mtproto, tl};
 
 pub(super) struct Container<T: Transport> {
     transport: T::Envelope,
-    encrypted: EncryptedEnvelope,
+    encrypted: mtproto::EncryptedEnvelope,
     raw_inner: MsgContainer,
 }
 
 impl<T: Transport> Container<T> {
     pub(crate) fn new(mut buffer: unbite::DynBuf) -> Container<T> {
         let transport = T::envelope(&mut buffer);
-        let encrypted = EncryptedEnvelope::new(&mut buffer);
+        let encrypted = mtproto::EncryptedEnvelope::new(&mut buffer);
 
         Self {
             transport,
@@ -38,11 +37,11 @@ impl<T: Transport> Container<T> {
         self.raw_inner.can_push(len)
     }
 
-    pub(super) fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
+    pub(super) fn push<X: tl::Function>(&mut self, msg: mtproto::Msg, x: &tl::ConstructorId<X>) {
         self.raw_inner.push(msg, x);
     }
 
-    pub(super) fn finalize(self) -> (T::Envelope, EncryptedEnvelope, unbite::DynBuf) {
+    pub(super) fn finalize(self) -> (T::Envelope, mtproto::EncryptedEnvelope, unbite::DynBuf) {
         let buffer = self.raw_inner.finalize();
 
         (self.transport, self.encrypted, buffer)

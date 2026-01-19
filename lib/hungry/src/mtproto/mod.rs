@@ -8,7 +8,7 @@ mod unpack;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
-pub use msg::Msg;
+pub use msg::{Msg, MsgSer, MsgDe, MsgDeError};
 pub use msg_id::{MsgId, MsgIds, is_msg_id_valid, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
 pub use seq_no::{SeqNo, SeqNos};

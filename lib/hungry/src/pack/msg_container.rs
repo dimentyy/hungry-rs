@@ -1,6 +1,4 @@
-use crate::mtproto::{Msg};
-
-use crate::tl;
+use crate::{mtproto, tl};
 
 use tl::{ConstSerializedLen, Identifiable, SerializedLen};
 
@@ -49,19 +47,17 @@ impl MsgContainer {
     #[inline]
     #[must_use]
     pub fn spare_capacity(&self) -> Option<usize> {
-        self.buffer
-            .spare_capacity_len()
-            .checked_sub(Msg::HEADER_LEN)
+        self.buffer.spare_capacity_len().checked_sub(16)
     }
 
     #[inline]
     #[must_use]
     pub fn can_push(&self, len: usize) -> bool {
-        len + Msg::HEADER_LEN <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
+        len + 16 <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
     }
 
     #[expect(clippy::needless_pass_by_value)]
-    pub fn push<X: tl::Function>(&mut self, msg: Msg, x: &tl::ConstructorId<X>) {
+    pub fn push<X: tl::Function>(&mut self, msg: mtproto::Msg, x: &tl::ConstructorId<X>) {
         assert!(
             self.can_push(x.serialized_len()),
             "msg container buffer does not have enough capacity"
@@ -70,9 +66,7 @@ impl MsgContainer {
         self.buffer.init_with(|spare_capacity| {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
-            buf.ser(&msg);
-            buf.ser(&i32::try_from(x.serialized_len()).unwrap());
-            buf.ser(x);
+            buf.ser(&mtproto::MsgSer::new(msg, x));
 
             buf.as_slice()
         });
