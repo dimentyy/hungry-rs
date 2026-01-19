@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::ptr::NonNull;
-use std::{hint, slice};
+use std::{hint, ptr, slice};
 
 use crate::de::{Deserialize, EndOfBufferError, Error};
 
@@ -87,6 +87,20 @@ impl<'a> Buf<'a> {
         let ptr = self.advance(N)?.cast();
 
         Ok(unsafe { ptr.as_ref() })
+    }
+
+    #[inline(always)]
+    pub fn take(&mut self, n: usize) -> Result<&'a [u8], EndOfBufferError> {
+        let ptr = self.advance(n)?;
+
+        Ok(unsafe { &*ptr::slice_from_raw_parts(ptr.as_ptr(), n) })
+    }
+
+    #[inline(always)]
+    pub fn peek_exactly<const N: usize>(&mut self) -> Result<&'a [u8; N], EndOfBufferError> {
+        self.check_len(N)?;
+
+        Ok(unsafe { self.ptr.cast().as_ref() })
     }
 
     pub fn de<X: Deserialize>(&mut self) -> Result<X, Error> {

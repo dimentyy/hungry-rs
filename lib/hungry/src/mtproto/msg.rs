@@ -1,6 +1,8 @@
 use std::ptr::NonNull;
 
-use crate::{mtproto, tl};
+use crate::{common, mtproto, tl};
+
+use common::infallible;
 
 use tl::ConstSerializedLen;
 use tl::de::DeserializeInfallible;
@@ -15,6 +17,16 @@ pub struct Msg {
 
 impl Msg {
     pub const HEADER_LEN: usize = Self::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+
+    pub fn from_slice(slice: &[u8; 16]) -> (Msg, i32) {
+        infallible! {
+            let msg_id = i64::from_le_bytes(slice[0..8].try_into().unwrap());
+            let seq_no = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+            let length = i32::from_le_bytes(slice[12..16].try_into().unwrap());
+        }
+
+        (Msg { msg_id, seq_no }, length)
+    }
 }
 
 impl ConstSerializedLen for Msg {

@@ -69,10 +69,10 @@ impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
         encrypted: mtproto::EncryptedEnvelope,
         buffer: &'a mut unbite::DynBuf,
         auth_key: &mtproto::AuthKey,
-        message: mtproto::InternalHeader,
+        internal: mtproto::InternalHeader,
         msg: mtproto::Msg,
     ) -> Single<'a, W, T> {
-        encrypted.pack(buffer, auth_key, message, msg);
+        encrypted.pack(buffer, auth_key, internal, msg);
 
         self.single_impl(buffer, transport)
     }

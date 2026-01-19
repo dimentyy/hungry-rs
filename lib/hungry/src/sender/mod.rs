@@ -11,7 +11,7 @@ use crate::transport::{Packet, Transport, Unpack};
 use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
 
-use container::{Container, ContainerResult};
+use container::{Container};
 
 pub use error::SenderError;
 
@@ -99,12 +99,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
-        let (result, transport, encrypted, buffer) = container.finalize();
-
-        match result {
-            ContainerResult::Header(header) => self.push_container_header_buffer(header),
-            ContainerResult::Length(_length) => {} // TODO: inspection.
-        }
+        let (transport, encrypted, buffer) = container.finalize();
 
         let buffer = self.writer.queue(
             transport,

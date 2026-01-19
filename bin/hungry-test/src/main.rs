@@ -1,10 +1,11 @@
-use std::future::poll_fn;
-use std::task::{ready, Poll};
 use hungry::{crypto_bigint, mtproto, tl, unbite};
+use std::future::poll_fn;
+use std::task::{Poll, ready};
 
 use crypto_bigint::{Odd, U2048};
 use hungry::sender::SenderError;
 use hungry::sender::SenderError::Todo;
+use hungry::tl::Identifiable;
 use hungry::tl::mtproto::{enums, funcs};
 
 const ADDR: &str = "149.154.167.40:443";
@@ -100,11 +101,10 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
+    sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
+    sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 4 }));
+
     loop {
-        println!("\n\n===============================\n\n");
-
-        sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
-
         poll_fn(|cx| {
             let mut buf = ready!(sender.poll(cx))?;
 
@@ -118,14 +118,58 @@ async fn async_main() -> anyhow::Result<()> {
 
             let _len = buf.de::<i32>().expect("todo");
 
-            let id = buf.de::<u32>().expect("todo");
+            let id = u32::from_le_bytes(*buf.peek_exactly()?);
 
-            println!("{id:#010x}");
+            let msgs = if id == 0x73f1f8dc {
+                println!("msg container");
 
-            Poll::Ready(Ok::<_, SenderError>(()))
-        }).await?;
+                let Ok(_) = buf.advance(4) else {
+                    unreachable!()
+                };
 
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                hungry::unpack::MsgContainer::new(buf)?.collect::<Result<Vec<_>, _>>()?
+            } else {
+                vec![(msg, buf)]
+            };
+
+            for (msg, mut buf) in msgs {
+                let id = u32::from_le_bytes(*buf.take_exactly()?);
+
+                match id {
+                    tl::mtproto::types::NewSessionCreated::CONSTRUCTOR_ID => {
+                        let new_session_created: tl::mtproto::types::NewSessionCreated = buf.de()?;
+
+                        dbg!(new_session_created);
+                    }
+                    tl::mtproto::types::BadMsgNotification::CONSTRUCTOR_ID => {
+                        let bad_msg_notification: tl::mtproto::types::BadMsgNotification = buf.de()?;
+
+                        dbg!(bad_msg_notification);
+                    }
+                    tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID => {
+                        let msgs_ack: tl::mtproto::types::MsgsAck = buf.de()?;
+
+                        dbg!(msgs_ack);
+                    }
+                    tl::mtproto::types::Pong::CONSTRUCTOR_ID => {
+                        let pong: tl::mtproto::types::Pong = buf.de()?;
+
+                        dbg!(pong);
+                    }
+                    tl::mtproto::types::FutureSalts::CONSTRUCTOR_ID => {
+                        let future_salts: tl::mtproto::types::FutureSalts = buf.de()?;
+
+                        dbg!(future_salts);
+                    }
+                    _ => {
+                        println!("{msg:?} {id:#010x}");
+                    }
+                }
+            }
+
+            Poll::Ready(Ok::<_, anyhow::Error>(()))
+        })
+        .await?;
     }
 
     Ok(())

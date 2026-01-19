@@ -23,8 +23,8 @@ pub mod plain;
 pub mod reader;
 pub mod sender;
 pub mod transport;
+pub mod unpack;
 pub mod writer;
-mod unpack;
 
 pub(crate) use private::Sealed;
 

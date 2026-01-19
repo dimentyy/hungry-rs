@@ -35,6 +35,7 @@
   - [ ] "Checking message length".
   - [x] "Checking session_id".
   - [ ] "Checking msg_id".
+  + [ ] Seq no checking.
 + [ ] Authorization / Sign in.
   - [ ] Full error handling.
   - [ ] Auth key generation.

@@ -1,9 +1,9 @@
 use std::num::NonZeroU32;
 
 use crate::mtproto::{EncryptedEnvelope, Msg};
-use crate::pack::{MsgContainer, MsgContainerResult};
+use crate::pack::MsgContainer;
 use crate::tl;
-use crate::transport::{Transport, TransportEnvelope};
+use crate::transport::Transport;
 
 pub(super) struct Container<T: Transport> {
     transport: T::Envelope,
@@ -42,30 +42,10 @@ impl<T: Transport> Container<T> {
         self.raw_inner.push(msg, x);
     }
 
-    /// # Panics
-    ///
-    /// * If no messages were pushed to the container.
-    pub(super) fn finalize(
-        mut self,
-    ) -> (
-        ContainerResult,
-        T::Envelope,
-        EncryptedEnvelope,
-        unbite::DynBuf,
-    ) {
-        use MsgContainerResult::*;
+    pub(super) fn finalize(self) -> (T::Envelope, EncryptedEnvelope, unbite::DynBuf) {
+        let buffer = self.raw_inner.finalize();
 
-        let (result, buffer) = match self.raw_inner.finalize() {
-            Msg { mut header, buffer } => {
-                self.encrypted.header_swap(&mut header);
-                self.transport.header_swap(&mut header);
-
-                (ContainerResult::Header(header), buffer)
-            }
-            MsgContainer { length, buffer } => (ContainerResult::Length(length), buffer),
-        };
-
-        (result, self.transport, self.encrypted, buffer)
+        (self.transport, self.encrypted, buffer)
     }
 }
 
