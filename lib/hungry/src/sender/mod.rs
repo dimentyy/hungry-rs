@@ -108,10 +108,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 salt: self.salt,
                 session_id: self.session,
             },
-            mtproto::Msg {
-                msg_id: self.msg_ids.get(std::time::SystemTime::now()),
-                seq_no: self.seq_nos.non_content_related(),
-            },
+            mtproto::Msg::nil(
+                self.msg_ids.get(std::time::SystemTime::now()),
+                self.seq_nos.non_content_related(),
+            ),
         );
 
         if let Some(buffer) = buffer {
@@ -119,15 +119,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    pub fn invoke<F: tl::Function>(&mut self, f: &tl::ConstructorId<F>) {
+    pub fn invoke<'a, F: tl::Function>(
+        &mut self,
+        f: &'a tl::ConstructorId<F>,
+    ) -> mtproto::Msg<&'a tl::ConstructorId<F>> {
         let msg = mtproto::Msg {
             msg_id: self.msg_ids.get(std::time::SystemTime::now()),
             seq_no: self.seq_nos.get_content_related(),
+            object: f,
         };
 
-        let len = tl::SerializedLen::serialized_len(f);
+        let len = tl::SerializedLen::serialized_len(&msg);
 
-        self.get_container(len).push(msg, f);
+        self.get_container(len).push(msg);
+
+        msg
     }
 
     pub fn poll<'a>(
@@ -192,25 +198,23 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
 
         infallible! {
-            let (header, buf) = buf.split_first_chunk_mut().unwrap();
+            let (external, buf) = buf.split_first_chunk_mut().unwrap();
         }
 
-        let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
+        let external = mtproto::ExternalHeader::unpack(auth_key_id, *external);
 
         external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
 
         infallible! {
-            let (header, buf) = buf.split_first_chunk_mut().unwrap();
+            let (internal, buf) = buf.split_first_chunk_mut().unwrap();
         }
 
-        let internal = mtproto::InternalHeader::unpack(*header);
+        let internal = mtproto::InternalHeader::unpack(*internal);
 
         if internal.session_id != self.session {
             return Err(SessionId(mtproto::SessionIdError(internal.session_id)));
         }
 
-        let buf = tl::de::Buf::new(buf);
-
-        Ok(buf)
+        Ok(tl::de::Buf::new(buf))
     }
 }

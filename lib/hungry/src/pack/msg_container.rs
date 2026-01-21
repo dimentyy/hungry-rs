@@ -1,6 +1,6 @@
 use crate::{mtproto, tl};
 
-use tl::{ConstSerializedLen, Identifiable, SerializedLen};
+use tl::{ConstSerializedLen, Identifiable};
 
 pub struct MsgContainer {
     header: unbite::Raw<8>,
@@ -59,16 +59,16 @@ impl MsgContainer {
     /// # Panics
     ///
     /// * If the internal buffer does not have enough capacity to store `x`.
-    pub fn push<X: tl::Function>(&mut self, msg: mtproto::Msg, x: &tl::ConstructorId<X>) {
-        assert!(
-            self.can_push(x.serialized_len()),
-            "msg container buffer does not have enough capacity"
-        );
+    pub fn push<X: tl::Function>(&mut self, msg: mtproto::Msg<&tl::ConstructorId<X>>) {
+        // assert!(
+        //     self.can_push(x.serialized_len()),
+        //     "msg container buffer does not have enough capacity"
+        // );
 
         self.buffer.init_with(|spare_capacity| {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
-            buf.ser(&mtproto::MsgSer::new(msg, x));
+            buf.ser(&msg);
 
             buf.as_slice()
         });

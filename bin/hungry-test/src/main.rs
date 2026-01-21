@@ -100,68 +100,73 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
-    sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
-    sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 4 }));
+    let _ = sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
+    let _ = sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 4 }));
 
     loop {
         poll_fn(|cx| {
             let mut buf = ready!(sender.poll(cx))?;
 
-            let mut de = mtproto::MsgDe::deserialize(&mut buf)?;
+            let mut de = mtproto::Msg::deserialize(&mut buf)?;
 
-            if !mtproto::is_msg_id_valid(de.msg.msg_id, std::time::SystemTime::now()) {
+            if !mtproto::is_msg_id_valid(de.msg_id, std::time::SystemTime::now()) {
                 todo!()
             }
 
             // TODO: check seq no
 
-            let id = u32::from_le_bytes(*de.buf.peek_exactly()?);
+            let id = u32::from_le_bytes(*de.object.peek_exactly()?);
 
-            let handle: fn(mtproto::MsgDe) -> anyhow::Result<()> = |mtproto::MsgDe { msg, mut buf }| {
-                let id = u32::from_le_bytes(*buf.take_exactly()?);
+            let handle: fn(mtproto::Msg<tl::de::Buf<'_>>) -> anyhow::Result<()> =
+                |mtproto::Msg {
+                     msg_id,
+                     seq_no,
+                     object: mut buf,
+                 }| {
+                    let id = u32::from_le_bytes(*buf.take_exactly()?);
 
-                match id {
-                    types::NewSessionCreated::CONSTRUCTOR_ID => {
-                        let new_session_created: types::NewSessionCreated = buf.de()?;
+                    match id {
+                        types::NewSessionCreated::CONSTRUCTOR_ID => {
+                            let new_session_created: types::NewSessionCreated = buf.de()?;
 
-                        dbg!(new_session_created);
+                            dbg!(new_session_created);
+                        }
+                        types::BadMsgNotification::CONSTRUCTOR_ID => {
+                            let bad_msg_notification: types::BadMsgNotification = buf.de()?;
+
+                            dbg!(bad_msg_notification);
+                        }
+                        types::MsgsAck::CONSTRUCTOR_ID => {
+                            let msgs_ack: types::MsgsAck = buf.de()?;
+
+                            dbg!(msgs_ack);
+                        }
+                        types::Pong::CONSTRUCTOR_ID => {
+                            let pong: types::Pong = buf.de()?;
+
+                            dbg!(pong);
+                        }
+                        types::FutureSalts::CONSTRUCTOR_ID => {
+                            let future_salts: types::FutureSalts = buf.de()?;
+
+                            dbg!(future_salts);
+                        }
+                        _ => {
+                            println!("msg_id: {msg_id:?} seq_no: {seq_no} id: {id:#010x}");
+                        }
                     }
-                    types::BadMsgNotification::CONSTRUCTOR_ID => {
-                        let bad_msg_notification: types::BadMsgNotification = buf.de()?;
 
-                        dbg!(bad_msg_notification);
-                    }
-                    types::MsgsAck::CONSTRUCTOR_ID => {
-                        let msgs_ack: types::MsgsAck = buf.de()?;
-
-                        dbg!(msgs_ack);
-                    }
-                    types::Pong::CONSTRUCTOR_ID => {
-                        let pong: types::Pong = buf.de()?;
-
-                        dbg!(pong);
-                    }
-                    types::FutureSalts::CONSTRUCTOR_ID => {
-                        let future_salts: types::FutureSalts = buf.de()?;
-
-                        dbg!(future_salts);
-                    }
-                    _ => {
-                        println!("{msg:?} {id:#010x}");
-                    }
-                }
-
-                Ok(())
-            };
+                    Ok(())
+                };
 
             if id == 0x73f1f8dc {
                 println!("msg_container");
 
-                let Ok(_) = de.buf.advance(4) else {
+                let Ok(_) = de.object.advance(4) else {
                     unreachable!()
                 };
 
-                for msg in hungry::unpack::MsgContainer::new(de.buf)? {
+                for msg in hungry::unpack::MsgContainer::new(de.object)? {
                     handle(msg?)?;
                 }
             } else {

@@ -35,8 +35,8 @@ impl<T: Transport> Container<T> {
         self.raw_inner.can_push(len)
     }
 
-    pub(super) fn push<X: tl::Function>(&mut self, msg: mtproto::Msg, x: &tl::ConstructorId<X>) {
-        self.raw_inner.push(msg, x);
+    pub(super) fn push<X: tl::Function>(&mut self, msg: mtproto::Msg<&tl::ConstructorId<X>>) {
+        self.raw_inner.push(msg);
     }
 
     pub(super) fn finalize(self) -> (T::Envelope, mtproto::EncryptedEnvelope, unbite::DynBuf) {

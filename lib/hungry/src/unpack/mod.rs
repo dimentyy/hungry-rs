@@ -14,12 +14,12 @@ impl<'a> MsgContainer<'a> {
 }
 
 impl<'a> Iterator for MsgContainer<'a> {
-    type Item = Result<mtproto::MsgDe<'a>, mtproto::MsgDeError>;
+    type Item = Result<mtproto::Msg<tl::de::Buf<'a>>, mtproto::MsgDeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.len = self.len.checked_sub(1)?;
 
-        let msg_de = match mtproto::MsgDe::deserialize(&mut self.buf) {
+        let msg_de = match mtproto::Msg::deserialize(&mut self.buf) {
             Ok(msg_de) => msg_de,
             Err(err) => return Some(Err(err)),
         };
