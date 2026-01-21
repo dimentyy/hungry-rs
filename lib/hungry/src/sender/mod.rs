@@ -11,7 +11,7 @@ use crate::transport::{Packet, Transport, Unpack};
 use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
 
-use container::{Container};
+use container::Container;
 
 pub use error::SenderError;
 
@@ -81,11 +81,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
-        if self
-            .container
-            .as_ref()
-            .is_some_and(|c| c.can_push(len))
-        {
+        if self.container.as_ref().is_some_and(|c| c.can_push(len)) {
             return self.container.as_mut().unwrap();
         }
 

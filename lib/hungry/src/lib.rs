@@ -10,7 +10,8 @@
 #![allow(
     clippy::enum_glob_use,
     clippy::doc_markdown,
-    clippy::unreadable_literal
+    clippy::unreadable_literal,
+    clippy::inline_always
 )]
 
 mod private;

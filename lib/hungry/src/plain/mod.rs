@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Transport, Unpack};
-use crate::writer::{Writer};
+use crate::writer::Writer;
 use crate::{mtproto, tl};
 
 pub use error::PlainError;

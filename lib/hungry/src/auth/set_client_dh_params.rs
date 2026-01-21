@@ -1,7 +1,7 @@
 use std::fmt;
 
 use crypto_bigint::modular::{MontyForm, MontyParams};
-use crypto_bigint::{ Odd, U2048};
+use crypto_bigint::{Odd, U2048};
 use digest::Digest;
 
 use crate::{mtproto, tl};
@@ -77,7 +77,9 @@ impl SetClientDhParams {
 
         let g_ab = MontyForm::new(&self.g_a, MontyParams::new(self.dh_prime))
             .pow(&self.b)
-            .retrieve().to_be_bytes().into();
+            .retrieve()
+            .to_be_bytes()
+            .into();
 
         let auth_key = mtproto::AuthKey::new(g_ab).expect("todo");
 

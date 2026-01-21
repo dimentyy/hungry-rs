@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::mtproto::{MsgKeyCheckError, AuthKeyIdError, SessionIdError};
+use crate::mtproto::{AuthKeyIdError, MsgKeyCheckError, SessionIdError};
 use crate::reader::ReaderError;
 use crate::writer::WriterError;
 

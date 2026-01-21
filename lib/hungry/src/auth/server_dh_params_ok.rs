@@ -1,5 +1,5 @@
-use crypto_bigint::{Odd, One, U2048};
 use crypto_bigint::modular::{MontyForm, MontyParams};
+use crypto_bigint::{Odd, One, U2048};
 use digest::Digest;
 
 use crate::{auth, crypto, tl};
@@ -71,7 +71,11 @@ impl ServerDhParamsOk {
         unsafe { data_with_hash.set_len(data_with_hash.capacity()) };
 
         // * encrypted_data := AES256_ige_encrypt(data_with_hash, tmp_aes_key, tmp_aes_iv);
-        crypto::aes_ige_encrypt(&mut data_with_hash, &self.tmp_aes_key, &mut self.tmp_aes_iv.clone());
+        crypto::aes_ige_encrypt(
+            &mut data_with_hash,
+            &self.tmp_aes_key,
+            &mut self.tmp_aes_iv.clone(),
+        );
         let encrypted_data = data_with_hash;
 
         let func = funcs::SetClientDhParams {

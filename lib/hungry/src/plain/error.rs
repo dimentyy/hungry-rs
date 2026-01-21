@@ -37,7 +37,7 @@ impl From<tl::de::Error> for PlainError {
 impl fmt::Display for PlainError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use PlainError::*;
-        
+
         f.write_str("plain error: ")?;
 
         match self {
