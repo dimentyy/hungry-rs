@@ -1,5 +1,6 @@
 use std::fmt;
 
+#[must_use]
 #[inline(always)]
 pub const fn byte(x: u8) -> [u8; 2] {
     #[cfg(target_endian = "little")]
@@ -48,6 +49,7 @@ pub fn bytes_fmt(bytes: &[u8], f: &mut fmt::Formatter<'_>) -> fmt::Result {
 ///
 /// * If the provided string `s` contains invalid hexadecimal characters.
 /// * If the constant `N` is not an exact number of decoded bytes.
+#[must_use]
 pub const fn decode<const N: usize>(s: &str) -> [u8; N] {
     #[inline(always)]
     const fn nibble(x: u8) -> u8 {

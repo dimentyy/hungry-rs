@@ -106,6 +106,7 @@ impl AllocPtr {
     }
 
     #[inline(always)]
+    #[expect(unused)]
     fn is_external(self) -> bool {
         self.0.addr().get() & Self::EXTERNAL != 0
     }
@@ -190,7 +191,7 @@ impl AllocPtr {
         unsafe {
             let layout = Layout::from_size_align_unchecked(alloc.bytes_cap, 1);
 
-            dealloc(alloc.bytes_ptr.as_ptr(), layout)
+            dealloc(alloc.bytes_ptr.as_ptr(), layout);
         }
     }
 }
@@ -204,6 +205,7 @@ impl Inner {
     }
 
     #[inline(always)]
+    #[expect(unused)]
     pub(crate) fn new_external(ptr: NonNull<u8>, cap: usize) -> Self {
         let alloc = AllocPtr::new_external(ptr, cap);
 
@@ -263,6 +265,6 @@ impl Drop for Inner {
     fn drop(&mut self) {
         #[cfg(feature = "debug")]
         println!("UNBITE > Inner::drop()");
-        self.alloc.dec_ref_count::<true>()
+        self.alloc.dec_ref_count::<true>();
     }
 }

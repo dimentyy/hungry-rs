@@ -21,6 +21,8 @@ pub struct Msg<T = MsgNil> {
     pub object: T,
 }
 
+pub type BufMsg<'a> = Msg<tl::de::Buf<'a>>;
+
 impl Msg<MsgNil> {
     pub fn nil(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo) -> Self {
         Self {

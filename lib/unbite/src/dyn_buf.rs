@@ -61,7 +61,7 @@ impl DynBuf {
         self.raw.unsplit_back(r.raw);
 
         if self.len == self.raw.capacity {
-            self.len += r.len
+            self.len += r.len;
         }
     }
 
@@ -84,7 +84,7 @@ impl DynBuf {
         self.raw.unsplit_dyn_back(r.raw);
 
         if self.len == self.raw.capacity {
-            self.len += r.len
+            self.len += r.len;
         }
     }
 

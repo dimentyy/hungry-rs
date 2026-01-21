@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 mod category;
-mod config;
 mod code;
+mod config;
 
 pub(crate) mod rust;
 

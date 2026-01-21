@@ -1,3 +1,6 @@
+#![deny(unused_imports)]
+#![allow(clippy::inline_always)]
+
 mod buf;
 mod common;
 mod dyn_buf;

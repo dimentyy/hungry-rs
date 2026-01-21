@@ -1,5 +1,3 @@
-use std::mem::swap;
-
 use crate::Buf;
 use crate::inner::Inner;
 
@@ -44,6 +42,9 @@ impl<const N: usize> Raw<N> {
         unsafe { Raw::unsplit_unchecked(l, r) }
     }
 
+    /// # Safety
+    ///
+    /// * `l` and `r` buffers must be contiguous.
     #[inline]
     pub unsafe fn unsplit_unchecked<const L: usize, const R: usize>(l: Raw<L>, r: Raw<R>) -> Self {
         const { assert!(L + R == N) };

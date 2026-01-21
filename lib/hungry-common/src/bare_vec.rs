@@ -10,7 +10,7 @@ use std::{fmt, ops, ptr};
 ///
 /// ---
 ///
-/// https://core.telegram.org/constructor/vector
+/// <https://core.telegram.org/constructor/vector>
 #[must_use]
 #[repr(transparent)]
 #[derive(Clone, Default, PartialEq, Eq)]

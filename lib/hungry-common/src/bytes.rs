@@ -13,7 +13,7 @@ use crate::hex;
 ///
 /// ---
 ///
-/// https://core.telegram.org/type/bytes
+/// <https://core.telegram.org/type/bytes>
 #[must_use]
 #[repr(transparent)]
 #[derive(Clone, Default, Eq, PartialEq)]

@@ -117,7 +117,7 @@ async fn async_main() -> anyhow::Result<()> {
 
             let id = u32::from_le_bytes(*de.object.peek_exactly()?);
 
-            let handle: fn(mtproto::Msg<tl::de::Buf<'_>>) -> anyhow::Result<()> =
+            let handle: fn(mtproto::BufMsg<'_>) -> anyhow::Result<()> =
                 |mtproto::Msg {
                      msg_id,
                      seq_no,

@@ -1,10 +1,12 @@
-#![forbid(
+#![deny(
+    unused_imports,
     clippy::undocumented_unsafe_blocks,
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::missing_safety_doc,
-    unused_imports
+    clippy::pedantic
 )]
+#![allow(clippy::wildcard_imports, clippy::inline_always)]
 
 mod bare_vec;
 mod big_int;
