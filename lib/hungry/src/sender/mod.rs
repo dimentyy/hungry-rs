@@ -59,22 +59,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
+    #[expect(clippy::unused_self)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
         eprintln!("TODO: push_completed_writer_buffer(..)");
     }
 
+    #[expect(clippy::unused_self)]
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
         eprintln!("TODO: push_immediate_writer_buffer(..)");
-    }
-
-    fn push_container_header_buffer(&mut self, _buffer: unbite::Raw<8>) {
-        eprintln!("TODO: push_container_header_buffer(..)");
     }
 
     fn take_container(&mut self) -> Option<Container<T>> {
         mem::take(&mut self.container)
     }
 
+    #[expect(clippy::unused_self)]
     fn new_container(&mut self, len: usize) -> Container<T> {
         eprintln!("TODO: new_container(len={len})");
 

@@ -19,6 +19,9 @@ pub enum ServerDhParamsOkError {
     InnerDeserialization(tl::de::Error),
     InnerNonceMismatch,
     InnerServerNonceMismatch,
+    InvalidDhPrimeLen,
+    EvenDhPrime,
+    InvalidGALen,
 }
 
 impl fmt::Display for ServerDhParamsOkError {
@@ -33,8 +36,11 @@ impl fmt::Display for ServerDhParamsOkError {
             InvalidEncryptedAnswerLength => "invalid `encrypted_answer` length",
             AnswerHashMismatch => "`answer` hash mismatch",
             InnerDeserialization(err) => return err.fmt(f),
-            InnerNonceMismatch => "`answer` `nonce` mismatch",
-            InnerServerNonceMismatch => "`answer` `server_nonce` mismatch",
+            InnerNonceMismatch => "inner `nonce` mismatch",
+            InnerServerNonceMismatch => "inner `server_nonce` mismatch",
+            InvalidDhPrimeLen => "invalid `dh_prime` length",
+            EvenDhPrime => "`dh_prime` is even",
+            InvalidGALen => "invalid `g_a` length",
         })
     }
 }
@@ -158,10 +164,16 @@ impl ReqDhParams<'_> {
             return Err(InnerServerNonceMismatch);
         }
 
-        let dh_prime = answer.dh_prime.as_ref().try_into().expect("todo");
-        let dh_prime = Odd::new(U2048::from_be_bytes(dh_prime)).expect("todo");
+        let Ok(dh_prime) = answer.dh_prime.as_ref().try_into() else {
+            return Err(InvalidDhPrimeLen);
+        };
+        let Some(dh_prime) = Odd::new(U2048::from_be_bytes(dh_prime)).into_option() else {
+            return Err(EvenDhPrime);
+        };
 
-        let g_a = answer.g_a.as_ref().try_into().expect("todo");
+        let Ok(g_a) = answer.g_a.as_ref().try_into() else {
+            return Err(InvalidGALen);
+        };
         let g_a = U2048::from_be_bytes(g_a);
 
         Ok(auth::ServerDhParamsOk {

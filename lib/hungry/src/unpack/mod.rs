@@ -6,6 +6,9 @@ pub struct MsgContainer<'a> {
 }
 
 impl<'a> MsgContainer<'a> {
+    /// # Errors
+    ///
+    /// * [`tl::de::EndOfBufferError`] occurs if the 4-byte `len` read failed.
     pub fn new(mut buf: tl::de::Buf<'a>) -> Result<Self, tl::de::EndOfBufferError> {
         let len = u32::from_le_bytes(*buf.take_exactly()?);
 

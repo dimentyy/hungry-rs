@@ -11,31 +11,31 @@ use tl::ser::SerializeUnchecked;
 use tl::{ConstSerializedLen, SerializedLen};
 
 #[derive(Copy, Clone, Debug)]
-pub struct Nil;
+pub struct MsgNil;
 
 #[must_use]
 #[derive(Copy, Clone, Debug)]
-pub struct Msg<T = Nil> {
+pub struct Msg<T = MsgNil> {
     pub msg_id: mtproto::MsgId,
     pub seq_no: mtproto::SeqNo,
     pub object: T,
 }
 
-impl Msg<Nil> {
+impl Msg<MsgNil> {
     pub fn nil(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo) -> Self {
         Self {
             msg_id,
             seq_no,
-            object: Nil
+            object: MsgNil,
         }
     }
 }
 
-impl ConstSerializedLen for Msg<Nil> {
+impl ConstSerializedLen for Msg<MsgNil> {
     const SERIALIZED_LEN: usize = mtproto::MsgId::SERIALIZED_LEN + mtproto::SeqNo::SERIALIZED_LEN;
 }
 
-impl SerializeUnchecked for Msg<Nil> {
+impl SerializeUnchecked for Msg<MsgNil> {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
         unsafe {
@@ -47,14 +47,14 @@ impl SerializeUnchecked for Msg<Nil> {
     }
 }
 
-impl DeserializeInfallible for Msg<Nil> {
+impl DeserializeInfallible for Msg<MsgNil> {
     #[inline(always)]
     unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self {
         unsafe {
             Self {
                 msg_id: i64::deserialize_infallible(buf),
                 seq_no: i32::deserialize_infallible(buf.add(8)),
-                object: Nil,
+                object: MsgNil,
             }
         }
     }
