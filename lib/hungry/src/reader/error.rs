@@ -2,7 +2,6 @@ use std::{fmt, io};
 
 use crate::transport::TransportError;
 
-#[must_use]
 #[derive(Debug)]
 pub enum ReaderError {
     Io(io::Error),
@@ -19,20 +18,6 @@ impl fmt::Display for ReaderError {
             Io(err) => err.fmt(f),
             Transport(err) => err.fmt(f),
         }
-    }
-}
-
-impl From<io::Error> for ReaderError {
-    #[inline]
-    fn from(value: io::Error) -> Self {
-        Self::Io(value)
-    }
-}
-
-impl From<TransportError> for ReaderError {
-    #[inline]
-    fn from(value: TransportError) -> Self {
-        Self::Transport(value)
     }
 }
 

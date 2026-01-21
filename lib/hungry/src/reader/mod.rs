@@ -1,4 +1,4 @@
-#![forbid(clippy::todo)]
+#![forbid(unsafe_code, clippy::todo)]
 
 mod error;
 

@@ -92,8 +92,8 @@ macro_rules! common_impl {
             /// * If provided [`ReadBuf`] does not start at the spare capacity.
             ///
             /// [`ReadBuf`]: tokio::io::ReadBuf
-            #[cfg(feature = "read-buf")]
             #[inline]
+            #[cfg(feature = "read-buf")]
             pub fn read_with<T, F: FnOnce(&mut tokio::io::ReadBuf) -> T>(&mut $self, f: F) -> T {
                 let mut read_buf = tokio::io::ReadBuf::uninit($self.spare_capacity_mut());
 
