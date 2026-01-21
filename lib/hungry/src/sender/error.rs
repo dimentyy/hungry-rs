@@ -9,11 +9,10 @@ pub enum SenderError {
     Reader(ReaderError),
     Writer(WriterError),
 
+    TooSmall { len: usize },
     AuthKeyId(AuthKeyIdError),
     MsgKeyCheck(MsgKeyCheckError),
     SessionId(SessionIdError),
-
-    Todo(&'static str),
 }
 
 impl fmt::Display for SenderError {
@@ -26,11 +25,10 @@ impl fmt::Display for SenderError {
             Reader(err) => err.fmt(f),
             Writer(err) => err.fmt(f),
 
+            TooSmall { len } => write!(f, "message too small: found {len} bytes"),
             AuthKeyId(err) => err.fmt(f),
             MsgKeyCheck(err) => err.fmt(f),
             SessionId(err) => err.fmt(f),
-
-            Todo(todo) => f.write_str(todo),
         }
     }
 }
@@ -43,11 +41,10 @@ impl std::error::Error for SenderError {
             Reader(err) => err,
             Writer(err) => err,
 
+            TooSmall { .. } => return None,
             AuthKeyId(err) => err,
             MsgKeyCheck(err) => err,
             SessionId(err) => err,
-
-            Todo(_) => return None,
         })
     }
 }

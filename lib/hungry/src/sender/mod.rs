@@ -181,7 +181,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let buf = self.reader.as_mut_slice(packet);
 
         if buf.len() < mtproto::ExternalHeader::LEN + mtproto::InternalHeader::LEN {
-            return Err(Todo("too small"));
+            return Err(TooSmall { len: buf.len() });
         }
 
         infallible! {
