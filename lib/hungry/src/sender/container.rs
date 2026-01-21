@@ -1,5 +1,3 @@
-use std::num::NonZeroU32;
-
 use crate::pack::MsgContainer;
 use crate::transport::Transport;
 use crate::{mtproto, tl};
@@ -46,9 +44,4 @@ impl<T: Transport> Container<T> {
 
         (self.transport, self.encrypted, buffer)
     }
-}
-
-pub(super) enum ContainerResult {
-    Header(unbite::Raw<8>),
-    Length(NonZeroU32),
 }

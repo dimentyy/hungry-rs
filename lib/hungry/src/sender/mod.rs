@@ -191,7 +191,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
 
-        let internal = external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
+        external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
+
+        let (header, buf) = buf.split_first_chunk_mut().unwrap();
+
+        let internal = mtproto::InternalHeader::unpack(*header);
 
         if internal.session_id != self.session {
             return Err(SessionId(mtproto::SessionIdError(internal.session_id)));

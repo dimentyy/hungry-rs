@@ -17,11 +17,7 @@ impl<'a> Iterator for MsgContainer<'a> {
     type Item = Result<mtproto::MsgDe<'a>, mtproto::MsgDeError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let Some(len) = self.len.checked_sub(1) else {
-            return None;
-        };
-
-        self.len = len;
+        self.len = self.len.checked_sub(1)?;
 
         let msg_de = match mtproto::MsgDe::deserialize(&mut self.buf) {
             Ok(msg_de) => msg_de,

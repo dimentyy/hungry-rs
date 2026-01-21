@@ -37,12 +37,10 @@ impl ExternalHeader {
         }
     }
 
-    /// Decrypts the [`ExternalHeader`] using [`AuthKey`] identified by the `auth_key_id` field.
-    pub fn decrypt(
-        self,
-        auth_key: &AuthKey,
-        buffer: &mut [u8],
-    ) -> Result<InternalHeader, MsgKeyCheckError> {
+    /// # Panics
+    ///
+    /// * If the provided `auth_key` ID does not match the one from the header.
+    pub fn decrypt(self, auth_key: &AuthKey, buffer: &mut [u8]) -> Result<(), MsgKeyCheckError> {
         assert_eq!(auth_key.id(), self.auth_key_id);
 
         let (aes_key, mut aes_iv) = auth_key.compute_aes_params(&self.msg_key, Side::Server);
@@ -55,9 +53,16 @@ impl ExternalHeader {
             return Err(MsgKeyCheckError { computed });
         }
 
-        let salt = i64::from_le_bytes(buffer[0..8].try_into().unwrap());
-        let session_id = i64::from_le_bytes(buffer[8..16].try_into().unwrap());
+        Ok(())
+    }
+}
 
-        Ok(InternalHeader { salt, session_id })
+impl InternalHeader {
+    #[inline]
+    pub fn unpack(buf: [u8; 16]) -> Self {
+        infallible!(Self {
+            salt: i64::from_le_bytes(buf[0..8].try_into().unwrap()),
+            session_id: i64::from_le_bytes(buf[8..16].try_into().unwrap()),
+        })
     }
 }
