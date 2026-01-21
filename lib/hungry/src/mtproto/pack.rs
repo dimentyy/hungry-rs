@@ -2,12 +2,17 @@ use crate::mtproto::{
     AuthKey, ExternalHeader, InternalHeader, MAX_ENCRYPTED_PADDING, Msg, PlainHeader, Side,
 };
 
+/// # Panics
+///
+/// * If the `buffer.len()` exceeds the [`i32::MAX`].
 pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
     let mut header = header.into_buf();
 
     header.extend_from_slice(&0i64.to_le_bytes()); // auth_key_id
     header.extend_from_slice(&id.to_le_bytes()); // message_id
-    header.extend_from_slice(&i32::try_from(buffer.len()).unwrap().to_le_bytes()); // message_data_length
+
+    let message_data_length = i32::try_from(buffer.len()).unwrap();
+    header.extend_from_slice(&message_data_length.to_le_bytes());
 
     buffer.unsplit_buf_front(header);
 }

@@ -9,7 +9,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, Transport, Unpack};
 use crate::writer::QueuedWriter;
-use crate::{mtproto, tl};
+use crate::{common, mtproto, tl};
+
+use common::infallible;
 
 use container::Container;
 
@@ -177,7 +179,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Err(Todo("too small"));
         }
 
-        let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
+        infallible! {
+            let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
+        }
 
         let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
             return Err(AuthKeyId(mtproto::AuthKeyIdError(None)));
@@ -187,13 +191,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Err(AuthKeyId(mtproto::AuthKeyIdError(Some(auth_key_id))));
         }
 
-        let (header, buf) = buf.split_first_chunk_mut().unwrap();
+        infallible! {
+            let (header, buf) = buf.split_first_chunk_mut().unwrap();
+        }
 
         let external = mtproto::ExternalHeader::unpack(auth_key_id, *header);
 
         external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
 
-        let (header, buf) = buf.split_first_chunk_mut().unwrap();
+        infallible! {
+            let (header, buf) = buf.split_first_chunk_mut().unwrap();
+        }
 
         let internal = mtproto::InternalHeader::unpack(*header);
 

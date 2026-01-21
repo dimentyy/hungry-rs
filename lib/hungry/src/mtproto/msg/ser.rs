@@ -17,14 +17,14 @@ impl<'a, X> MsgSer<'a, X> {
     }
 }
 
-impl<'a, X: SerializedLen> SerializedLen for MsgSer<'a, X> {
+impl<X: SerializedLen> SerializedLen for MsgSer<'_, X> {
     #[inline(always)]
     fn serialized_len(&self) -> usize {
         16 + self.x.serialized_len()
     }
 }
 
-impl<'a, X: SerializeUnchecked> SerializeUnchecked for MsgSer<'a, X> {
+impl<X: SerializeUnchecked> SerializeUnchecked for MsgSer<'_, X> {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
         unsafe {

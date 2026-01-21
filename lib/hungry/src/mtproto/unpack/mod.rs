@@ -37,9 +37,16 @@ impl ExternalHeader {
         }
     }
 
+    /// Decrypts the `buffer` in-place and checks the
+    /// `msg_key` against the provided `auth_key`.
+    ///
     /// # Panics
     ///
-    /// * If the provided `auth_key` ID does not match the one from the header.
+    /// * If the `auth_key.id()` does not match the header's `auth_key_id`.
+    ///
+    /// # Errors
+    ///
+    /// * `MsgKeyCheckError` occurs if the computed `msg_key` does not match.
     pub fn decrypt(self, auth_key: &AuthKey, buffer: &mut [u8]) -> Result<(), MsgKeyCheckError> {
         assert_eq!(auth_key.id(), self.auth_key_id);
 

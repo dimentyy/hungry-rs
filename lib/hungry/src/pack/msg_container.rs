@@ -56,6 +56,9 @@ impl MsgContainer {
         len + 16 <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
     }
 
+    /// # Panics
+    ///
+    /// * If the internal buffer does not have enough capacity to store `x`.
     pub fn push<X: tl::Function>(&mut self, msg: mtproto::Msg, x: &tl::ConstructorId<X>) {
         assert!(
             self.can_push(x.serialized_len()),
