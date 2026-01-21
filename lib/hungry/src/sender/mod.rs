@@ -201,7 +201,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Err(SessionId(mtproto::SessionIdError(internal.session_id)));
         }
 
-        let buf = tl::de::Buf::new(&buf[mtproto::InternalHeader::LEN..]);
+        let buf = tl::de::Buf::new(buf);
 
         Ok(buf)
     }
