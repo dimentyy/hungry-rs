@@ -145,7 +145,7 @@ impl ReqDhParams<'_> {
         // such that the length be divisible by 16;
         let mut buf = tl::de::Buf::new(&answer_with_hash[20..]);
 
-        let answer = buf.de()?;
+        let enums::ServerDhInnerData::ServerDhInnerData(answer) = buf.de()?;
 
         let len = answer_with_hash.len() - 20 - buf.len();
         let answer_sha1 = sha1::Sha1::digest(&answer_with_hash[20..20 + len]);
@@ -153,8 +153,6 @@ impl ReqDhParams<'_> {
         if &answer_with_hash[..20] != answer_sha1.as_slice() {
             return Err(AnswerHashMismatch);
         }
-
-        let enums::ServerDhInnerData::ServerDhInnerData(answer) = answer;
 
         if answer.nonce != self.func.nonce {
             return Err(InnerNonceMismatch);

@@ -46,7 +46,7 @@ macro_rules! common_impl {
             ///
             /// # Panics
             ///
-            /// * When buffer does not have at least `n` bytes of spare capacity.
+            /// * If buffer does not have at least `n` bytes of spare capacity.
             #[inline]
             pub unsafe fn advance(&mut $self, n: usize) {
                 assert!(n <= $self.spare_capacity_len());
@@ -69,18 +69,45 @@ macro_rules! common_impl {
             ///
             /// # Panics
             ///
-            /// * When provided slice does not start at the spare capacity.
+            /// * If provided slice does not start at the spare capacity.
             #[inline]
             pub fn init_with<F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(&mut $self, f: F) {
                 let slice = f($self.spare_capacity_mut());
 
-                let slice_ptr = slice.as_ptr();
-                let slice_len = slice.len();
+                let ptr = slice.as_ptr();
+                let len = slice.len();
 
-                assert_eq!(slice_ptr, $self.spare_capacity_ptr());
+                assert_eq!(ptr, $self.spare_capacity_ptr());
 
                 // SAFETY: slice is valid and belongs to the buffer.
-                unsafe { $self.advance_unchecked(slice_len) };
+                unsafe { $self.advance_unchecked(len) };
+            }
+
+            /// # Safety
+            ///
+            /// * The [`ReadBuf`] must not contain uninitialized data.
+            ///
+            /// # Panics
+            ///
+            /// * If provided [`ReadBuf`] does not start at the spare capacity.
+            ///
+            /// [`ReadBuf`]: tokio::io::ReadBuf
+            #[cfg(feature = "read-buf")]
+            #[inline]
+            pub fn read_with<T, F: FnOnce(&mut tokio::io::ReadBuf) -> T>(&mut $self, f: F) -> T {
+                let mut read_buf = tokio::io::ReadBuf::uninit($self.spare_capacity_mut());
+
+                let value = f(&mut read_buf);
+
+                let ptr = read_buf.filled().as_ptr();
+                let len = read_buf.filled().len();
+
+                assert_eq!(ptr, $self.spare_capacity_ptr());
+
+                // SAFETY: slice is valid and belongs to the buffer.
+                unsafe { $self.advance_unchecked(len) };
+
+                value
             }
 
             #[inline]

@@ -6,7 +6,7 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::AsyncRead;
 
 use crate::transport::{Packet, Transport, TransportRead, Unpack, UnpackResult};
 
@@ -62,6 +62,7 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     /// # Panics
     ///
     /// * If the inner `buffer` length was truncated externally.
+    /// * If the [`AsyncRead`] contract was violated by the `R`.
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<ReaderResult> {
         assert!(self.offset <= self.buffer.len());
 
@@ -104,32 +105,33 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         }
     }
 
+    /// # Panics
+    ///
+    /// * If the [`AsyncRead`] contract was violated by the `R`.
     fn poll_checked(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        let spare_capacity_len = self.buffer.spare_capacity_len();
-        let mut buf = ReadBuf::uninit(self.buffer.spare_capacity_mut());
+        self.buffer.read_with(|read_buf| {
+            let spare_capacity_len = read_buf.capacity() - read_buf.filled().len();
 
-        ready!(Pin::new(&mut self.driver).poll_read(cx, &mut buf))?;
+            ready!(Pin::new(&mut self.driver).poll_read(cx, read_buf))?;
 
-        let n = buf.filled().len();
+            let n = read_buf.filled().len();
 
-        if n == 0 {
-            return Poll::Ready(Err(io::Error::new(
-                io::ErrorKind::ConnectionReset,
-                "read 0 bytes",
-            )));
-        }
+            if n == 0 {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::ConnectionReset,
+                    "read 0 bytes",
+                )));
+            }
 
-        assert!(
-            n <= spare_capacity_len,
-            "`tokio::io::AsyncRead` contract violation by `{}`: \
-            reported number of bytes read ({n}) \
-            exceeds the buffer spare capacity length ({spare_capacity_len})",
-            std::any::type_name::<R>(),
-        );
+            assert!(
+                n <= spare_capacity_len,
+                "`tokio::io::AsyncRead` contract violation by `{}`: \
+                reported number of bytes read ({n}) \
+                exceeds the buffer spare capacity length ({spare_capacity_len})",
+                std::any::type_name::<R>(),
+            );
 
-        // SAFETY: we have read `n` bytes.
-        unsafe { self.buffer.advance(n) };
-
-        Poll::Ready(Ok(()))
+            Poll::Ready(Ok(()))
+        })
     }
 }

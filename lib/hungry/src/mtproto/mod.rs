@@ -68,8 +68,8 @@ pub enum Side {
 }
 
 impl Side {
-    #[inline]
     #[must_use]
+    #[inline(always)]
     pub const fn x(self) -> usize {
         self as usize
     }
