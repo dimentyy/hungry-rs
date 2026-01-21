@@ -28,6 +28,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
         (self.reader, self.writer)
     }
 
+    #[expect(clippy::missing_errors_doc, clippy::missing_panics_doc)]
     pub async fn send<F: tl::Function>(
         &mut self,
         buffer: &mut unbite::DynBuf,

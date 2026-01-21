@@ -15,6 +15,9 @@ impl Identifiable for MsgContainer {
 impl MsgContainer {
     const HEADER_LEN: usize = u32::SERIALIZED_LEN + u32::SERIALIZED_LEN;
 
+    /// # Panics
+    ///
+    /// * If the `buffer` does not have enough capacity to store the header.
     #[must_use]
     pub fn new(mut buffer: unbite::DynBuf) -> Self {
         assert!(

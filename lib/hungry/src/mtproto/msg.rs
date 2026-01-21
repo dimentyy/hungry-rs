@@ -109,14 +109,17 @@ impl std::error::Error for MsgDeError {
         use MsgDeError::*;
 
         Some(match self {
-            HeaderTooSmall(err) => err,
+            HeaderTooSmall(err) | IncompleteBody(err) => err,
             NegativeLength => return None,
-            IncompleteBody(err) => err,
         })
     }
 }
 
 impl<'a> Msg<tl::de::Buf<'a>> {
+    /// # Errors
+    ///
+    /// * If the provided `buf` does not have enough capacity.
+    /// * If the `bytes` field in a deserialized `Msg` is negative.
     pub fn deserialize(buf: &mut tl::de::Buf<'a>) -> Result<Self, MsgDeError> {
         let header = buf
             .take_exactly::<16>()
