@@ -92,6 +92,12 @@ impl<'a> Buf<'a> {
             self.len = self.len.unchecked_add(len);
         }
     }
+
+    #[inline]
+    pub fn chain_ser<X: SerializeUnchecked + ?Sized>(mut self, x: &X) -> Self {
+        self.ser(x);
+        self
+    }
 }
 
 #[cold]

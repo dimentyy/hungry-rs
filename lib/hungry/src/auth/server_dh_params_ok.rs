@@ -55,10 +55,12 @@ impl ServerDhParamsOk {
         // such that length be divisible by 16;
         let mut data_with_hash = Vec::with_capacity((20 + serialized_len + 15) & !15);
 
-        let mut buf = tl::ser::Buf::uninit(&mut data_with_hash.spare_capacity_mut()[20..]);
-        buf.ser(&client_dh_inner_data);
+        let data = tl::ser_uninit(
+            &mut data_with_hash.spare_capacity_mut()[20..],
+            &client_dh_inner_data,
+        );
 
-        let data_sha1 = sha1::Sha1::digest(buf.as_slice());
+        let data_sha1 = sha1::Sha1::digest(data);
         data_with_hash.extend_from_slice(&data_sha1);
 
         // SAFETY: data is initialized.

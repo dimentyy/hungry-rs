@@ -4,6 +4,7 @@ use std::{hint, ptr, slice};
 
 use crate::de::{Deserialize, EndOfBufferError, Error};
 
+#[must_use]
 #[derive(Clone)]
 pub struct Buf<'a> {
     pub(crate) ptr: NonNull<u8>,

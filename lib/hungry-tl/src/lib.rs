@@ -116,3 +116,23 @@ impl<X: Function> ser::SerializeUnchecked for ConstructorId<X> {
         }
     }
 }
+
+#[inline]
+pub fn ser<X: ser::SerializeUnchecked>(buf: &mut [u8], x: &X) {
+    let _ = ser::Buf::new(buf).chain_ser(x);
+}
+
+#[inline]
+#[must_use]
+pub fn ser_uninit<'a, X: ser::SerializeUnchecked>(
+    buf: &'a mut [std::mem::MaybeUninit<u8>],
+    x: &X,
+) -> &'a mut [u8] {
+    ser::Buf::uninit(buf).chain_ser(x).as_mut_slice()
+}
+
+#[inline]
+pub fn de<X: de::Deserialize>(buf: &[u8]) -> Result<X, de::Error> {
+    let mut buf = de::Buf::new(buf);
+    buf.de()
+}

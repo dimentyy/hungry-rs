@@ -65,13 +65,7 @@ impl MsgContainer {
         //     "msg container buffer does not have enough capacity"
         // );
 
-        self.buffer.init_with(|spare_capacity| {
-            let mut buf = tl::ser::Buf::uninit(spare_capacity);
-
-            buf.ser(&msg);
-
-            buf.as_slice()
-        });
+        self.buffer.init_with(|buf| tl::ser_uninit(buf, &msg));
 
         self.length += 1;
     }

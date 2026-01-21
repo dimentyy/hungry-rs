@@ -5,8 +5,8 @@ use hungry::{crypto_bigint, mtproto, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
-use hungry::tl::Identifiable;
-use hungry::tl::mtproto::{enums, funcs, types};
+use tl::Identifiable;
+use tl::mtproto::{enums, funcs, types};
 
 const ADDR: &str = "149.154.167.40:443";
 

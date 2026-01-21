@@ -46,9 +46,7 @@ impl ResPq {
         }
         .into();
 
-        // FIXME: simplify.
-        let mut buf = tl::ser::Buf::new(&mut random_padding_bytes);
-        buf.ser(&pq_inner_data);
+        tl::ser(&mut random_padding_bytes, &pq_inner_data);
 
         let data_with_padding = random_padding_bytes;
 
