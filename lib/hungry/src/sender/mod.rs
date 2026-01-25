@@ -7,11 +7,13 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::reader::{Reader, ReaderResult};
-use crate::transport::{Packet, Transport, Unpack};
+use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
 use crate::{common, mtproto, tl};
 
 use common::infallible;
+
+use tl::SerializedLen;
 
 use container::Container;
 
@@ -81,6 +83,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Container::new(unbite::DynBuf::new(len + 100_000))
     }
 
+    fn quick_ack(&mut self, quick_ack: QuickAck) {
+        eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})")
+    }
+
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
         if self.container.as_ref().is_some_and(|c| c.can_push(len)) {
             return self.container.as_mut().unwrap();
@@ -118,19 +124,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    pub fn invoke<'a, F: tl::Function>(
+    pub fn invoke<'a, F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
-        f: &'a tl::ConstructorId<F>,
-    ) -> mtproto::Msg<&'a tl::ConstructorId<F>> {
-        let msg = mtproto::Msg {
-            msg_id: self.msg_ids.get(std::time::SystemTime::now()),
-            seq_no: self.seq_nos.get_content_related(),
-            object: f,
-        };
+        len: usize,
+        f: F,
+    ) -> mtproto::BytesMsg {
+        let msg_id = self.msg_ids.get(std::time::SystemTime::now());
+        let seq_no = self.seq_nos.get_content_related();
 
-        let len = tl::SerializedLen::serialized_len(&msg);
+        let msg = mtproto::Msg::bytes(msg_id, seq_no, len.try_into().unwrap());
 
-        self.get_container(len).push(msg);
+        self.get_container(msg.serialized_len()).push(&msg, f);
 
         msg
     }
@@ -164,7 +168,13 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             let packet = match unpack {
                 Unpack::Packet(packet) => packet,
-                Unpack::QuickAck(_) => todo!(),
+                Unpack::QuickAck(quick_ack) => {
+                    self.quick_ack(quick_ack);
+
+                    cx.waker().wake_by_ref();
+
+                    return Poll::Pending;
+                }
             };
 
             let buf = self.packet(packet)?;

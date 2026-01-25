@@ -13,6 +13,9 @@ use tl::{ConstSerializedLen, SerializedLen};
 #[derive(Copy, Clone, Debug)]
 pub struct MsgNil;
 
+#[derive(Copy, Clone, Debug)]
+pub struct MsgBytes(pub i32);
+
 #[must_use]
 #[derive(Copy, Clone, Debug)]
 pub struct Msg<T = MsgNil> {
@@ -22,6 +25,7 @@ pub struct Msg<T = MsgNil> {
 }
 
 pub type BufMsg<'a> = Msg<tl::de::Buf<'a>>;
+pub type BytesMsg = Msg<MsgBytes>;
 
 impl Msg<MsgNil> {
     pub fn nil(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo) -> Self {
@@ -33,36 +37,49 @@ impl Msg<MsgNil> {
     }
 }
 
-impl ConstSerializedLen for Msg<MsgNil> {
-    const SERIALIZED_LEN: usize = mtproto::MsgId::SERIALIZED_LEN + mtproto::SeqNo::SERIALIZED_LEN;
+impl Msg<MsgBytes> {
+    #[inline]
+    pub fn bytes(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo, bytes: i32) -> Self {
+        Self {
+            msg_id,
+            seq_no,
+            object: MsgBytes(bytes),
+        }
+    }
 }
 
-impl SerializeUnchecked for Msg<MsgNil> {
+impl ConstSerializedLen for Msg<MsgBytes> {
+    const SERIALIZED_LEN: usize =
+        mtproto::MsgId::SERIALIZED_LEN + mtproto::SeqNo::SERIALIZED_LEN + i32::SERIALIZED_LEN;
+}
+
+impl SerializeUnchecked for Msg<MsgBytes> {
     #[inline(always)]
     unsafe fn serialize_unchecked(&self, mut buf: NonNull<u8>) -> NonNull<u8> {
         unsafe {
             buf = self.msg_id.serialize_unchecked(buf);
             buf = self.seq_no.serialize_unchecked(buf);
+            buf = self.object.0.serialize_unchecked(buf);
         }
 
         buf
     }
 }
 
-impl DeserializeInfallible for Msg<MsgNil> {
+impl DeserializeInfallible for Msg<MsgBytes> {
     #[inline(always)]
     unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self {
         unsafe {
             Self {
                 msg_id: i64::deserialize_infallible(buf),
                 seq_no: i32::deserialize_infallible(buf.add(8)),
-                object: MsgNil,
+                object: MsgBytes(i32::deserialize_infallible(buf.add(12))),
             }
         }
     }
 }
 
-impl<X: SerializeUnchecked, T: Deref<Target = X>> SerializedLen for Msg<T> {
+impl<X: SerializedLen, T: Deref<Target = X>> SerializedLen for Msg<T> {
     #[inline(always)]
     fn serialized_len(&self) -> usize {
         16 + self.object.serialized_len()

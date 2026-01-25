@@ -5,8 +5,8 @@ use hungry::{crypto_bigint, mtproto, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
-use tl::Identifiable;
 use tl::mtproto::{enums, funcs, types};
+use tl::{Identifiable, SerializedLen};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -100,8 +100,8 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
-    let _ = sender.invoke(&tl::ConstructorId(funcs::GetFutureSalts { num: 1 }));
-    let _ = sender.invoke(&tl::ConstructorId(funcs::Ping { ping_id: 4 }));
+    let func = tl::ConstructorId(funcs::GetFutureSalts { num: 1 });
+    let _ = dbg!(sender.invoke(func.serialized_len(), |buf| buf.ser(&func)));
 
     loop {
         poll_fn(|cx| {
@@ -182,9 +182,8 @@ async fn async_main() -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    let rt = tokio::runtime::Builder::new_current_thread()
+    tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()?;
-
-    rt.block_on(async_main())
+        .build()?
+        .block_on(async_main())
 }

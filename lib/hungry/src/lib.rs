@@ -14,6 +14,7 @@
     clippy::inline_always
 )]
 
+mod client;
 mod private;
 
 pub mod auth;

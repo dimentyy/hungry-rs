@@ -2,9 +2,9 @@
 
 mod error;
 
-use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
+use std::{io, mem};
 
 use tokio::io::AsyncRead;
 
@@ -40,8 +40,22 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     }
 
     #[inline]
+    #[must_use]
     pub fn as_mut_slice(&mut self, packet: Packet) -> &mut [u8] {
         &mut self.buffer.as_mut_slice()[packet.data]
+    }
+
+    pub fn swap_buffer(&mut self, other: &mut unbite::DynBuf) {
+        let length = self.buffer.len() - self.offset;
+
+        assert!(other.capacity() >= length);
+
+        other.clear();
+        other.extend_from_slice(&self.buffer.as_mut_slice()[self.offset..]);
+
+        mem::swap(&mut self.buffer, other);
+
+        self.offset = 0;
     }
 
     fn rotate_buffer(&mut self, packet_len: usize) {

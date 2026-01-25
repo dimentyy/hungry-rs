@@ -46,7 +46,7 @@ impl ExternalHeader {
     ///
     /// # Errors
     ///
-    /// * `MsgKeyCheckError` occurs if the computed `msg_key` does not match.
+    /// * [`MsgKeyCheckError`] occurs if the computed `msg_key` does not match.
     pub fn decrypt(self, auth_key: &AuthKey, buffer: &mut [u8]) -> Result<(), MsgKeyCheckError> {
         assert_eq!(auth_key.id(), self.auth_key_id);
 

@@ -62,13 +62,20 @@ impl MsgContainer {
     /// # Panics
     ///
     /// * If the internal buffer does not have enough capacity to store `x`.
-    pub fn push<X: tl::Function>(&mut self, msg: mtproto::Msg<&tl::ConstructorId<X>>) {
+    pub fn push<F: FnOnce(&mut tl::ser::Buf)>(&mut self, msg: &mtproto::BytesMsg, f: F) {
         // assert!(
         //     self.can_push(x.serialized_len()),
         //     "msg container buffer does not have enough capacity"
         // );
 
-        self.buffer.init_with(|buf| tl::ser_uninit(buf, &msg));
+        self.buffer.init_with(|spare_capacity| {
+            let mut buf = tl::ser::Buf::uninit(spare_capacity);
+
+            buf.ser(msg);
+            f(&mut buf);
+
+            buf.as_slice()
+        });
 
         self.length += 1;
     }
