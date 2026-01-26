@@ -100,7 +100,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
 
-    let func = tl::ConstructorId(funcs::GetFutureSalts { num: 1 });
+    let func = tl::ConstructorId(funcs::Ping { ping_id: 7 });
     let _ = dbg!(sender.invoke(func.serialized_len(), |buf| buf.ser(&func)));
 
     loop {

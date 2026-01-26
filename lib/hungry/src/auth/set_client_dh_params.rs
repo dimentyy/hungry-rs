@@ -4,7 +4,9 @@ use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{Odd, U2048};
 use digest::Digest;
 
-use crate::{mtproto, tl};
+use crate::{common, mtproto, tl};
+
+use common::infallible;
 
 use tl::Int256;
 use tl::mtproto::{funcs, types};
@@ -14,6 +16,7 @@ pub enum DhGenOkError {
     NonceMismatch,
     ServerNonceMismatch,
     NewNonceHash1Mismatch,
+    AuthKeyZero,
 }
 
 impl fmt::Display for DhGenOkError {
@@ -26,6 +29,7 @@ impl fmt::Display for DhGenOkError {
             NonceMismatch => "`nonce` mismatch",
             ServerNonceMismatch => "`server_nonce` mismatch",
             NewNonceHash1Mismatch => "`new_nonce_hash1` mismatch",
+            AuthKeyZero => "resulting auth key is zero",
         })
     }
 }
@@ -81,14 +85,18 @@ impl SetClientDhParams {
             .to_be_bytes()
             .into();
 
-        let auth_key = mtproto::AuthKey::new(g_ab).expect("todo");
+        let Some(auth_key) = mtproto::AuthKey::new(g_ab) else {
+            return Err(AuthKeyZero);
+        };
 
         if response.new_nonce_hash_1 != new_nonce_hash(&auth_key, &self.new_nonce, 1) {
             return Err(NewNonceHash1Mismatch);
         }
 
-        let salt = i64::from_le_bytes(self.new_nonce[0..8].try_into().unwrap())
-            ^ i64::from_le_bytes(self.func.server_nonce[0..8].try_into().unwrap());
+        infallible! {
+            let salt = i64::from_le_bytes(self.new_nonce[0..8].try_into().unwrap())
+                ^ i64::from_le_bytes(self.func.server_nonce[0..8].try_into().unwrap());
+        }
 
         Ok((auth_key, salt))
     }

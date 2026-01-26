@@ -83,8 +83,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Container::new(unbite::DynBuf::new(len + 100_000))
     }
 
+    #[expect(clippy::unused_self, clippy::needless_pass_by_value)]
     fn quick_ack(&mut self, quick_ack: QuickAck) {
-        eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})")
+        eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }
 
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
@@ -124,11 +125,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    pub fn invoke<'a, F: FnOnce(&mut tl::ser::Buf)>(
-        &mut self,
-        len: usize,
-        f: F,
-    ) -> mtproto::BytesMsg {
+    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::BytesMsg {
         let msg_id = self.msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.seq_nos.get_content_related();
 

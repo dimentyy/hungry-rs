@@ -66,11 +66,11 @@ impl ReqPqMulti {
             return Err(ResPqError::NonceMismatch);
         }
 
-        if response.pq.len() != 8 {
+        let Ok(pq) = response.pq.as_slice().try_into() else {
             return Err(ResPqError::InvalidPqLen);
-        }
+        };
 
-        let pq = u64::from_be_bytes(response.pq.as_slice().try_into().unwrap());
+        let pq = u64::from_be_bytes(pq);
 
         let (p, q) = crypto::factorize_pq(pq).ok_or(ResPqError::Factorization)?;
 

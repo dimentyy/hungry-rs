@@ -45,6 +45,9 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         &mut self.buffer.as_mut_slice()[packet.data]
     }
 
+    /// # Panics
+    ///
+    /// * If the provided `other` capacity is less than the current length.
     pub fn swap_buffer(&mut self, other: &mut unbite::DynBuf) {
         let length = self.buffer.len() - self.offset;
 
