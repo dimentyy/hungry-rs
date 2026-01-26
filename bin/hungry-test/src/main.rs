@@ -109,10 +109,6 @@ async fn async_main() -> anyhow::Result<()> {
 
             let mut de = mtproto::Msg::deserialize(&mut buf)?;
 
-            if !mtproto::is_msg_id_valid(de.msg_id, std::time::SystemTime::now()) {
-                todo!()
-            }
-
             // TODO: check seq no
 
             let id = u32::from_le_bytes(*de.object.peek_exactly()?);

@@ -1,19 +1,13 @@
 use crate::{mtproto, tl};
 
-use tl::{ConstSerializedLen, Identifiable};
-
 pub struct MsgContainer {
     header: unbite::Raw<8>,
     buffer: unbite::DynBuf,
     length: u32,
 }
 
-impl Identifiable for MsgContainer {
-    const CONSTRUCTOR_ID: u32 = 0x73f1f8dc;
-}
-
 impl MsgContainer {
-    const HEADER_LEN: usize = u32::SERIALIZED_LEN + u32::SERIALIZED_LEN;
+    const HEADER_LEN: usize = 4 + 4; // CONSTRUCTOR_ID + BareVec
 
     /// # Panics
     ///
@@ -83,7 +77,7 @@ impl MsgContainer {
     pub fn finalize(mut self) -> unbite::DynBuf {
         let mut header = self.header.into_buf();
 
-        header.extend_from_array(&Self::CONSTRUCTOR_ID.to_le_bytes());
+        header.extend_from_array(&tl::MSG_CONTAINER.to_le_bytes());
         header.extend_from_array(&self.length.to_le_bytes());
 
         self.buffer.unsplit_buf_front(header);

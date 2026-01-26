@@ -44,6 +44,27 @@ pub const FALSE: u32 = 0xbc799737;
 /// ```
 pub const VECTOR: u32 = 0x1cb5c415;
 
+/// Identifier of the `rpc_result` constructor:
+///
+/// ```tl
+/// rpc_result#f35c6d01 req_msg_id:long result:Object = RpcResult;
+/// ```
+pub const RPC_RESULT: u32 = 0xf35c6d01;
+
+/// Identifier of the `gzip_packed` constructor.
+///
+/// ```tl
+/// msg_container#73f1f8dc messages:vector<message> = MessageContainer;
+/// ```
+pub const MSG_CONTAINER: u32 = 0x73f1f8dc;
+
+/// Identifier of the `gzip_packed` constructor.
+///
+/// ```tl
+/// gzip_packed#3072cfa1 packed_data:bytes = Object;
+/// ```
+pub const GZIP_PACKED: u32 = 0x3072cfa1;
+
 pub trait Identifiable {
     const CONSTRUCTOR_ID: u32;
 }

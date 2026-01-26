@@ -31,7 +31,7 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
 
     container: Option<Container<T>>,
 
-    msg_ids: mtproto::MsgIds,
+    msg_ids: mtproto::ClientMsgIds,
     seq_nos: mtproto::SeqNos,
 }
 
@@ -56,7 +56,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             container: None,
 
-            msg_ids: mtproto::MsgIds::new(std::time::SystemTime::now()),
+            msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
             seq_nos: mtproto::SeqNos::new(),
         }
     }

@@ -80,10 +80,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
 
         let header = mtproto::PlainMsgHeader::unpack(*header);
 
-        if !mtproto::is_msg_id_valid(header.message_id, std::time::SystemTime::now()) {
-            todo!()
-        }
-
         let data_length = header.message_data_length;
 
         if data_length < 0 || data_length as usize != buf.len() || !buf.len().is_multiple_of(4) {

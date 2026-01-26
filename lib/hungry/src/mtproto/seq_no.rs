@@ -34,7 +34,7 @@ pub struct SeqNos {
 
 impl fmt::Display for SeqNos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unpack seq nos [current={}]", self.current)
+        write!(f, "seq nos [current={}]", self.current)
     }
 }
 
