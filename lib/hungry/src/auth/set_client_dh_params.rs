@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crypto_bigint::modular::{MontyForm, MontyParams};
+use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{Odd, U2048};
 use digest::Digest;
 
@@ -75,7 +75,7 @@ impl SetClientDhParams {
             return Err(ServerNonceMismatch);
         }
 
-        let g_ab = MontyForm::new(&self.g_a, MontyParams::new(self.dh_prime))
+        let g_ab = FixedMontyForm::new(&self.g_a, &MontyParams::new(self.dh_prime))
             .pow(&self.b)
             .retrieve()
             .to_be_bytes()

@@ -1,4 +1,4 @@
-use crypto_bigint::modular::{MontyForm, MontyParams};
+use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{Odd, One, U2048};
 use digest::Digest;
 
@@ -33,7 +33,7 @@ impl ServerDhParamsOk {
         let g = U2048::from_u32(self.g as u32);
 
         // * g_b := pow(g, b) mod dh_prime
-        let g_b = MontyForm::new(&g, MontyParams::new(self.dh_prime))
+        let g_b = FixedMontyForm::new(&g, &MontyParams::new(self.dh_prime))
             .pow(&b)
             .retrieve();
 

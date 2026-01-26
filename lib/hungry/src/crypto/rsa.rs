@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 use std::{fmt, hash};
 
-use crypto_bigint::modular::{MontyForm, MontyParams};
+use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{ConstOne, Odd, U2048};
 
 use digest::Digest;
@@ -180,7 +180,7 @@ impl RsaKey {
         // power from the RSA public key modulo the RSA modulus, and
         // the result is stored as a big-endian integer consisting of
         // exactly 256 bytes (with leading zero bytes if required).
-        let encrypted_data = MontyForm::new(&key_aes_encrypted, MontyParams::new(self.n))
+        let encrypted_data = FixedMontyForm::new(&key_aes_encrypted, &MontyParams::new(self.n))
             .pow(&self.e)
             .retrieve();
 
