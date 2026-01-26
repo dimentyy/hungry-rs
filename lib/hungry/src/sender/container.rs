@@ -9,7 +9,7 @@ pub(super) struct Container<T: Transport> {
 }
 
 impl<T: Transport> Container<T> {
-    pub(crate) fn new(mut buffer: unbite::DynBuf) -> Container<T> {
+    pub(crate) fn new(mut buffer: unbite::DynBuf) -> Self {
         let transport = T::envelope(&mut buffer);
         let encrypted = mtproto::EncryptedEnvelope::new(&mut buffer);
 

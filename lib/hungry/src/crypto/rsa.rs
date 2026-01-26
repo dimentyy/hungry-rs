@@ -22,6 +22,7 @@ use tl::ConstSerializedLen;
 /// ---
 ///
 /// <https://core.telegram.org/mtproto/auth_key#2-server-sends-response-of-the-form>
+#[allow(clippy::too_long_first_doc_paragraph)]
 pub type RsaKeyFingerprint = i64;
 
 /// <https://core.telegram.org/mtproto/auth_key#41-rsa-paddata-server-public-key-mentioned-above-is-implemented-as-follows>

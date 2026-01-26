@@ -17,7 +17,7 @@ pub struct OwnedWrite<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> {
 }
 
 impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
-    pub(crate) fn new(driver: Writer<W, T>, buffer: B) -> Self {
+    pub(crate) const fn new(driver: Writer<W, T>, buffer: B) -> Self {
         Self {
             inner: Some(OwnedWriteInner { driver, buffer }),
             pos: 0,

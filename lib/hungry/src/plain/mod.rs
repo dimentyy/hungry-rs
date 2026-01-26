@@ -19,7 +19,7 @@ pub struct Plain<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
 
 impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
     #[inline]
-    pub fn new(reader: Reader<R, T>, writer: Writer<W, T>) -> Self {
+    pub const fn new(reader: Reader<R, T>, writer: Writer<W, T>) -> Self {
         Self { reader, writer }
     }
 

@@ -120,7 +120,8 @@ macro_rules! common_impl {
 
             #[inline]
             pub fn clear(&mut $self) {
-                $self.truncate(0);
+                // SAFETY: truncating will not expose uninitialized data.
+                unsafe { $self.set_len(0) }
             }
 
             #[inline]

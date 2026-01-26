@@ -5,7 +5,8 @@
     clippy::missing_errors_doc,
     clippy::missing_safety_doc,
     clippy::perf,
-    clippy::pedantic
+    clippy::pedantic,
+    clippy::nursery
 )]
 #![allow(
     clippy::enum_glob_use,

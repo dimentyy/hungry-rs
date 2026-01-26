@@ -23,7 +23,7 @@ pub struct ServerDhParamsOk {
 impl ServerDhParamsOk {
     #[inline]
     #[must_use]
-    pub fn server_time(&self) -> i32 {
+    pub const fn server_time(&self) -> i32 {
         self.server_time
     }
 

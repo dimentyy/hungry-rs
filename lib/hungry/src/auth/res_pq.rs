@@ -16,7 +16,7 @@ pub struct ResPq {
 impl ResPq {
     #[inline]
     #[must_use]
-    pub fn server_public_key_fingerprints(&self) -> &[crypto::RsaKeyFingerprint] {
+    pub const fn server_public_key_fingerprints(&self) -> &[crypto::RsaKeyFingerprint] {
         self.server_public_key_fingerprints.as_slice()
     }
 

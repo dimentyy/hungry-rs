@@ -19,7 +19,7 @@ pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
 
 impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use]
-    pub fn new(driver: Writer<W, T>) -> Self {
+    pub const fn new(driver: Writer<W, T>) -> Self {
         Self {
             err: None,
             waker: None,

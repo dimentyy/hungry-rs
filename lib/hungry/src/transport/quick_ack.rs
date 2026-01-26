@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// # Quick ack
 ///
 /// Some of the TCP transports listed above support quick ACKs: quick ACKs
@@ -41,4 +43,10 @@
 #[derive(Debug, Eq, PartialEq)]
 pub struct QuickAck {
     pub token: u32,
+}
+
+impl fmt::Display for QuickAck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "quick ack [token={:#010x}]", self.token)
+    }
 }

@@ -83,28 +83,28 @@ impl AuthKey {
     /// Returns underlying data used for cryptographic operations.
     #[inline]
     #[must_use]
-    pub fn data(&self) -> &[u8; 256] {
+    pub const fn data(&self) -> &[u8; 256] {
         &self.data
     }
 
     /// Consumes the [`AuthKey`] returning its owned underling data.
     #[inline]
     #[must_use]
-    pub fn into_inner(self) -> [u8; 256] {
+    pub const fn into_inner(self) -> [u8; 256] {
         self.data
     }
 
     /// Returns [`AuthKeyAuxHash`] of this instance.
     #[inline]
     #[must_use]
-    pub fn aux_hash(&self) -> AuthKeyAuxHash {
+    pub const fn aux_hash(&self) -> AuthKeyAuxHash {
         self.aux_hash
     }
 
     /// Returns [`AuthKeyId`] of this instance.
     #[inline]
     #[must_use]
-    pub fn id(&self) -> AuthKeyId {
+    pub const fn id(&self) -> AuthKeyId {
         self.id
     }
 
@@ -152,7 +152,7 @@ impl AuthKey {
             .chain_update(msg_key)
             .finalize();
 
-        // In-place slice swap instead of a substitution.
+        // In-place slice swap instead of substitution.
         sha256_a[8..8 + 16].swap_with_slice(&mut sha256_b[8..8 + 16]);
 
         // * aes_key = substr(sha256_a, 0, 8) + substr(sha256_b, 8, 16) + substr(sha256_a, 24, 8);

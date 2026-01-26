@@ -25,7 +25,7 @@ pub struct Writer<W: AsyncWrite + Unpin, T: Transport> {
 
 impl<W: AsyncWrite + Unpin, T: Transport> Writer<W, T> {
     #[inline]
-    pub(crate) fn new(driver: W, transport: T::Write) -> Self {
+    pub(crate) const fn new(driver: W, transport: T::Write) -> Self {
         Self { driver, transport }
     }
 
@@ -101,7 +101,7 @@ pub struct Single<'a, W: AsyncWrite + Unpin, T: Transport> {
 impl<W: AsyncWrite + Unpin, T: Transport> Single<'_, W, T> {
     #[inline]
     #[must_use]
-    pub fn pos(self) -> usize {
+    pub const fn pos(self) -> usize {
         self.pos
     }
 

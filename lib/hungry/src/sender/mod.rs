@@ -61,12 +61,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    #[expect(clippy::unused_self)]
+    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
         eprintln!("TODO: push_completed_writer_buffer(..)");
     }
 
-    #[expect(clippy::unused_self)]
+    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
         eprintln!("TODO: push_immediate_writer_buffer(..)");
     }
@@ -75,7 +75,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         mem::take(&mut self.container)
     }
 
-    #[expect(clippy::unused_self)]
+    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn new_container(&mut self, len: usize) -> Container<T> {
         eprintln!("TODO: new_container(len={len})");
 
@@ -83,7 +83,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Container::new(unbite::DynBuf::new(len + 100_000))
     }
 
-    #[expect(clippy::unused_self, clippy::needless_pass_by_value)]
+    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut, clippy::needless_pass_by_value)]
     fn quick_ack(&mut self, quick_ack: QuickAck) {
         eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }

@@ -43,7 +43,7 @@ impl fmt::Debug for ReqPqMulti {
 
 impl ReqPqMulti {
     #[inline]
-    pub fn new(nonce: tl::Int128) -> Self {
+    pub const fn new(nonce: tl::Int128) -> Self {
         let func = funcs::ReqPqMulti { nonce };
 
         Self { func }
@@ -51,13 +51,13 @@ impl ReqPqMulti {
 
     #[inline]
     #[must_use]
-    pub fn func(&self) -> &funcs::ReqPqMulti {
+    pub const fn func(&self) -> &funcs::ReqPqMulti {
         &self.func
     }
 
     #[inline]
     #[must_use]
-    pub fn nonce(&self) -> &tl::Int128 {
+    pub const fn nonce(&self) -> &tl::Int128 {
         &self.func.nonce
     }
 

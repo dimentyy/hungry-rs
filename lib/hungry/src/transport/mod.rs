@@ -85,5 +85,9 @@ pub trait TransportEnvelope {
 
 #[cfg(feature = "obfuscated-transport")]
 pub trait IdentifiableTransport: Transport {
+    /// The protocol identifier, if its length
+    /// is less than 4, it must be padded using
+    /// the protocol identifier itself, to make
+    /// its length 4 (`0xef` => `0xefefefef`).
     const TRANSPORT_IDENTIFIER: [u8; 4];
 }

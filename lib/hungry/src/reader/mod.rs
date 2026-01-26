@@ -30,7 +30,7 @@ pub struct Reader<R: AsyncRead + Unpin, T: Transport> {
 }
 
 impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
-    pub(crate) fn new(driver: R, transport: T::Read, buffer: unbite::DynBuf) -> Self {
+    pub(crate) const fn new(driver: R, transport: T::Read, buffer: unbite::DynBuf) -> Self {
         Self {
             driver,
             transport,

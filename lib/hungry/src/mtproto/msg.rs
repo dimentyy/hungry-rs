@@ -28,7 +28,7 @@ pub type BufMsg<'a> = Msg<tl::de::Buf<'a>>;
 pub type BytesMsg = Msg<MsgBytes>;
 
 impl Msg<MsgNil> {
-    pub fn nil(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo) -> Self {
+    pub const fn nil(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo) -> Self {
         Self {
             msg_id,
             seq_no,
@@ -39,7 +39,7 @@ impl Msg<MsgNil> {
 
 impl Msg<MsgBytes> {
     #[inline]
-    pub fn bytes(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo, bytes: i32) -> Self {
+    pub const fn bytes(msg_id: mtproto::MsgId, seq_no: mtproto::SeqNo, bytes: i32) -> Self {
         Self {
             msg_id,
             seq_no,
@@ -111,12 +111,14 @@ pub enum MsgDeError {
 
 impl fmt::Display for MsgDeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use MsgDeError::*;
+
         f.write_str("`mtproto::Msg<tl::de::Buf>` deserialization error: ")?;
 
         match self {
-            MsgDeError::HeaderTooSmall(err) => write!(f, "header too small: {err}"),
-            MsgDeError::NegativeLength => f.write_str("negative length"),
-            MsgDeError::IncompleteBody(err) => write!(f, "incomplete body: {err}"),
+            HeaderTooSmall(err) => write!(f, "header too small: {err}"),
+            NegativeLength => f.write_str("negative length"),
+            IncompleteBody(err) => write!(f, "incomplete body: {err}"),
         }
     }
 }
@@ -146,7 +148,7 @@ impl<'a> Msg<tl::de::Buf<'a>> {
             let msg_id = i64::from_le_bytes(header[0..8].try_into().unwrap());
             let seq_no = i32::from_le_bytes(header[8..12].try_into().unwrap());
             let bytes = i32::from_le_bytes(header[12..16].try_into().unwrap());
-        };
+        }
 
         let Ok(bytes) = usize::try_from(bytes) else {
             return Err(MsgDeError::NegativeLength);

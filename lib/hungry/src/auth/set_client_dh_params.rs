@@ -61,7 +61,7 @@ fn new_nonce_hash(auth_key: &mtproto::AuthKey, new_nonce: &[u8; 32], number: u8)
 impl SetClientDhParams {
     #[inline]
     #[must_use]
-    pub fn func(&self) -> &funcs::SetClientDhParams {
+    pub const fn func(&self) -> &funcs::SetClientDhParams {
         &self.func
     }
 
