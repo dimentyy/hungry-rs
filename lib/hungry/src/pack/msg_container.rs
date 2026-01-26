@@ -9,6 +9,8 @@ pub struct MsgContainer {
 impl MsgContainer {
     const HEADER_LEN: usize = 4 + 4; // CONSTRUCTOR_ID + BareVec
 
+    pub const MESSAGES_AT_MOST: u32 = 64;
+
     /// # Panics
     ///
     /// * If the `buffer` does not have enough capacity to store the header.
@@ -43,14 +45,14 @@ impl MsgContainer {
 
     #[inline]
     #[must_use]
-    pub fn spare_capacity(&self) -> Option<usize> {
+    pub const fn spare_capacity(&self) -> Option<usize> {
         self.buffer.spare_capacity_len().checked_sub(16)
     }
 
     #[inline]
     #[must_use]
-    pub fn can_push(&self, len: usize) -> bool {
-        len + 16 <= self.buffer.spare_capacity_len().min(i32::MAX as usize)
+    pub const fn can_push(&self, len: usize) -> bool {
+        self.length < Self::MESSAGES_AT_MOST && len + 16 <= self.buffer.spare_capacity_len()
     }
 
     /// # Panics

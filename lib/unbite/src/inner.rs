@@ -268,3 +268,6 @@ impl Drop for Inner {
         self.alloc.dec_ref_count::<true>();
     }
 }
+
+unsafe impl Send for Inner {}
+unsafe impl Sync for Inner {}

@@ -7,28 +7,28 @@ macro_rules! common_impl {
         $( capacity: $capacity:expr ; )?
     ) => {
         #[inline]
-        pub fn as_non_null(&$self) -> std::ptr::NonNull<u8> {
+        pub const fn as_non_null(&$self) -> std::ptr::NonNull<u8> {
             $inner.bytes
         }
 
         #[inline]
-        pub fn as_mut_ptr(&$self) -> *mut u8 {
+        pub const fn as_mut_ptr(&$self) -> *mut u8 {
             $self.as_non_null().as_ptr()
         }
 
         #[inline]
-        pub fn as_ptr(&$self) -> *const u8 {
+        pub const fn as_ptr(&$self) -> *const u8 {
             $self.as_mut_ptr().cast_const()
         }
 
         $(
             #[inline]
-            pub fn len(&$self) -> usize {
+            pub const fn len(&$self) -> usize {
                 $len
             }
 
             #[inline]
-            pub fn is_empty(&$self) -> bool {
+            pub const fn is_empty(&$self) -> bool {
                 $self.len() == 0
             }
 
@@ -36,7 +36,7 @@ macro_rules! common_impl {
             ///
             /// * Data in the advanced region will be unitialized.
             #[inline]
-            pub unsafe fn set_len(&mut $self, new_len: usize) {
+            pub const unsafe fn set_len(&mut $self, new_len: usize) {
                 $len = new_len;
             }
 
@@ -48,7 +48,8 @@ macro_rules! common_impl {
             ///
             /// * If buffer does not have at least `n` bytes of spare capacity.
             #[inline]
-            pub unsafe fn advance(&mut $self, n: usize) {
+            #[track_caller]
+            pub const unsafe fn advance(&mut $self, n: usize) {
                 assert!(n <= $self.spare_capacity_len());
 
                 unsafe { $self.advance_unchecked(n) };
@@ -59,7 +60,7 @@ macro_rules! common_impl {
             /// * Buffer must have at least `n` bytes of spare capacity.
             /// * Data in the advanced region will be unitialized.
             #[inline]
-            pub unsafe fn advance_unchecked(&mut $self, n: usize) {
+            pub const unsafe fn advance_unchecked(&mut $self, n: usize) {
                 unsafe { $self.set_len($self.len() + n) };
             }
 
@@ -111,7 +112,7 @@ macro_rules! common_impl {
             }
 
             #[inline]
-            pub fn truncate(&mut $self, new_len: usize) {
+            pub const fn truncate(&mut $self, new_len: usize) {
                 if $self.len() > new_len {
                     // SAFETY: truncating will not expose uninitialized data.
                     unsafe { $self.set_len(new_len) }
@@ -119,48 +120,48 @@ macro_rules! common_impl {
             }
 
             #[inline]
-            pub fn clear(&mut $self) {
+            pub const fn clear(&mut $self) {
                 // SAFETY: truncating will not expose uninitialized data.
                 unsafe { $self.set_len(0) }
             }
 
             #[inline]
-            pub fn as_slice(&$self) -> &[u8] {
+            pub const fn as_slice(&$self) -> &[u8] {
                 unsafe { std::slice::from_raw_parts($self.as_ptr(), $self.len()) }
             }
 
             #[inline]
-            pub fn as_mut_slice(&mut $self) -> &mut [u8] {
+            pub const fn as_mut_slice(&mut $self) -> &mut [u8] {
                 unsafe { std::slice::from_raw_parts_mut($self.as_mut_ptr(), $self.len()) }
             }
 
             #[inline]
-            pub fn spare_capacity_non_null(&$self) -> NonNull<u8> {
+            pub const fn spare_capacity_non_null(&$self) -> NonNull<u8> {
                 unsafe { $self.as_non_null().add($self.len()) }
             }
 
             #[inline]
-            pub fn spare_capacity_mut_ptr(&$self) -> *mut u8 {
+            pub const fn spare_capacity_mut_ptr(&$self) -> *mut u8 {
                 $self.spare_capacity_non_null().as_ptr()
             }
 
             #[inline]
-            pub fn spare_capacity_ptr(&$self) -> *const u8 {
+            pub const fn spare_capacity_ptr(&$self) -> *const u8 {
                 $self.spare_capacity_mut_ptr().cast_const()
             }
 
             #[inline]
-            pub fn spare_capacity_len(&$self) -> usize {
+            pub const fn spare_capacity_len(&$self) -> usize {
                 unsafe { $self.capacity().unchecked_sub($self.len()) }
             }
 
             #[inline]
-            pub fn has_spare_capacity(&$self) -> bool {
+            pub const fn has_spare_capacity(&$self) -> bool {
                 $self.len() < $self.capacity()
             }
 
             #[inline]
-            pub fn spare_capacity_mut(&mut $self) -> &mut [std::mem::MaybeUninit<u8>] {
+            pub const fn spare_capacity_mut(&mut $self) -> &mut [std::mem::MaybeUninit<u8>] {
                 unsafe { std::slice::from_raw_parts_mut(
                     $self.spare_capacity_mut_ptr().cast(),
                     $self.spare_capacity_len(),
@@ -168,7 +169,7 @@ macro_rules! common_impl {
             }
 
             #[inline]
-            pub fn extend_from_slice(&mut $self, other: &[u8]) {
+            pub const fn extend_from_slice(&mut $self, other: &[u8]) {
                 let len = other.len();
 
                 assert!(len <= $self.spare_capacity_len());
@@ -184,7 +185,7 @@ macro_rules! common_impl {
             }
 
             #[inline]
-            pub fn extend_from_array<const M: usize>(&mut $self, other: &[u8; M]) {
+            pub const fn extend_from_array<const M: usize>(&mut $self, other: &[u8; M]) {
                 assert!(M <= $self.spare_capacity_len());
 
                 let src = std::ptr::NonNull::from_ref(other).cast();
@@ -200,24 +201,24 @@ macro_rules! common_impl {
 
         $(
             #[inline]
-            pub fn capacity(&$self) -> usize {
+            pub const fn capacity(&$self) -> usize {
                 $const_capacity
             }
 
             #[inline]
-            pub fn as_mut_uninit_array(&mut $self) -> &mut [std::mem::MaybeUninit<u8>; $const_capacity] {
+            pub const fn as_mut_uninit_array(&mut $self) -> &mut [std::mem::MaybeUninit<u8>; $const_capacity] {
                 unsafe { $self.as_non_null().cast().as_mut() }
             }
         )?
 
         $(
             #[inline]
-            pub fn capacity(&$self) -> usize {
+            pub const fn capacity(&$self) -> usize {
                 $capacity
             }
 
             #[inline]
-            pub fn as_mut_uninit_slice(&mut $self) -> &mut [std::mem::MaybeUninit<u8>] {
+            pub const fn as_mut_uninit_slice(&mut $self) -> &mut [std::mem::MaybeUninit<u8>] {
                 unsafe { std::slice::from_raw_parts_mut($self.as_mut_ptr().cast(), $self.capacity()) }
             }
         )?
