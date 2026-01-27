@@ -5,6 +5,7 @@ fn main() {
     let config = hungry_tl_gen::Config {
         derive_clone: true,
         derive_debug: true,
+        derive_partial_eq: true,
         impl_into_enum: true,
     };
 

@@ -4,7 +4,8 @@
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::missing_safety_doc,
-    clippy::pedantic
+    clippy::pedantic,
+    clippy::nursery
 )]
 #![allow(clippy::wildcard_imports, clippy::inline_always)]
 

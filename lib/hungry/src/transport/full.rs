@@ -128,7 +128,7 @@ impl TransportWrite for FullWrite {
     type Transport = Full;
 
     /// # Panics
-    /// 
+    ///
     /// * If the `buffer.len() + 12` exceeds the [`i32::MAX`].
     fn pack(&mut self, buffer: &mut unbite::DynBuf, envelope: FullEnvelope) {
         let mut header = envelope.header.into_buf();

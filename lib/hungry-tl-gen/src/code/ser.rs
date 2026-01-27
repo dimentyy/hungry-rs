@@ -20,22 +20,28 @@ pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Co
     s.push_str(" crate::SerializedLen for ");
     push_escaped(s, &x.ident.actual);
     push_function_generics(s, &x.generic_args, false);
-    s.push_str(" {\n    fn serialized_len(&self) -> usize {\n        ");
 
-    if x.args.is_empty() {
-        return s.push('0');
-    }
-
-    let mut iter = x.args.iter();
-
-    write_structure_arg_len(cfg, data, s, iter.next().unwrap());
-
-    for arg in iter {
-        if matches!(arg.typ, ArgTyp::True { .. }) {
-            continue;
+    match x.args.len() {
+        0 => unreachable!(),
+        1 => {
+            s.push_str(" {\n    #[inline]\n    fn serialized_len(&self) -> usize {\n        ");
+            write_structure_arg_len(cfg, data, s, &x.args[0]);
         }
-        s.push_str("\n            + ");
-        write_structure_arg_len(cfg, data, s, arg);
+        _ => {
+            s.push_str(" {\n    fn serialized_len(&self) -> usize {\n        ");
+
+            let mut iter = x.args.iter();
+
+            write_structure_arg_len(cfg, data, s, iter.next().unwrap());
+
+            for arg in iter {
+                if matches!(arg.typ, ArgTyp::True { .. }) {
+                    continue;
+                }
+                s.push_str("\n            + ");
+                write_structure_arg_len(cfg, data, s, arg);
+            }
+        }
     }
 
     s.push_str("\n    }\n}\n");
@@ -44,6 +50,19 @@ pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Co
 pub(super) fn push_enum_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
     s.push_str("\nimpl crate::SerializedLen for ");
     push_escaped(s, &x.ident.actual);
+
+    if x.variants.len() == 1 {
+        s.push_str(
+            " {\n    #[inline]\n    fn serialized_len(&self) -> usize {\n        let Self::",
+        );
+        let variant = x.variants[0];
+        let x = &data.types[variant];
+        push_enum_variant(cfg, s, x);
+        s.push_str("(x) = self;\n        4 + x.serialized_len()\n    }\n}\n");
+
+        return;
+    }
+
     s.push_str(" {\n    fn serialized_len(&self) -> usize {\n        4 + match self {\n");
 
     for variant in &x.variants {
@@ -90,12 +109,14 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
     push_escaped(s, &x.ident.actual);
     push_function_generics(s, &x.generic_args, false);
 
-    if x.args.is_empty() {
-        s.push_str(" {\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        buf\n    }\n}\n");
-        return;
-    }
-
-    s.push_str(" {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n");
+    s.push_str(match x.args.len() {
+        0 => {
+            s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        buf\n    }\n}\n");
+            return;
+        }
+        1 => " {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n",
+        _ => " {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n",
+    });
 
     for arg in &x.args {
         let (_, _) = match &arg.typ {
@@ -134,6 +155,19 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
 pub(super) fn push_enum_ser(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
     s.push_str("\nimpl crate::ser::SerializeUnchecked for ");
     push_escaped(s, &x.ident.actual);
+
+    if x.variants.len() == 1 {
+        s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n            let Self::");
+        let variant = x.variants[0];
+        let x = &data.types[variant];
+        push_enum_variant(cfg, s, x);
+        s.push_str("(x) = self;\n            buf = ");
+        push_ident(s, "types", &x.combinator.ident);
+        s.push_str("::CONSTRUCTOR_ID.serialize_unchecked(buf);\n            x.serialize_unchecked(buf)\n        }\n    }\n}\n");
+
+        return;
+    }
+
     s.push_str(" {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n            match self {\n");
 
     for variant in &x.variants {

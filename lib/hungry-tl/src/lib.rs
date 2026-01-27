@@ -13,12 +13,13 @@ pub use hungry_common as common;
 
 pub use common::tl::*;
 
-#[allow(unused_imports, clippy::module_inception)]
+// TODO: make large enum variants boxed, maybe optionally.
+#[allow(unused_imports, clippy::module_inception, clippy::large_enum_variant)]
 pub mod api {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/api/mod.rs"));
 }
 
-#[allow(unused_imports, clippy::module_inception)]
+#[allow(unused_imports, clippy::module_inception, clippy::large_enum_variant)]
 pub mod mtproto {
     include!(concat!(env!("OUT_DIR"), "/hungry_tl/mtproto/mod.rs"));
 }

@@ -80,10 +80,14 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         eprintln!("TODO: new_container(len={len})");
 
         // FIXME
-        Container::new(unbite::DynBuf::new(len + 100_000))
+        Container::new(unbite::DynBuf::new(len + 2048))
     }
 
-    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut, clippy::needless_pass_by_value)]
+    #[expect(
+        clippy::unused_self,
+        clippy::needless_pass_by_ref_mut,
+        clippy::needless_pass_by_value
+    )]
     fn quick_ack(&mut self, quick_ack: QuickAck) {
         eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }

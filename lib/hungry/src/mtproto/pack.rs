@@ -34,6 +34,10 @@ impl EncryptedEnvelope {
         self.header.swap(other);
     }
 
+    /// # Panics
+    ///
+    /// * If the [`getrandom::fill_uninit`] call fails.
+    /// * If the `buffer.len()` exceeds the `i32::MAX`.
     #[expect(clippy::needless_pass_by_value)]
     pub fn pack(
         self,

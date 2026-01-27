@@ -10,7 +10,7 @@ use common::infallible;
 use tl::Int256;
 use tl::mtproto::{enums, funcs, types};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ServerDhParamsOkError {
     NonceMismatch,
     ServerNonceMismatch,
@@ -64,6 +64,7 @@ impl From<tl::de::Error> for ServerDhParamsOkError {
 }
 
 #[must_use]
+#[derive(PartialEq)]
 pub struct ReqDhParams<'a> {
     pub(crate) data_with_padding: [u8; 192],
     pub(crate) new_nonce: Int256,

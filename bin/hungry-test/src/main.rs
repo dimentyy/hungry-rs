@@ -30,8 +30,8 @@ async fn async_main() -> anyhow::Result<()> {
 
     let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
 
-    let r_buffer = unbite::DynBuf::new(1024 * 1024);
-    let w_buffer = unbite::DynBuf::new(1024 * 1024);
+    let r_buffer = unbite::DynBuf::new(16 * 1024);
+    let w_buffer = unbite::DynBuf::new(16 * 1024);
 
     let (r, w) = hungry::init(transport, r, r_buffer, w, w_buffer);
 
@@ -90,7 +90,10 @@ async fn async_main() -> anyhow::Result<()> {
         todo!()
     };
 
-    let (auth_key, salt) = set_client_dh_params.dh_gen_ok(&dh_gen_ok)?;
+    let hungry::auth::DhGenOk {
+        auth_key,
+        server_salt,
+    } = set_client_dh_params.dh_gen_ok(&dh_gen_ok)?;
 
     let (r, w) = plain.into_inner();
 
@@ -98,7 +101,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()? as i64;
 
-    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, salt);
+    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
     let func = tl::ConstructorId(funcs::Ping { ping_id: 7 });
     let _ = dbg!(sender.invoke(func.serialized_len(), |buf| buf.ser(&func)));

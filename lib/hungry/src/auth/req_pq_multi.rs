@@ -5,7 +5,7 @@ use crate::{auth, crypto, tl};
 use tl::mtproto::{funcs, types};
 
 #[must_use]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ResPqError {
     NonceMismatch,
     InvalidPqLen,
@@ -29,6 +29,7 @@ impl fmt::Display for ResPqError {
 impl std::error::Error for ResPqError {}
 
 #[must_use]
+#[derive(PartialEq)]
 pub struct ReqPqMulti {
     func: funcs::ReqPqMulti,
 }
@@ -36,7 +37,7 @@ pub struct ReqPqMulti {
 impl fmt::Debug for ReqPqMulti {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ReqPqMulti")
-            .field("nonce", self.nonce())
+            .field("nonce", &self.func.nonce)
             .finish()
     }
 }

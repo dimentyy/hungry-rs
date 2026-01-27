@@ -4,14 +4,14 @@ use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{Odd, U2048};
 use digest::Digest;
 
-use crate::{common, mtproto, tl};
+use crate::{auth, common, mtproto, tl};
 
 use common::infallible;
 
 use tl::Int256;
 use tl::mtproto::{funcs, types};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum DhGenOkError {
     NonceMismatch,
     ServerNonceMismatch,
@@ -37,6 +37,7 @@ impl fmt::Display for DhGenOkError {
 impl std::error::Error for DhGenOkError {}
 
 #[must_use]
+#[derive(PartialEq)]
 pub struct SetClientDhParams {
     pub(crate) new_nonce: Int256,
     pub(crate) g: i32,
@@ -65,10 +66,24 @@ impl SetClientDhParams {
         &self.func
     }
 
-    pub fn dh_gen_ok(
-        &self,
-        response: &types::DhGenOk,
-    ) -> Result<(mtproto::AuthKey, mtproto::Salt), DhGenOkError> {
+    /// <...> server_salt is initially set to `substr(new_nonce, 0, 8) XOR substr(server_nonce, 0, 8)`.
+    #[inline]
+    #[must_use]
+    fn server_salt(&self) -> mtproto::Salt {
+        infallible! {
+            let new_nonce = i64::from_le_bytes(self.new_nonce[0..8].try_into().unwrap());
+            let server_nonce = i64::from_le_bytes(self.func.server_nonce[0..8].try_into().unwrap());
+        }
+
+        new_nonce ^ server_nonce
+    }
+
+    /// # Errors
+    ///
+    /// See [Creating an Authorization Key] page for information.
+    ///
+    /// [Creating an Authorization Key]: https://core.telegram.org/mtproto/auth_key#9-server-responds-in-one-of-three-ways
+    pub fn dh_gen_ok(&self, response: &types::DhGenOk) -> Result<auth::DhGenOk, DhGenOkError> {
         use DhGenOkError::*;
 
         if response.nonce != self.func.nonce {
@@ -93,11 +108,9 @@ impl SetClientDhParams {
             return Err(NewNonceHash1Mismatch);
         }
 
-        infallible! {
-            let salt = i64::from_le_bytes(self.new_nonce[0..8].try_into().unwrap())
-                ^ i64::from_le_bytes(self.func.server_nonce[0..8].try_into().unwrap());
-        }
-
-        Ok((auth_key, salt))
+        Ok(auth::DhGenOk {
+            auth_key,
+            server_salt: self.server_salt(),
+        })
     }
 }

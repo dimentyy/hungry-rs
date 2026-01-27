@@ -3,7 +3,7 @@ use crate::{auth, crypto, tl};
 use tl::mtproto::{enums, funcs, types};
 
 #[must_use]
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct ResPq {
     pub(super) nonce: tl::Int128,
     pub(super) server_nonce: tl::Int128,

@@ -10,6 +10,7 @@ pub(crate) type F = io::BufWriter<fs::File>;
 pub struct Config {
     pub derive_clone: bool,
     pub derive_debug: bool,
+    pub derive_partial_eq: bool,
     pub impl_into_enum: bool,
 }
 
@@ -31,6 +32,10 @@ impl Cfg {
 
         if config.derive_debug {
             derives.push("Debug");
+        }
+
+        if config.derive_partial_eq {
+            derives.push("PartialEq");
         }
 
         let mut iter = derives.iter();

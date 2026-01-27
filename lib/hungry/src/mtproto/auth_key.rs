@@ -38,7 +38,7 @@ pub type AuthKeyAuxHash = [u8; 8];
 ///
 /// <https://core.telegram.org/mtproto/description#authorization-key-auth-key>
 #[must_use]
-#[derive(Clone)]
+#[derive(Clone, Eq)]
 #[repr(align(8))]
 pub struct AuthKey {
     data: [u8; 256],
@@ -58,6 +58,18 @@ impl fmt::Debug for AuthKey {
         f.debug_struct("AuthKey")
             .field("id", &format_args!("{:#018x}", self.id.get().to_le()))
             .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for AuthKey {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        // Check the small `id` and `aux_hash` first.
+        if self.id != other.id || self.aux_hash != other.aux_hash {
+            return false;
+        }
+
+        self.data == other.data
     }
 }
 

@@ -59,7 +59,7 @@ impl ServerMsgIds {
     ///
     /// # Errors
     ///
-    /// * See [Security Guidelines] page for information.
+    /// See [Security Guidelines] page for information.
     ///
     /// [Security Guidelines]: https://core.telegram.org/mtproto/security_guidelines#checking-msg-id
     pub fn validate(

@@ -9,7 +9,7 @@ pub struct MsgContainer {
 impl MsgContainer {
     const HEADER_LEN: usize = 4 + 4; // CONSTRUCTOR_ID + BareVec
 
-    pub const MESSAGES_AT_MOST: u32 = 64;
+    pub const MESSAGES_AT_MOST: u32 = 1024;
 
     /// # Panics
     ///

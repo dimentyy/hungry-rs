@@ -8,6 +8,7 @@ use tl::SerializedLen;
 use tl::mtproto::{enums, funcs, types};
 
 #[must_use]
+#[derive(Eq, PartialEq)]
 pub struct ServerDhParamsOk {
     pub(crate) nonce: tl::Int128,
     pub(crate) server_nonce: tl::Int128,
@@ -27,6 +28,9 @@ impl ServerDhParamsOk {
         self.server_time
     }
 
+    /// # Panics
+    ///
+    /// * If the [`getrandom::fill_uninit`] call fails.
     pub fn set_client_dh_params(&self, b: U2048, retry_id: i64) -> auth::SetClientDhParams {
         let _one = U2048::one();
 
@@ -66,7 +70,6 @@ impl ServerDhParamsOk {
         // SAFETY: data is initialized.
         unsafe { data_with_hash.set_len(20 + serialized_len) };
 
-        // TODO: allow custom random padding.
         getrandom::fill_uninit(data_with_hash.spare_capacity_mut()).unwrap();
 
         // SAFETY: spare capacity was filled with random bytes.

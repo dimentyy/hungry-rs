@@ -29,7 +29,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
     }
 
     #[expect(clippy::missing_errors_doc, clippy::missing_panics_doc)]
-    pub async fn send<F: tl::Function>(
+    pub async fn send<F: tl::Function + Sync>(
         &mut self,
         buffer: &mut unbite::DynBuf,
         f: &F,
@@ -82,7 +82,15 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
 
         let data_length = header.message_data_length;
 
-        if data_length < 0 || data_length as usize != buf.len() || !buf.len().is_multiple_of(4) {
+        let Ok(data_length) = usize::try_from(data_length) else {
+            todo!()
+        };
+
+        if data_length != buf.len() {
+            todo!()
+        }
+
+        if !data_length.is_multiple_of(4) {
             todo!()
         }
 

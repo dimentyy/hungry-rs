@@ -4,8 +4,10 @@ mod res_pq;
 mod server_dh_params_ok;
 mod set_client_dh_params;
 
+mod dh_gen_ok;
 pub mod error;
 
+pub use dh_gen_ok::DhGenOk;
 pub use req_dh_params::ReqDhParams;
 pub use req_pq_multi::ReqPqMulti;
 pub use res_pq::ResPq;
@@ -13,6 +15,6 @@ pub use server_dh_params_ok::ServerDhParamsOk;
 pub use set_client_dh_params::SetClientDhParams;
 
 #[inline]
-pub fn start(nonce: crate::tl::Int128) -> ReqPqMulti {
+pub const fn start(nonce: crate::tl::Int128) -> ReqPqMulti {
     ReqPqMulti::new(nonce)
 }
