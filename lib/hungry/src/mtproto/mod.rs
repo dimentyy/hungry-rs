@@ -8,10 +8,10 @@ mod unpack;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
-pub use msg::{BufMsg, BufMsgError, BytesMsg, Msg, MsgBytes, MsgWith};
+pub use msg::{BufMsg, BufMsgError, BytesMsg, Msg, MsgBytes, MsgError, MsgWith};
 pub use msg_id::{ClientMsgIds, MsgId, MsgIdError, MsgIdModulus, ServerMsgIds, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
-pub use seq_no::{SeqNo, SeqNos};
+pub use seq_no::{SeqNo, SeqNoError, SeqNos};
 pub use unpack::{
     AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
     auth_key_id,

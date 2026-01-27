@@ -1,10 +1,10 @@
+mod dh_gen_ok;
 mod req_dh_params;
 mod req_pq_multi;
 mod res_pq;
 mod server_dh_params_ok;
 mod set_client_dh_params;
 
-mod dh_gen_ok;
 pub mod error;
 
 pub use dh_gen_ok::DhGenOk;

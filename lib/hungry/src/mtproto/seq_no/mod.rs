@@ -1,4 +1,8 @@
+mod error;
+
 use std::fmt;
+
+pub use error::SeqNoError;
 
 /// # Message Sequence Number (msg_seqno)
 ///
@@ -55,5 +59,34 @@ impl SeqNos {
     pub const fn get_content_related(&mut self) -> SeqNo {
         self.current += 1;
         (self.current * 2) - 1
+    }
+
+    #[inline]
+    pub const fn validate(
+        &mut self,
+        seq_no: SeqNo,
+        content_related: bool,
+    ) -> Result<(), SeqNoError> {
+        use SeqNoError::*;
+
+        let expected = if content_related {
+            if seq_no & 1 == 0 {
+                return Err(Even);
+            }
+
+            self.get_content_related()
+        } else {
+            if seq_no & 1 == 1 {
+                return Err(Odd);
+            }
+
+            self.non_content_related()
+        };
+
+        if seq_no != expected {
+            return Err(Invalid);
+        }
+
+        Ok(())
     }
 }

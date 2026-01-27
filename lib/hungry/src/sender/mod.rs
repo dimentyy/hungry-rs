@@ -13,8 +13,6 @@ use crate::{common, mtproto, tl};
 
 use common::infallible;
 
-use tl::SerializedLen;
-
 use container::Container;
 
 pub use error::SenderError;
@@ -129,13 +127,16 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
+    /// # Panics
+    ///
+    /// * If the provided `len` exceeds the `i32::MAX`.
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::BytesMsg {
-        let seq_no = self.seq_nos.get_content_related();
         let msg_id = self.msg_ids.get(std::time::SystemTime::now());
+        let seq_no = self.seq_nos.get_content_related();
 
-        let msg = mtproto::MsgWith::bytes(seq_no, msg_id, len.try_into().unwrap());
+        let msg = mtproto::MsgWith::bytes(msg_id, seq_no, len.try_into().unwrap());
 
-        self.get_container(msg.serialized_len()).push(&msg, f);
+        self.get_container(len).push(&msg, f);
 
         msg
     }

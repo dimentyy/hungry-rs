@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::VecDeque;
+use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::mtproto;
@@ -7,12 +8,31 @@ use crate::mtproto;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MsgIdError {
     Client,
-    InvalidMod,
+    InvalidRemainder,
     LowerThanAll,
     EqualToAny,
     InTheFuture,
     InThePast,
 }
+
+impl fmt::Display for MsgIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use MsgIdError::*;
+
+        f.write_str("`msg_id` validation error: ")?;
+
+        f.write_str(match self {
+            Client => "divisible by 4 (client message)",
+            InvalidRemainder => "invalid mod 4 remainder: 2",
+            LowerThanAll => "lower than all",
+            EqualToAny => "already received",
+            InTheFuture => "message `unix_time` is in the future",
+            InThePast => "message `unix_time` is in the past",
+        })
+    }
+}
+
+impl std::error::Error for MsgIdError {}
 
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -74,7 +94,7 @@ impl ServerMsgIds {
         let modulus = match msg_id & 3 {
             0 => return Err(Client),
             1 => MsgIdModulus::Response,
-            2 => return Err(InvalidMod),
+            2 => return Err(InvalidRemainder),
             3 => MsgIdModulus::Other,
             _ => unreachable!(),
         };

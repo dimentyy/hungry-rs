@@ -1,4 +1,4 @@
-#![allow(warnings, clippy::all)]
+#![allow(warnings, clippy::all, clippy::pedantic, clippy::nursery)]
 
 use std::task::{Context, Poll, ready};
 
@@ -38,36 +38,18 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         }
     }
 
+    #[inline]
     fn validate_msg(
         &mut self,
-        seq_no: mtproto::SeqNo,
-        msg_id: mtproto::MsgId,
+        msg: mtproto::Msg,
         content_related: bool,
-    ) -> Result<mtproto::MsgIdModulus, MsgValidationError> {
-        if content_related {
-            if seq_no & 1 == 0 {
-                todo!()
-            }
-
-            if seq_no != self.seq_nos.get_content_related() {
-                todo!()
-            }
-        } else {
-            if seq_no & 1 == 1 {
-                todo!()
-            }
-
-            if seq_no != self.seq_nos.non_content_related() {
-                todo!()
-            }
-        };
-
-        let modulus = self
-            .msg_ids
-            .validate(msg_id, std::time::SystemTime::now())
-            .map_err(MsgValidationError::MsgId)?;
-
-        Ok(modulus)
+    ) -> Result<mtproto::MsgIdModulus, mtproto::MsgError> {
+        msg.validate(
+            &mut self.msg_ids,
+            &mut self.seq_nos,
+            std::time::SystemTime::now(),
+            content_related,
+        )
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), HandleError>> {

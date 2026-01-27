@@ -19,9 +19,9 @@ pub struct MsgWith<T> {
 
 impl BytesMsg {
     #[inline]
-    pub fn bytes(seq_no: SeqNo, msg_id: MsgId, bytes: i32) -> Self {
+    pub const fn bytes(msg_id: MsgId, seq_no: SeqNo, bytes: i32) -> Self {
         Self {
-            msg: Msg { seq_no, msg_id },
+            msg: Msg { msg_id, seq_no },
             obj: MsgBytes(bytes),
         }
     }
