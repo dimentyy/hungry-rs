@@ -118,10 +118,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 salt: self.salt,
                 session_id: self.session,
             },
-            mtproto::Msg::nil(
-                self.msg_ids.get(std::time::SystemTime::now()),
-                self.seq_nos.non_content_related(),
-            ),
+            mtproto::Msg {
+                msg_id: self.msg_ids.get(std::time::SystemTime::now()),
+                seq_no: self.seq_nos.non_content_related(),
+            },
         );
 
         if let Some(buffer) = buffer {
@@ -130,10 +130,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::BytesMsg {
-        let msg_id = self.msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.seq_nos.get_content_related();
+        let msg_id = self.msg_ids.get(std::time::SystemTime::now());
 
-        let msg = mtproto::Msg::bytes(msg_id, seq_no, len.try_into().unwrap());
+        let msg = mtproto::MsgWith::bytes(seq_no, msg_id, len.try_into().unwrap());
 
         self.get_container(msg.serialized_len()).push(&msg, f);
 

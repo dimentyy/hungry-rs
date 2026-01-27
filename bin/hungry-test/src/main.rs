@@ -82,7 +82,8 @@ async fn async_main() -> anyhow::Result<()> {
     let mut b = [0; 256];
     getrandom::fill(&mut b)?;
 
-    let set_client_dh_params = server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0)?;
+    let set_client_dh_params =
+        server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0)?;
 
     let enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
         plain.send(&mut buffer, set_client_dh_params.func()).await?
@@ -110,18 +111,14 @@ async fn async_main() -> anyhow::Result<()> {
         poll_fn(|cx| {
             let mut buf = ready!(sender.poll(cx))?;
 
-            let mut de = mtproto::Msg::deserialize(&mut buf)?;
+            let mut de = mtproto::BufMsg::deserialize(&mut buf)?;
 
             // TODO: check seq no
 
-            let id = u32::from_le_bytes(*de.object.peek_exactly()?);
+            let id = u32::from_le_bytes(*de.buf.peek_exactly()?);
 
             let handle: fn(mtproto::BufMsg<'_>) -> anyhow::Result<()> =
-                |mtproto::Msg {
-                     msg_id,
-                     seq_no,
-                     object: mut buf,
-                 }| {
+                |mtproto::BufMsg { msg, mut buf }| {
                     let id = u32::from_le_bytes(*buf.take_exactly()?);
 
                     match id {
@@ -151,7 +148,7 @@ async fn async_main() -> anyhow::Result<()> {
                             dbg!(future_salts);
                         }
                         _ => {
-                            println!("msg_id: {msg_id:?} seq_no: {seq_no} id: {id:#010x}");
+                            println!("msg: {msg:?} id: {id:#010x}");
                         }
                     }
 
@@ -161,11 +158,11 @@ async fn async_main() -> anyhow::Result<()> {
             if id == 0x73f1f8dc {
                 println!("msg_container");
 
-                let Ok(_) = de.object.advance(4) else {
+                let Ok(_) = de.buf.advance(4) else {
                     unreachable!()
                 };
 
-                for msg in hungry::unpack::MsgContainer::new(de.object)? {
+                for msg in hungry::unpack::MsgContainer::new(de.buf)? {
                     handle(msg?)?;
                 }
             } else {
