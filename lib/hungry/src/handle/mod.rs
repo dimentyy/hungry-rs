@@ -43,12 +43,14 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         &mut self,
         msg: mtproto::Msg,
         content_related: bool,
-    ) -> Result<mtproto::MsgIdModulus, mtproto::MsgError> {
+        is_response: bool,
+    ) -> Result<(), mtproto::MsgError> {
         msg.validate(
             &mut self.msg_ids,
             &mut self.seq_nos,
             std::time::SystemTime::now(),
             content_related,
+            is_response,
         )
     }
 

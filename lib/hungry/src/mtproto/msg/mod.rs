@@ -49,16 +49,17 @@ impl Msg {
         seq_nos: &mut mtproto::SeqNos,
         unix_time: std::time::SystemTime,
         content_related: bool,
-    ) -> Result<mtproto::MsgIdModulus, MsgError> {
-        let modulus = msg_ids
-            .validate(self.msg_id, unix_time)
+        is_response: bool,
+    ) -> Result<(), MsgError> {
+        msg_ids
+            .validate(self.msg_id, unix_time, is_response)
             .map_err(MsgError::MsgId)?;
 
         seq_nos
             .validate(self.seq_no, content_related)
             .map_err(MsgError::SeqNo)?;
 
-        Ok(modulus)
+        Ok(())
     }
 }
 

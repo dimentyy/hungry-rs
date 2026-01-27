@@ -4,7 +4,7 @@ mod server;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use client::ClientMsgIds;
-pub use server::{MsgIdError, MsgIdModulus, ServerMsgIds};
+pub use server::{MsgIdError, ServerMsgIds};
 
 /// # Message Identifier (msg_id)
 ///

@@ -5,10 +5,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::mtproto;
 
+// TODO: better naming.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MsgIdError {
     Client,
+    Response,
     InvalidRemainder,
+    NonResponse,
     LowerThanAll,
     EqualToAny,
     InTheFuture,
@@ -21,9 +24,12 @@ impl fmt::Display for MsgIdError {
 
         f.write_str("`msg_id` validation error: ")?;
 
+        // TODO: better messages.
         f.write_str(match self {
             Client => "divisible by 4 (client message)",
-            InvalidRemainder => "invalid mod 4 remainder: 2",
+            Response => "mod 4 yielded 1 (response)",
+            InvalidRemainder => "mod 4 yielded 2 (invalid)",
+            NonResponse => "mod 4 yielded 3 (not a response)",
             LowerThanAll => "lower than all",
             EqualToAny => "already received",
             InTheFuture => "message `unix_time` is in the future",
@@ -33,13 +39,6 @@ impl fmt::Display for MsgIdError {
 }
 
 impl std::error::Error for MsgIdError {}
-
-#[must_use]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum MsgIdModulus {
-    Response = 1,
-    Other = 3,
-}
 
 #[must_use]
 pub struct ServerMsgIds {
@@ -71,7 +70,7 @@ impl ServerMsgIds {
         self.vec.push_front(msg_id);
     }
 
-    /// Returns [`MsgIdModulus`] of the provided [`MsgId`].
+    /// Validates provided [`MsgId`] against provided the `unix_time`.
     ///
     /// # Panics
     ///
@@ -86,18 +85,19 @@ impl ServerMsgIds {
         &mut self,
         msg_id: mtproto::MsgId,
         unix_time: SystemTime,
-    ) -> Result<MsgIdModulus, MsgIdError> {
+        is_response: bool,
+    ) -> Result<(), MsgIdError> {
         use Ordering::*;
 
         use MsgIdError::*;
 
-        let modulus = match msg_id & 3 {
+        match msg_id & 3 {
             0 => return Err(Client),
-            1 => MsgIdModulus::Response,
+            1 if !is_response => return Err(Response),
             2 => return Err(InvalidRemainder),
-            3 => MsgIdModulus::Other,
-            _ => unreachable!(),
-        };
+            3 if is_response => return Err(NonResponse),
+            _ => {}
+        }
 
         let sys_secs = unix_time
             .duration_since(UNIX_EPOCH)
@@ -120,7 +120,7 @@ impl ServerMsgIds {
             Greater => {
                 self.push(msg_id);
 
-                return Ok(modulus);
+                return Ok(());
             }
         }
 
@@ -137,6 +137,6 @@ impl ServerMsgIds {
 
         self.push(msg_id);
 
-        Ok(modulus)
+        Ok(())
     }
 }
