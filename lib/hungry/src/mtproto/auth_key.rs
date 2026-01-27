@@ -55,9 +55,7 @@ impl fmt::Display for AuthKey {
 
 impl fmt::Debug for AuthKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("AuthKey")
-            .field("id", &format_args!("{:#018x}", self.id.get().to_le()))
-            .finish_non_exhaustive()
+        write!(f, "AuthKey {{ id: {:#018x}, .. }}", self.id.get().to_le())
     }
 }
 

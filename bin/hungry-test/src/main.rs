@@ -94,7 +94,7 @@ async fn async_main() -> anyhow::Result<()> {
     let hungry::auth::DhGenOk {
         auth_key,
         server_salt,
-    } = set_client_dh_params.dh_gen_ok(&dh_gen_ok)?;
+    } = dbg!(set_client_dh_params.dh_gen_ok(&dh_gen_ok)?);
 
     let (r, w) = plain.into_inner();
 
@@ -102,79 +102,83 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()? as i64;
 
-    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
+    let sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
-    let func = tl::ConstructorId(funcs::Ping { ping_id: 7 });
-    let _ = dbg!(sender.invoke(func.serialized_len(), |buf| buf.ser(&func)));
-
-    loop {
-        poll_fn(|cx| {
-            let mut buf = ready!(sender.poll(cx))?;
-
-            let mut de = mtproto::BufMsg::deserialize(&mut buf)?;
-
-            // TODO: check seq no
-
-            let id = u32::from_le_bytes(*de.buf.peek_exactly()?);
-
-            let handle: fn(mtproto::BufMsg<'_>) -> anyhow::Result<()> =
-                |mtproto::BufMsg { msg, mut buf }| {
-                    let id = u32::from_le_bytes(*buf.take_exactly()?);
-
-                    match id {
-                        types::NewSessionCreated::CONSTRUCTOR_ID => {
-                            let new_session_created: types::NewSessionCreated = buf.de()?;
-
-                            dbg!(new_session_created);
-                        }
-                        types::BadMsgNotification::CONSTRUCTOR_ID => {
-                            let bad_msg_notification: types::BadMsgNotification = buf.de()?;
-
-                            dbg!(bad_msg_notification);
-                        }
-                        types::MsgsAck::CONSTRUCTOR_ID => {
-                            let msgs_ack: types::MsgsAck = buf.de()?;
-
-                            dbg!(msgs_ack);
-                        }
-                        types::Pong::CONSTRUCTOR_ID => {
-                            let pong: types::Pong = buf.de()?;
-
-                            dbg!(pong);
-                        }
-                        types::FutureSalts::CONSTRUCTOR_ID => {
-                            let future_salts: types::FutureSalts = buf.de()?;
-
-                            dbg!(future_salts);
-                        }
-                        _ => {
-                            println!("msg: {msg:?} id: {id:#010x}");
-                        }
-                    }
-
-                    Ok(())
-                };
-
-            if id == 0x73f1f8dc {
-                println!("msg_container");
-
-                let Ok(_) = de.buf.advance(4) else {
-                    unreachable!()
-                };
-
-                for msg in hungry::unpack::MsgContainer::new(de.buf)? {
-                    handle(msg?)?;
-                }
-            } else {
-                handle(de)?;
-            }
-
-            Poll::Ready(Ok::<_, anyhow::Error>(()))
-        })
-        .await?;
-    }
+    let mut handle = hungry::handle::Handle::new(sender);
 
     Ok(())
+
+    // let func = tl::ConstructorId(funcs::Ping { ping_id: 7 });
+    // let _ = dbg!(sender.invoke(func.serialized_len(), |buf| buf.ser(&func)));
+    //
+    // loop {
+    //     poll_fn(|cx| {
+    //         let mut buf = ready!(sender.poll(cx))?;
+    //
+    //         let mut de = mtproto::BufMsg::deserialize(&mut buf)?;
+    //
+    //         // TODO: check seq no
+    //
+    //         let id = u32::from_le_bytes(*de.buf.peek_exactly()?);
+    //
+    //         let handle: fn(mtproto::BufMsg<'_>) -> anyhow::Result<()> =
+    //             |mtproto::BufMsg { msg, mut buf }| {
+    //                 let id = u32::from_le_bytes(*buf.take_exactly()?);
+    //
+    //                 match id {
+    //                     types::NewSessionCreated::CONSTRUCTOR_ID => {
+    //                         let new_session_created: types::NewSessionCreated = buf.de()?;
+    //
+    //                         dbg!(new_session_created);
+    //                     }
+    //                     types::BadMsgNotification::CONSTRUCTOR_ID => {
+    //                         let bad_msg_notification: types::BadMsgNotification = buf.de()?;
+    //
+    //                         dbg!(bad_msg_notification);
+    //                     }
+    //                     types::MsgsAck::CONSTRUCTOR_ID => {
+    //                         let msgs_ack: types::MsgsAck = buf.de()?;
+    //
+    //                         dbg!(msgs_ack);
+    //                     }
+    //                     types::Pong::CONSTRUCTOR_ID => {
+    //                         let pong: types::Pong = buf.de()?;
+    //
+    //                         dbg!(pong);
+    //                     }
+    //                     types::FutureSalts::CONSTRUCTOR_ID => {
+    //                         let future_salts: types::FutureSalts = buf.de()?;
+    //
+    //                         dbg!(future_salts);
+    //                     }
+    //                     _ => {
+    //                         println!("msg: {msg:?} id: {id:#010x}");
+    //                     }
+    //                 }
+    //
+    //                 Ok(())
+    //             };
+    //
+    //         if id == 0x73f1f8dc {
+    //             println!("msg_container");
+    //
+    //             let Ok(_) = de.buf.advance(4) else {
+    //                 unreachable!()
+    //             };
+    //
+    //             for msg in hungry::unpack::MsgContainer::new(de.buf)? {
+    //                 handle(msg?)?;
+    //             }
+    //         } else {
+    //             handle(de)?;
+    //         }
+    //
+    //         Poll::Ready(Ok::<_, anyhow::Error>(()))
+    //     })
+    //     .await?;
+    // }
+    //
+    // Ok(())
 }
 
 fn main() -> anyhow::Result<()> {

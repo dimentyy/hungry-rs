@@ -8,12 +8,6 @@ use crate::sender::{Sender, SenderError};
 use crate::transport::Transport;
 use crate::{mtproto, tl, unpack};
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum MsgValidationError {
-    SeqNo,
-    MsgId(mtproto::MsgIdError),
-}
-
 #[derive(Debug)]
 pub enum HandleError {
     Sender(SenderError),
@@ -36,6 +30,14 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
             seq_nos: mtproto::SeqNos::new(),
             msg_ids: mtproto::ServerMsgIds::new(1024),
         }
+    }
+
+    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
+        &mut self,
+        len: usize,
+        f: F,
+    ) -> tokio::sync::oneshot::Receiver<tl::api::Object> {
+        todo!()
     }
 
     #[inline]

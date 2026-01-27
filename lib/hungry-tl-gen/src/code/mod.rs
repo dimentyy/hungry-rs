@@ -6,6 +6,7 @@ mod generic;
 mod ident;
 mod identifiable;
 mod into_enum;
+mod object;
 mod ser;
 mod struct_body;
 mod typ;
@@ -29,6 +30,7 @@ use into_enum::push_into_enum;
 use ser::{push_enum_ser, push_enum_ser_len, push_struct_ser, push_struct_ser_len};
 use struct_body::push_struct_body;
 use typ::push_typ;
+use object::write_object;
 
 macro_rules! write_module {
     ( $cfg:expr , $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr ; $func:expr ; ) => {{
@@ -91,9 +93,11 @@ pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
     s.clear();
     f.flush()?;
 
+    write_object(cfg, data, enums, &mut s)?;
+
     let mut f = cfg.mod_file("mod")?;
 
-    s.push_str("pub mod types;\npub mod funcs;\npub mod enums;\n");
+    s.push_str("mod object;\n\npub mod types;\npub mod funcs;\npub mod enums;\n\npub use object::Object;\n");
 
     f.write_all(s.as_bytes())?;
     s.clear();
