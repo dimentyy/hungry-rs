@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crypto_bigint::modular::{FixedMontyForm, MontyParams};
 use crypto_bigint::{Odd, One, U2048};
 use digest::Digest;
@@ -7,6 +9,25 @@ use crate::{auth, crypto, tl};
 use tl::SerializedLen;
 use tl::mtproto::{enums, funcs, types};
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum SetClientDhParamsError {
+    InvalidGB,
+}
+
+impl fmt::Display for SetClientDhParamsError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use SetClientDhParamsError::*;
+
+        f.write_str("`SetClientDhParams` validation error: ")?;
+
+        f.write_str(match self {
+            InvalidGB => "invalid `g_b`",
+        })
+    }
+}
+
+impl std::error::Error for SetClientDhParamsError {}
+
 #[must_use]
 #[derive(Eq, PartialEq)]
 pub struct ServerDhParamsOk {
@@ -15,7 +36,7 @@ pub struct ServerDhParamsOk {
     pub(crate) new_nonce: tl::Int256,
     pub(crate) tmp_aes_key: crypto::AesIgeKey,
     pub(crate) tmp_aes_iv: crypto::AesIgeIv,
-    pub(crate) g: i32,
+    pub(crate) g: u8,
     pub(crate) dh_prime: Odd<U2048>,
     pub(crate) g_a: U2048,
     pub(crate) server_time: i32,
@@ -31,15 +52,31 @@ impl ServerDhParamsOk {
     /// # Panics
     ///
     /// * If the [`getrandom::fill_uninit`] call fails.
-    pub fn set_client_dh_params(&self, b: U2048, retry_id: i64) -> auth::SetClientDhParams {
-        let _one = U2048::one();
+    ///
+    /// # Errors
+    ///
+    /// See [Creating an Authorization Key] page for information.
+    ///
+    /// [Creating an Authorization Key]: https://core.telegram.org/mtproto/auth_key#7-client-computes-random-2048-bit-number-b-using-a-sufficient-amount-of-entropy-and-sends-the-server-a-message
+    pub fn set_client_dh_params(
+        &self,
+        b: U2048,
+        retry_id: i64,
+    ) -> Result<auth::SetClientDhParams, SetClientDhParamsError> {
+        use SetClientDhParamsError::*;
 
-        let g = U2048::from_u32(self.g as u32);
+        let g = U2048::from_u8(self.g);
 
         // * g_b := pow(g, b) mod dh_prime
         let g_b = FixedMontyForm::new(&g, &MontyParams::new(self.dh_prime))
             .pow(&b)
             .retrieve();
+
+        let safe = U2048::one() << (2048 - 64);
+
+        if g_b <= safe || (self.dh_prime.get() - safe) <= g_b {
+            return Err(InvalidGB);
+        }
 
         // TODO: checks
 
@@ -89,7 +126,7 @@ impl ServerDhParamsOk {
             encrypted_data: tl::Bytes(encrypted_data),
         };
 
-        auth::SetClientDhParams {
+        Ok(auth::SetClientDhParams {
             new_nonce: self.new_nonce.clone(),
             g: self.g,
             dh_prime: self.dh_prime,
@@ -97,6 +134,6 @@ impl ServerDhParamsOk {
             server_time: self.server_time,
             b,
             func,
-        }
+        })
     }
 }

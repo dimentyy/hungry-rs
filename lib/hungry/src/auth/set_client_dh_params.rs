@@ -40,7 +40,7 @@ impl std::error::Error for DhGenOkError {}
 #[derive(PartialEq)]
 pub struct SetClientDhParams {
     pub(crate) new_nonce: Int256,
-    pub(crate) g: i32,
+    pub(crate) g: u8,
     pub(crate) dh_prime: Odd<U2048>,
     pub(crate) g_a: U2048,
     pub(crate) server_time: i32,

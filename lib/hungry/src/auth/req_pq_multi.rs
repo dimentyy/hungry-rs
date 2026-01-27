@@ -62,6 +62,11 @@ impl ReqPqMulti {
         &self.func.nonce
     }
 
+    /// # Errors
+    ///
+    /// See [Creating an Authorization Key] page for information.
+    ///
+    /// [Creating an Authorization Key]: https://core.telegram.org/mtproto/auth_key#2-server-sends-response-of-the-form
     pub fn res_pq(&self, response: &types::ResPq) -> Result<auth::ResPq, ResPqError> {
         if response.nonce != self.func.nonce {
             return Err(ResPqError::NonceMismatch);

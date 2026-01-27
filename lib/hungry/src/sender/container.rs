@@ -21,11 +21,13 @@ impl<T: Transport> Container<T> {
     }
 
     #[inline]
+    #[expect(unused)]
     pub(super) const fn len(&self) -> usize {
         self.raw_inner.len()
     }
 
     #[inline]
+    #[expect(unused)]
     pub(super) const fn is_empty(&self) -> bool {
         self.raw_inner.is_empty()
     }

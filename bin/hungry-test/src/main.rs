@@ -82,7 +82,7 @@ async fn async_main() -> anyhow::Result<()> {
     let mut b = [0; 256];
     getrandom::fill(&mut b)?;
 
-    let set_client_dh_params = server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0);
+    let set_client_dh_params = server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0)?;
 
     let enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
         plain.send(&mut buffer, set_client_dh_params.func()).await?

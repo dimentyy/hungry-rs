@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crypto_bigint::{Encoding, Odd, U2048};
+use crypto_bigint::{Encoding, Odd, One, U2048};
 use digest::Digest;
 
 use crate::{auth, common, crypto, tl};
@@ -19,9 +19,11 @@ pub enum ServerDhParamsOkError {
     InnerDeserialization(tl::de::Error),
     InnerNonceMismatch,
     InnerServerNonceMismatch,
+    InvalidG,
     InvalidDhPrimeLen,
     EvenDhPrime,
     InvalidGALen,
+    InvalidGA,
 }
 
 impl fmt::Display for ServerDhParamsOkError {
@@ -38,9 +40,11 @@ impl fmt::Display for ServerDhParamsOkError {
             InnerDeserialization(err) => return err.fmt(f),
             InnerNonceMismatch => "inner `nonce` mismatch",
             InnerServerNonceMismatch => "inner `server_nonce` mismatch",
+            InvalidG => "invalid `g`",
             InvalidDhPrimeLen => "invalid `dh_prime` length",
             EvenDhPrime => "`dh_prime` is even",
             InvalidGALen => "invalid `g_a` length",
+            InvalidGA => "invalid `g_a`"
         })
     }
 }
@@ -86,6 +90,11 @@ impl ReqDhParams<'_> {
         Some(&self.func)
     }
 
+    /// # Errors
+    ///
+    /// See [Creating an Authorization Key] page for information.
+    ///
+    /// [Creating an Authorization Key]: https://core.telegram.org/mtproto/auth_key#6-server-responds-with
     pub fn server_dh_params_ok(
         &self,
         response: &types::ServerDhParamsOk,
@@ -163,6 +172,10 @@ impl ReqDhParams<'_> {
             return Err(InnerServerNonceMismatch);
         }
 
+        let Ok(g @ 2..=7) = u8::try_from(answer.g) else {
+            return Err(InvalidG);
+        };
+
         let Ok(dh_prime) = answer.dh_prime.as_ref().try_into() else {
             return Err(InvalidDhPrimeLen);
         };
@@ -175,13 +188,19 @@ impl ReqDhParams<'_> {
         };
         let g_a = U2048::from_be_bytes(g_a);
 
+        let safe = U2048::one() << (2048 - 64);
+
+        if g_a <= safe || (dh_prime.get() - safe) <= g_a {
+            return Err(InvalidGA);
+        }
+
         Ok(auth::ServerDhParamsOk {
             nonce: self.func.nonce.clone(),
             server_nonce: self.func.server_nonce.clone(),
             new_nonce: self.new_nonce.clone(),
             tmp_aes_key,
             tmp_aes_iv,
-            g: answer.g,
+            g,
             dh_prime,
             g_a,
             server_time: answer.server_time,

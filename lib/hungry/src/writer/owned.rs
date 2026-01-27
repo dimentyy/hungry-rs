@@ -4,7 +4,7 @@ use std::task::{Context, Poll, ready};
 use tokio::io::AsyncWrite;
 
 use crate::transport::Transport;
-use crate::writer::{Writer, WriterError};
+use crate::writer::{QueuedWriter, Writer, WriterError};
 
 pub struct OwnedWriteInner<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> {
     pub driver: Writer<W, T>,
@@ -56,6 +56,28 @@ impl<W: AsyncWrite + Unpin, T: Transport, B: AsRef<[u8]>> OwnedWrite<W, T, B> {
 
             self.pos += n.get();
         }
+    }
+}
+
+impl<W: AsyncWrite + Unpin, T: Transport> OwnedWrite<W, T, unbite::DynBuf> {
+    /// Consumes the [`OwnedWrite`] future and returns a split to a current
+    /// `pos` buffer and a [`QueuedWriter`] containing the remaining buffer.
+    ///
+    /// # Panics
+    ///
+    /// * If the method was called after completion.
+    pub fn into_queued(self) -> (Option<unbite::DynBuf>, QueuedWriter<W, T>) {
+        let mut inner = self.inner.expect("called `into_queued` after completion");
+
+        let buffer = if self.pos > 0 {
+            Some(inner.buffer.split_to(self.pos))
+        } else {
+            None
+        };
+
+        let queued = QueuedWriter::with_buffer(inner.driver, inner.buffer);
+
+        (buffer, queued)
     }
 }
 
