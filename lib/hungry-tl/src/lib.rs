@@ -111,13 +111,13 @@ impl ConstSerializedLen for bool {
 pub struct ConstructorId<X: Function>(pub X);
 
 impl<X: Function> ConstructorId<X> {
-    #[inline]
+    #[inline(always)]
     pub const fn from_ref(r: &X) -> &Self {
         // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
         unsafe { &*std::ptr::from_ref(r).cast() }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn from_mut(r: &mut X) -> &mut Self {
         // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
         unsafe { &mut *std::ptr::from_mut(r).cast() }

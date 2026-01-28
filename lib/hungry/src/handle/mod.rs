@@ -11,8 +11,7 @@ use crate::sender::{Sender, SenderError};
 use crate::transport::Transport;
 use crate::{mtproto, tl, unpack};
 
-use tl::Identifiable;
-use tl::mtproto::{enums, types};
+use tl::mtproto::enums;
 
 #[derive(Debug)]
 pub enum HandleError {
@@ -92,51 +91,57 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
     }
 
     // TODO: do NOT allocate.
-    fn process_msg(&mut self, msg: mtproto::Msg, mut buf: tl::de::Buf) {
-        let slice = buf.as_slice();
+    fn process_msg(
+        &mut self,
+        msg: mtproto::Msg,
+        mut buf: tl::de::Buf,
+    ) -> Result<Option<tl::Object>, tl::de::Error> {
+        let id = u32::from_le_bytes(*buf.peek_exactly()?);
 
-        let id: u32 = buf.de().unwrap();
+        if id == tl::RPC_RESULT {
+            let Ok(_) = buf.advance(4) else {
+                unreachable!()
+            };
 
-        eprintln!("{id:#010x}");
+            let req_msg_id: i64 = buf.de_infallible()?;
 
-        match id {
-            tl::RPC_RESULT => {
-                let req_msg_id: i64 = buf.de_infallible().unwrap();
+            let id = u32::from_le_bytes(*buf.peek_exactly()?);
 
-                let object: tl::Object = buf.de().unwrap();
-
-                self.send_rpc_result(req_msg_id, object);
+            if id == tl::GZIP_PACKED {
+                todo!()
             }
-            types::Pong::CONSTRUCTOR_ID => {
-                let pong: types::Pong = buf.de_infallible().expect("TODO");
 
-                let req_msg_id = pong.msg_id;
+            let object: tl::Object = buf.de()?;
 
-                let object = tl::Object::mtproto_Pong(pong.into());
+            self.send_rpc_result(req_msg_id, object);
 
-                self.send_rpc_result(req_msg_id, object);
+            return Ok(None);
+        }
+
+        let object = buf.de()?;
+
+        use tl::Object::*;
+
+        match object {
+            mtproto_Pong(enums::Pong::Pong(ref pong)) => {
+                self.send_rpc_result(pong.msg_id, object);
             }
-            types::FutureSalts::CONSTRUCTOR_ID => {
-                let future_salts: types::FutureSalts = buf.de().expect("TODO");
-
-                let req_msg_id = future_salts.req_msg_id;
-
-                let object = tl::Object::mtproto_FutureSalts(future_salts.into());
-
-                self.send_rpc_result(req_msg_id, object);
+            mtproto_FutureSalts(enums::FutureSalts::FutureSalts(ref future_salts)) => {
+                self.send_rpc_result(future_salts.req_msg_id, object);
             }
-            _ => {
+            object => {
                 // Should be an update.
+                return Ok(Some(object));
             }
         }
+
+        Ok(None)
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), HandleError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Vec<tl::Object>, HandleError>> {
         use HandleError::*;
 
         let res = ready!(self.sender.poll(cx)).map_err(Sender)?;
-
-        cx.waker().wake_by_ref();
 
         let bytes = res.as_slice().to_vec();
         let mut res = tl::de::Buf::new(&bytes);
@@ -149,6 +154,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
 
         let id = u32::from_le_bytes(*buf.take_exactly().map_err(|_| Todo("too small buffer"))?);
 
+        let mut objects = Vec::new();
+
         if id == tl::MSG_CONTAINER {
             let mut msg_container =
                 unpack::MsgContainer::new(buf).map_err(|_| Todo("msg container unpack failed"))?;
@@ -156,14 +163,22 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
             for msg in msg_container {
                 let mtproto::BufMsg { msg, buf } = msg.map_err(|_| Todo("msg unpack failed"))?;
 
-                self.process_msg(msg, buf);
+                if let Some(object) = self.process_msg(msg, buf).map_err(|_| Todo("de err"))? {
+                    objects.push(object)
+                }
             }
+        } else {
+            if let Some(object) = self.process_msg(msg.msg, res).map_err(|_| Todo("de err"))? {
+                objects.push(object)
+            }
+        }
+
+        if objects.is_empty() {
+            cx.waker().wake_by_ref();
 
             return Poll::Pending;
         }
 
-        self.process_msg(msg.msg, res);
-
-        Poll::Pending
+        Poll::Ready(Ok(objects))
     }
 }

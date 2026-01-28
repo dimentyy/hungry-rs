@@ -125,11 +125,13 @@ async fn async_main() -> anyhow::Result<()> {
 
     tokio::spawn(async move {
         loop {
-            poll_fn(|cx| handle.poll(cx)).await.unwrap()
+            let _objects = poll_fn(|cx| dbg!(handle.poll(cx))).await.unwrap();
         }
     });
 
-    let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = get_nearest_dc_rx.await? else {
+    let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) =
+        get_nearest_dc_rx.await?
+    else {
         todo!("welp...")
     };
 
