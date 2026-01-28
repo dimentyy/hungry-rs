@@ -5,6 +5,7 @@ mod msg_id;
 mod pack;
 mod seq_no;
 mod unpack;
+mod object;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};

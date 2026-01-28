@@ -7,7 +7,7 @@ use crate::meta::Data;
 pub(super) fn write_object(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()> {
     let mut f = cfg.root_file("object")?;
 
-    s.push_str("#[repr(align(64))]\n#[allow(non_camel_case_types)]\n");
+    s.push_str("#[repr(align(16))]\n#[allow(non_camel_case_types)]\n");
     s.push_str(&cfg.derive);
     s.push_str("\npub enum Object {\n    Bool(bool),\n");
 
