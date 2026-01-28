@@ -44,9 +44,9 @@ fn push_enum_checked_de(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
         push_ident(s, "types", &x.combinator.ident);
         s.push_str("::CONSTRUCTOR_ID => Ok(Self::");
         s.push_str(&x.combinator.ident.actual);
-        s.push_str(if x.recursive { "(Box::new(" } else { "(" });
+        s.push_str(if x.enum_box { "(Box::new(" } else { "(" });
         push_typ(cfg, data, s, &[], &Typ::Type { index: *variant }, true);
-        s.push_str(if x.recursive {
+        s.push_str(if x.enum_box {
             "::deserialize(buf)?))),\n"
         } else {
             "::deserialize(buf)?)),\n"

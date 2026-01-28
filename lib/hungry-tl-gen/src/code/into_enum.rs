@@ -12,7 +12,7 @@ pub(super) fn push_into_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) {
     s.push_str(") -> Self {\n        ");
     s.push_str("Self::");
     push_enum_variant(cfg, s, x);
-    if x.recursive {
+    if x.enum_box {
         s.push_str("(Box::new(value))\n    }\n}\n")
     } else {
         s.push_str("(value)\n    }\n}\n")

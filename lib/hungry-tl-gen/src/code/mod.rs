@@ -93,7 +93,7 @@ pub(crate) fn generate(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()> {
 
     let mut f = cfg.mod_file("mod")?;
 
-    s.push_str("mod object;\n\npub mod types;\npub mod funcs;\npub mod enums;\n\npub use object::Object;\n");
+    s.push_str("pub mod types;\npub mod funcs;\npub mod enums;\n");
 
     f.write_all(s.as_bytes())?;
     s.clear();

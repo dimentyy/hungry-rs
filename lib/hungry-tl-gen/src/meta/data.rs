@@ -45,7 +45,10 @@ impl<'a> Data<'a> {
         visited_types.resize(visited_types.capacity(), None);
 
         for i in 0..data.types.len() {
-            data.types[i].recursive = data.check_recursion(&mut visited_types, i);
+            let recursive = data.check_recursion(&mut visited_types, i);
+            let x = &mut data.types[i];
+            x.recursive = recursive;
+            x.enum_box = recursive;
         }
 
         let mut visited_types = Vec::with_capacity(data.types.len());
@@ -80,7 +83,148 @@ impl<'a> Data<'a> {
         data.funcs_split.push(data.funcs.len());
         data.enums_split.push(data.enums.len());
 
+        for i in 0..data.types.len() {
+            let _ = data.type_rust_size(i, &mut visited_types, &mut visited_enums);
+        }
+
+        for i in 0..data.enums.len() {
+            let _ = data.enum_rust_size(i, &mut visited_types, &mut visited_enums);
+        }
+
         dbg!(data)
+    }
+
+    pub(crate) fn type_rust_size(
+        &mut self,
+        i: usize,
+        visited_types: &mut Vec<bool>,
+        visited_enums: &mut Vec<bool>,
+    ) -> usize {
+        if visited_types[i] {
+            return self.types[i].rust_size;
+        }
+
+        let mut size = 0;
+
+        for arg in self.types[i].combinator.args.clone() {
+            size += match &arg.typ {
+                ArgTyp::Flags { .. } => continue,
+                ArgTyp::Typ { typ, flag } => match typ {
+                    Typ::Type { index } => {
+                        if self.types[*index].recursive {
+                            8
+                        } else {
+                            let mut size = self.type_rust_size(i, visited_types, visited_enums);
+
+                            if flag.is_some() {
+                                size += 8;
+                            }
+
+                            size
+                        }
+                    }
+                    Typ::Enum { index } => {
+                        let mut size = self.enum_rust_size(*index, visited_types, visited_enums);
+
+                        if self.enums[*index].variants.len() == 1 && flag.is_some() {
+                            size += 8;
+                        }
+
+                        size
+                    }
+                    Typ::Int => {
+                        if flag.is_some() {
+                            8
+                        } else {
+                            4
+                        }
+                    }
+                    Typ::Long => {
+                        if flag.is_some() {
+                            16
+                        } else {
+                            8
+                        }
+                    }
+                    Typ::Double => {
+                        if flag.is_some() {
+                            16
+                        } else {
+                            8
+                        }
+                    }
+                    Typ::Bytes => 24,
+                    Typ::String => 24,
+                    Typ::Bool => 1,
+                    Typ::BareVector(_) => 24,
+                    Typ::Vector(_) => 24,
+                    Typ::Int128 => {
+                        if flag.is_some() {
+                            unimplemented!()
+                        } else {
+                            16
+                        }
+                    }
+                    Typ::Int256 => {
+                        if flag.is_some() {
+                            unimplemented!()
+                        } else {
+                            32
+                        }
+                    }
+                    Typ::Generic { .. } => unimplemented!(),
+                },
+                ArgTyp::True { .. } => 1,
+            };
+        }
+
+        visited_types[i] = true;
+        let x = &mut self.types[i];
+        x.rust_size = size;
+        x.enum_box |= (size > crate::BOX_AFTER - 16) && self.enums[x.enum_index].variants.len() > 1;
+        size
+    }
+
+    pub(crate) fn enum_rust_size(
+        &mut self,
+        i: usize,
+        visited_types: &mut Vec<bool>,
+        visited_enums: &mut Vec<bool>,
+    ) -> usize {
+        let x = &self.enums[i];
+
+        if visited_enums[i] {
+            return x.rust_size;
+        }
+
+        if x.variants.len() == 1 {
+            if self.types[x.variants[0]].recursive {
+                return 8;
+            }
+
+            let size = self.type_rust_size(x.variants[0], visited_types, visited_enums);
+
+            if (size > crate::BOX_AFTER - 8) && (!self.types[self.enums[i].variants[0]].enum_box) {
+                self.enums[i].object_box = true;
+            }
+
+            return size;
+        }
+
+        let mut size = 0;
+
+        for variant in x.variants.clone() {
+            if self.types[variant].recursive {
+                size = size.max(8);
+            } else {
+                size = size.max(self.type_rust_size(variant, visited_types, visited_enums));
+            }
+        }
+
+        visited_enums[i] = true;
+        size += 8;
+        self.enums[i].rust_size = size;
+        size
     }
 
     fn func_de(&self, i: usize) -> Deserialization {
@@ -203,6 +347,8 @@ impl<'a> Data<'a> {
             combinator,
             enum_index: x.enum_index,
             recursive: false,
+            rust_size: 0,
+            enum_box: false,
         });
     }
 
@@ -222,6 +368,8 @@ impl<'a> Data<'a> {
             ident: Ident::from(ident),
             variants: x.bare_types.clone(),
             de: Deserialization::Checked,
+            rust_size: 0,
+            object_box: false,
         })
     }
 

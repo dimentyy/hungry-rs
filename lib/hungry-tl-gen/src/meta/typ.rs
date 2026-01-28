@@ -1,6 +1,6 @@
 use crate::meta::{Data, Deserialization};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Typ {
     Type { index: usize },
 
@@ -48,7 +48,7 @@ impl Typ {
     pub(crate) fn ready_de(&self, data: &Data) -> Deserialization {
         match self {
             Typ::Type { index } => data.types[*index].combinator.de,
-            Typ::Enum { index } => dbg!(&data.enums[*index]).de,
+            Typ::Enum { index } => data.enums[*index].de,
             Typ::Int => Deserialization::Infallible(4),
             Typ::Long => Deserialization::Infallible(8),
             Typ::Double => Deserialization::Infallible(8),

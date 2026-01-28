@@ -1,20 +1,20 @@
 use crate::meta::{Deserialization, Ident, Typ};
 use crate::read;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Flag {
     pub arg: usize,
     pub bit: usize,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ArgTyp {
     Flags { args: Vec<usize> },
     Typ { typ: Typ, flag: Option<Flag> },
     True { flag: Flag },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Arg {
     pub ident: String,
     pub typ: ArgTyp,

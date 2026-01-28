@@ -19,14 +19,14 @@ pub(super) fn push_enum_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
         push_enum_variant(cfg, s, x);
         s.push('(');
 
-        if x.recursive {
+        if x.enum_box {
             s.push_str("Box<");
         }
 
         let typ = Typ::Type { index: *variant };
         push_typ(cfg, data, s, &[], &typ, false);
 
-        if x.recursive {
+        if x.enum_box {
             s.push('>');
         }
 

@@ -15,6 +15,8 @@ pub(crate) use config::Cfg;
 pub use category::Category;
 pub use config::Config;
 
+const BOX_AFTER: usize = 128;
+
 pub fn generate(config: Config, names: Vec<String>, schemas: &[&str]) {
     let mut parsed = Vec::new();
 
@@ -33,6 +35,6 @@ pub fn generate(config: Config, names: Vec<String>, schemas: &[&str]) {
 
         code::generate(&cfg, &data, &mut s).unwrap();
     }
- 
+
     code::finalize(&cfg, &data, &mut s).unwrap();
 }

@@ -6,6 +6,8 @@ pub(crate) struct Type<'a> {
     pub(crate) combinator: Combinator<'a>,
     pub(crate) enum_index: usize,
     pub(crate) recursive: bool,
+    pub(crate) rust_size: usize,
+    pub(crate) enum_box: bool,
 }
 
 #[derive(Debug)]
@@ -20,4 +22,6 @@ pub(crate) struct Enum<'a> {
     pub(crate) ident: Ident,
     pub(crate) variants: Vec<usize>,
     pub(crate) de: Deserialization,
+    pub(crate) rust_size: usize,
+    pub(crate) object_box: bool,
 }
