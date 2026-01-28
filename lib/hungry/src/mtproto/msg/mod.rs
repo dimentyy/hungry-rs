@@ -16,6 +16,18 @@ pub use with::{MsgBytes, MsgWith};
 /// Type alias representing the `message` constructor header without the `body`.
 pub type BytesMsg = MsgWith<MsgBytes>;
 
+#[derive(Debug, PartialEq)]
+pub struct RpcResult {
+    pub req_msg_id: mtproto::MsgId,
+    pub object: tl::Object,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Message {
+    Object { msg: Msg, obj: tl::Object },
+    RpcResult { msg: Msg, res: RpcResult },
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum MsgError {
     MsgId(mtproto::MsgIdError),

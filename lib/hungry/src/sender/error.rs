@@ -1,7 +1,8 @@
 use std::fmt;
 
-use crate::mtproto::{AuthKeyIdError, MsgKeyCheckError, SessionIdError};
+use crate::mtproto::{AuthKeyIdError, BufMsgError, MsgKeyCheckError, SessionIdError};
 use crate::reader::ReaderError;
+use crate::tl;
 use crate::writer::WriterError;
 
 #[derive(Debug)]
@@ -13,6 +14,38 @@ pub enum SenderError {
     AuthKeyId(AuthKeyIdError),
     MsgKeyCheck(MsgKeyCheckError),
     SessionId(SessionIdError),
+
+    Deserialization(tl::de::Error),
+    NegativeMsgBytes(i32),
+    BufRemainingLen { object: Box<tl::Object>, len: usize },
+    PaddingTooSmall { len: usize },
+    PaddingTooLarge { len: usize },
+}
+
+impl From<tl::de::Error> for SenderError {
+    #[inline]
+    fn from(value: tl::de::Error) -> Self {
+        Self::Deserialization(value)
+    }
+}
+
+impl From<tl::de::EndOfBufferError> for SenderError {
+    #[inline]
+    fn from(value: tl::de::EndOfBufferError) -> Self {
+        Self::Deserialization(value.into())
+    }
+}
+
+impl From<BufMsgError> for SenderError {
+    #[inline]
+    fn from(value: BufMsgError) -> Self {
+        use BufMsgError::*;
+
+        match value {
+            BufferTooSmall(err) | IncompleteBody(err) => Self::Deserialization(err.into()),
+            NegativeLength(len) => Self::NegativeMsgBytes(len),
+        }
+    }
 }
 
 impl fmt::Display for SenderError {
@@ -29,6 +62,8 @@ impl fmt::Display for SenderError {
             AuthKeyId(err) => err.fmt(f),
             MsgKeyCheck(err) => err.fmt(f),
             SessionId(err) => err.fmt(f),
+
+            _ => todo!(),
         }
     }
 }
@@ -45,6 +80,8 @@ impl std::error::Error for SenderError {
             AuthKeyId(err) => err,
             MsgKeyCheck(err) => err,
             SessionId(err) => err,
+
+            _ => return None,
         })
     }
 }

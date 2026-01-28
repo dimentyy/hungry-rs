@@ -10,7 +10,7 @@ use tl::de::Buf;
 #[derive(Debug)]
 pub enum BufMsgError {
     BufferTooSmall(tl::de::EndOfBufferError),
-    NegativeLength,
+    NegativeLength(i32),
     IncompleteBody(tl::de::EndOfBufferError),
 }
 
@@ -22,7 +22,7 @@ impl fmt::Display for BufMsgError {
 
         match self {
             BufferTooSmall(err) => write!(f, "buffer too small: {err} bytes"),
-            NegativeLength => f.write_str("negative length"),
+            NegativeLength(len) => write!(f, "negative length: {len}"),
             IncompleteBody(err) => write!(f, "incomplete body: {err}"),
         }
     }
@@ -34,7 +34,7 @@ impl std::error::Error for BufMsgError {
 
         Some(match self {
             BufferTooSmall(err) | IncompleteBody(err) => err,
-            NegativeLength => return None,
+            NegativeLength(_) => return None,
         })
     }
 }
@@ -65,7 +65,7 @@ impl<'a> BufMsg<'a> {
         let msg = Msg { msg_id, seq_no };
 
         let Ok(bytes) = usize::try_from(bytes) else {
-            return Err(NegativeLength);
+            return Err(NegativeLength(bytes));
         };
 
         let buf = Buf::new(buf.take(bytes).map_err(IncompleteBody)?);

@@ -44,7 +44,7 @@ impl fmt::Display for ServerDhParamsOkError {
             InvalidDhPrimeLen => "invalid `dh_prime` length",
             EvenDhPrime => "`dh_prime` is even",
             InvalidGALen => "invalid `g_a` length",
-            InvalidGA => "invalid `g_a`"
+            InvalidGA => "invalid `g_a`",
         })
     }
 }

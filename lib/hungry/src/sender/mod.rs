@@ -9,7 +9,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
-use crate::{common, mtproto, tl};
+use crate::{common, mtproto, tl, unpack};
 
 use common::infallible;
 
@@ -17,9 +17,10 @@ use container::Container;
 
 pub use error::SenderError;
 
-
-
-
+pub enum SenderOutput {
+    Message(mtproto::Message),
+    MsgContainer(mtproto::Msg, Vec<mtproto::Message>),
+}
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
@@ -145,10 +146,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg
     }
 
-    pub fn poll<'a>(
-        &'a mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<tl::de::Buf<'a>, SenderError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<SenderOutput, SenderError>> {
         if !self.writer.is_empty() || self.container.is_some() {
             loop {
                 let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
@@ -191,7 +189,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Poll::Pending
     }
 
-    fn packet(&'_ mut self, packet: Packet) -> Result<tl::de::Buf<'_>, SenderError> {
+    fn packet_de_buf(&'_ mut self, packet: Packet) -> Result<tl::de::Buf<'_>, SenderError> {
         pub use SenderError::*;
 
         let buf = self.reader.as_mut_slice(packet);
@@ -231,5 +229,77 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
 
         Ok(tl::de::Buf::new(buf))
+    }
+
+    fn packet(&mut self, packet: Packet) -> Result<SenderOutput, SenderError> {
+        let mut buf = self.packet_de_buf(packet)?;
+
+        let mtproto::BytesMsg { msg, obj: len } = buf.de_infallible()?;
+
+        let id = u32::from_le_bytes(*buf.peek_exactly()?);
+
+        if id == tl::MSG_CONTAINER {
+            let Ok(_) = buf.advance(4) else {
+                unreachable!()
+            };
+
+            let msg_container = unpack::MsgContainer::new(buf)?;
+
+            let mut output = Vec::with_capacity(msg_container.len());
+
+            for msg in msg_container {
+                let mtproto::BufMsg { msg, mut buf } = msg?;
+
+                let id = u32::from_le_bytes(*buf.peek_exactly()?);
+
+                let message = if id == tl::RPC_RESULT {
+                    let req_msg_id: i64 = buf.de_infallible()?;
+
+                    let id = u32::from_le_bytes(*buf.peek_exactly()?);
+
+                    if id == tl::GZIP_PACKED {
+                        todo!()
+                    }
+
+                    let object: tl::Object = buf.de()?;
+
+                    let res = mtproto::RpcResult { req_msg_id, object };
+
+                    mtproto::Message::RpcResult { msg, res }
+                } else {
+                    let obj: tl::Object = buf.de()?;
+
+                    mtproto::Message::Object { msg, obj }
+                };
+
+                output.push(message);
+            }
+
+            Ok(SenderOutput::MsgContainer(msg, output))
+        } else {
+            Ok(SenderOutput::Message(if id == tl::RPC_RESULT {
+                let Ok(_) = buf.advance(4) else {
+                    unreachable!()
+                };
+
+                let req_msg_id: i64 = buf.de_infallible()?;
+
+                let id = u32::from_le_bytes(*buf.peek_exactly()?);
+
+                if id == tl::GZIP_PACKED {
+                    todo!()
+                }
+
+                let object: tl::Object = buf.de()?;
+
+                let res = mtproto::RpcResult { req_msg_id, object };
+
+                mtproto::Message::RpcResult { msg, res }
+            } else {
+                let obj: tl::Object = buf.de()?;
+
+                mtproto::Message::Object { msg, obj }
+            }))
+        }
     }
 }

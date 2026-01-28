@@ -47,7 +47,7 @@ impl<'a> Buf<'a> {
     }
 
     #[inline(always)]
-    pub fn check_len(&mut self, n: usize) -> Result<(), EndOfBufferError> {
+    pub fn check_len(&self, n: usize) -> Result<(), EndOfBufferError> {
         if self.len < n {
             return Err(EndOfBufferError);
         }
@@ -98,7 +98,7 @@ impl<'a> Buf<'a> {
     }
 
     #[inline(always)]
-    pub fn peek_exactly<const N: usize>(&mut self) -> Result<&'a [u8; N], EndOfBufferError> {
+    pub fn peek_exactly<const N: usize>(&self) -> Result<&'a [u8; N], EndOfBufferError> {
         self.check_len(N)?;
 
         Ok(unsafe { self.ptr.cast().as_ref() })

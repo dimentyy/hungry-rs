@@ -7,9 +7,9 @@ use std::task::{Context, Poll, ready};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::oneshot;
 
-use crate::sender::{Sender, SenderError};
+use crate::sender::{Sender, SenderError, SenderOutput};
 use crate::transport::Transport;
-use crate::{mtproto, tl, unpack};
+use crate::{mtproto, tl};
 
 use tl::mtproto::enums;
 
@@ -90,36 +90,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         request.tx.send(res).unwrap();
     }
 
-    // TODO: do NOT allocate.
-    fn process_msg(
-        &mut self,
-        msg: mtproto::Msg,
-        mut buf: tl::de::Buf,
-    ) -> Result<Option<tl::Object>, tl::de::Error> {
-        let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-        if id == tl::RPC_RESULT {
-            let Ok(_) = buf.advance(4) else {
-                unreachable!()
-            };
-
-            let req_msg_id: i64 = buf.de_infallible()?;
-
-            let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-            if id == tl::GZIP_PACKED {
-                todo!()
-            }
-
-            let object: tl::Object = buf.de()?;
-
-            self.send_rpc_result(req_msg_id, object);
-
-            return Ok(None);
-        }
-
-        let object = buf.de()?;
-
+    fn handle_object(&mut self, msg: mtproto::Msg, object: tl::Object) {
         use tl::Object::*;
 
         match object {
@@ -131,54 +102,37 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
             }
             object => {
                 // Should be an update.
-                return Ok(Some(object));
+                dbg!(object);
             }
         }
-
-        Ok(None)
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Vec<tl::Object>, HandleError>> {
+    fn handle_result(&mut self, msg: mtproto::Msg, res: mtproto::RpcResult) {
+        self.send_rpc_result(res.req_msg_id, res.object);
+    }
+
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), HandleError>> {
         use HandleError::*;
 
-        let res = ready!(self.sender.poll(cx)).map_err(Sender)?;
+        let output = ready!(self.sender.poll(cx)).map_err(Sender)?;
 
-        let bytes = res.as_slice().to_vec();
-        let mut res = tl::de::Buf::new(&bytes);
-
-        let msg: mtproto::BytesMsg = res
-            .de_infallible()
-            .map_err(|_| Todo("top msg unpack err"))?;
-
-        let mut buf = res.clone();
-
-        let id = u32::from_le_bytes(*buf.take_exactly().map_err(|_| Todo("too small buffer"))?);
-
-        let mut objects = Vec::new();
-
-        if id == tl::MSG_CONTAINER {
-            let mut msg_container =
-                unpack::MsgContainer::new(buf).map_err(|_| Todo("msg container unpack failed"))?;
-
-            for msg in msg_container {
-                let mtproto::BufMsg { msg, buf } = msg.map_err(|_| Todo("msg unpack failed"))?;
-
-                if let Some(object) = self.process_msg(msg, buf).map_err(|_| Todo("de err"))? {
-                    objects.push(object)
+        match output {
+            SenderOutput::Message(message) => match message {
+                mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+            },
+            SenderOutput::MsgContainer(_msg, messages) => {
+                for message in messages {
+                    match message {
+                        mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                        mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+                    }
                 }
             }
-        } else {
-            if let Some(object) = self.process_msg(msg.msg, res).map_err(|_| Todo("de err"))? {
-                objects.push(object)
-            }
         }
 
-        if objects.is_empty() {
-            cx.waker().wake_by_ref();
+        cx.waker().wake_by_ref();
 
-            return Poll::Pending;
-        }
-
-        Poll::Ready(Ok(objects))
+        Poll::Pending
     }
 }
