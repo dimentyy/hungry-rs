@@ -3,6 +3,7 @@ use std::ptr::NonNull;
 use crate::mtproto::{BytesMsg, Msg, MsgId, SeqNo};
 use crate::tl;
 
+use tl::de::DeserializeInfallible;
 use tl::ser::SerializeUnchecked;
 use tl::{ConstSerializedLen, SerializedLen};
 
@@ -42,6 +43,20 @@ impl SerializeUnchecked for BytesMsg {
         }
 
         buf
+    }
+}
+
+impl DeserializeInfallible for BytesMsg {
+    #[inline(always)]
+    unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self {
+        // SAFETY: the `SERIALIZED_LEN` is exactly 16;
+        // the caller must uphold the safety contract.
+        unsafe {
+            Self {
+                msg: Msg::deserialize_infallible(buf),
+                obj: MsgBytes(i32::deserialize_infallible(buf.add(12))),
+            }
+        }
     }
 }
 

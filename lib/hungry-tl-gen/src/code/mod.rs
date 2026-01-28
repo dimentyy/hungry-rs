@@ -27,10 +27,10 @@ use generic::push_function_generics;
 use ident::push_ident;
 use identifiable::push_identifiable;
 use into_enum::push_into_enum;
+use object::write_object;
 use ser::{push_enum_ser, push_enum_ser_len, push_struct_ser, push_struct_ser_len};
 use struct_body::push_struct_body;
 use typ::push_typ;
-use object::write_object;
 
 macro_rules! write_module {
     ( $cfg:expr , $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr ; $func:expr ; ) => {{

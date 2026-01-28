@@ -1,13 +1,19 @@
 use crate::Cfg;
 use crate::code::{push_enum_variant, push_escaped, push_function_generics, push_ident};
-use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
+use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
 
 fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     match &x.typ {
         ArgTyp::Flags { .. } => s.push('4'),
-        ArgTyp::Typ { .. } => {
+        ArgTyp::Typ { typ, .. } => {
+            if matches!(typ, Typ::Generic { .. }) {
+                s.push_str("crate::ConstructorId::from_ref(&");
+            }
             s.push_str("self.");
             push_escaped(s, &x.ident);
+            if matches!(typ, Typ::Generic { .. }) {
+                s.push(')');
+            }
             s.push_str(".serialized_len()");
         }
         ArgTyp::True { .. } => {}
@@ -119,7 +125,7 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
     });
 
     for arg in &x.args {
-        let (_, _) = match &arg.typ {
+        let (typ, _) = match &arg.typ {
             ArgTyp::Flags { args } => {
                 s.push_str("            buf = ");
                 if args.is_empty() {
@@ -144,8 +150,15 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
             ArgTyp::True { .. } => continue,
         };
 
-        s.push_str("            buf = self.");
+        s.push_str(if matches!(typ, Typ::Generic { .. }) {
+            "            buf = crate::ConstructorId::from_ref(&self."
+        } else {
+            "            buf = self."
+        });
         push_escaped(s, &arg.ident);
+        if matches!(typ, Typ::Generic { .. }) {
+            s.push(')');
+        }
         s.push_str(".serialize_unchecked(buf);\n");
     }
 

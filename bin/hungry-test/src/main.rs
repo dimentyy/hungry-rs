@@ -106,6 +106,39 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut handle = hungry::handle::Handle::new(sender);
 
+    let func = tl::ConstructorId(tl::api::funcs::InvokeWithLayer {
+        layer: 214,
+        query: tl::api::funcs::InitConnection {
+            api_id: 1,
+            device_model: "device_model".to_string(),
+            system_version: "system_version".to_string(),
+            app_version: "0.0.1".to_string(),
+            system_lang_code: "en".to_string(),
+            lang_pack: "".to_string(),
+            lang_code: "en".to_string(),
+            proxy: None,
+            params: None,
+            query: tl::api::funcs::help::GetNearestDc {},
+        },
+    });
+    let rx = handle.invoke(func.serialized_len(), |buf| buf.ser(&func));
+
+    tokio::spawn(async move {
+        loop {
+            dbg!(poll_fn(|cx| handle.poll(cx)).await).unwrap()
+        }
+    });
+
+    let bytes = rx.await.unwrap();
+    let mut buf = tl::de::Buf::new(&bytes);
+
+    let id = u32::from_le_bytes(*buf.peek_exactly()?);
+    println!("{id:#010x}");
+
+    let res: tl::api::enums::NearestDc = buf.de()?;
+
+    dbg!(res);
+
     Ok(())
 
     // let func = tl::ConstructorId(funcs::Ping { ping_id: 7 });
