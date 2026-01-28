@@ -57,14 +57,12 @@ macro_rules! write_module {
     }};
 }
 
-pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
-    let mut s = String::with_capacity(1024 * 1024);
-
+pub(crate) fn generate(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()> {
     let types = &data.types[data.types_split[cfg.current]..data.types_split[cfg.current + 1]];
 
     let mut f = write_module!(
-        cfg, &mut s, "types": for x in types => &x.combinator.ident;
-        write_type(cfg, data, &mut s, x)?;
+        cfg, s, "types": for x in types => &x.combinator.ident;
+        write_type(cfg, data, s, x)?;
     );
 
     f.write_all(s.as_bytes())?;
@@ -74,8 +72,8 @@ pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
     let funcs = &data.funcs[data.funcs_split[cfg.current]..data.funcs_split[cfg.current + 1]];
 
     let mut f = write_module!(
-        cfg, &mut s, "funcs": for x in funcs => &x.combinator.ident;
-        write_func(cfg, data, &mut s, x)?;
+        cfg, s, "funcs": for x in funcs => &x.combinator.ident;
+        write_func(cfg, data, s, x)?;
     );
 
     f.write_all(s.as_bytes())?;
@@ -85,15 +83,13 @@ pub(crate) fn generate(cfg: &Cfg, data: &Data) -> Result<()> {
     let enums = &data.enums[data.enums_split[cfg.current]..data.enums_split[cfg.current + 1]];
 
     let mut f = write_module!(
-        cfg, &mut s, "enums": for x in enums => &x.ident;
-        write_enum(cfg, data, &mut s, x)?;
+        cfg, s, "enums": for x in enums => &x.ident;
+        write_enum(cfg, data, s, x)?;
     );
 
     f.write_all(s.as_bytes())?;
     s.clear();
     f.flush()?;
-
-    write_object(cfg, data, enums, &mut s)?;
 
     let mut f = cfg.mod_file("mod")?;
 
@@ -262,4 +258,8 @@ pub(crate) fn push_escaped(s: &mut String, ident: &str) {
     }
 
     s.push_str(ident)
+}
+
+pub(crate) fn finalize(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()> {
+    write_object(cfg, data, s)
 }

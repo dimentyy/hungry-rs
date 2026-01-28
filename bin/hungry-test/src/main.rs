@@ -121,23 +121,19 @@ async fn async_main() -> anyhow::Result<()> {
             query: tl::api::funcs::help::GetNearestDc {},
         },
     });
-    let rx = handle.invoke(func.serialized_len(), |buf| buf.ser(&func));
+    let get_nearest_dc_rx = handle.invoke(func.serialized_len(), |buf| buf.ser(&func));
 
     tokio::spawn(async move {
         loop {
-            dbg!(poll_fn(|cx| handle.poll(cx)).await).unwrap()
+            poll_fn(|cx| handle.poll(cx)).await.unwrap()
         }
     });
 
-    let bytes = rx.await.unwrap();
-    let mut buf = tl::de::Buf::new(&bytes);
+    let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = get_nearest_dc_rx.await? else {
+        todo!("welp...")
+    };
 
-    let id = u32::from_le_bytes(*buf.peek_exactly()?);
-    println!("{id:#010x}");
-
-    let res: tl::api::enums::NearestDc = buf.de()?;
-
-    dbg!(res);
+    dbg!(nearest_dc);
 
     Ok(())
 

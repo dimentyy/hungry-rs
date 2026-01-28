@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ptr::NonNull;
 use std::{hint, ptr, slice};
 
-use crate::de::{Deserialize, EndOfBufferError, Error};
+use crate::de::{Deserialize, DeserializeInfallible, EndOfBufferError, Error};
 
 #[must_use]
 #[derive(Clone)]
@@ -110,6 +110,14 @@ impl<'a> Buf<'a> {
         let x = X::deserialize(self)?;
 
         assert_eq!(x.serialized_len(), len - self.len);
+
+        Ok(x)
+    }
+
+    pub fn de_infallible<X: DeserializeInfallible>(&mut self) -> Result<X, EndOfBufferError> {
+        let ptr = self.advance(X::SERIALIZED_LEN)?;
+
+        let x = unsafe { X::deserialize_infallible(ptr) };
 
         Ok(x)
     }

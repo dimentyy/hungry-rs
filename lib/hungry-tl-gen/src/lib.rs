@@ -26,9 +26,13 @@ pub fn generate(config: Config, names: Vec<String>, schemas: &[&str]) {
 
     let mut cfg = Cfg::new(config, names);
 
+    let mut s = String::with_capacity(1024 * 1024);
+
     for i in 0..schemas.len() {
         cfg.switch(i);
 
-        code::generate(&cfg, &data).unwrap();
+        code::generate(&cfg, &data, &mut s).unwrap();
     }
+ 
+    code::finalize(&cfg, &data, &mut s).unwrap();
 }

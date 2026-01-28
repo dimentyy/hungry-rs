@@ -13,6 +13,8 @@ pub use hungry_common as common;
 
 pub use common::tl::*;
 
+include!(concat!(env!("OUT_DIR"), "/hungry_tl/object.rs"));
+
 // TODO: make large enum variants boxed, maybe optionally.
 #[allow(unused_imports, clippy::module_inception, clippy::large_enum_variant)]
 pub mod api {

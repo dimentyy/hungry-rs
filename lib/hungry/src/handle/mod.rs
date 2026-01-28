@@ -11,6 +11,9 @@ use crate::sender::{Sender, SenderError};
 use crate::transport::Transport;
 use crate::{mtproto, tl, unpack};
 
+use tl::Identifiable;
+use tl::mtproto::{enums, types};
+
 #[derive(Debug)]
 pub enum HandleError {
     Sender(SenderError),
@@ -21,7 +24,7 @@ pub enum HandleError {
 struct Request {
     msg: mtproto::Msg,
 
-    tx: oneshot::Sender<Vec<u8>>,
+    tx: oneshot::Sender<tl::Object>,
 }
 
 pub struct Handle<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
@@ -49,7 +52,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         &mut self,
         len: usize,
         f: F,
-    ) -> oneshot::Receiver<Vec<u8>> {
+    ) -> oneshot::Receiver<tl::Object> {
         let msg = self.sender.invoke(len, f).msg;
 
         let (tx, rx) = oneshot::channel();
@@ -77,7 +80,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         )
     }
 
-    fn send_rpc_result(&mut self, req_msg_id: i64, bytes: Vec<u8>) {
+    fn send_rpc_result(&mut self, req_msg_id: i64, res: tl::Object) {
         let pos = self
             .requests
             .iter()
@@ -85,23 +88,45 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
 
         let request = self.requests.remove(pos.unwrap()).unwrap();
 
-        request.tx.send(bytes).unwrap();
+        request.tx.send(res).unwrap();
     }
 
     // TODO: do NOT allocate.
     fn process_msg(&mut self, msg: mtproto::Msg, mut buf: tl::de::Buf) {
+        let slice = buf.as_slice();
+
         let id: u32 = buf.de().unwrap();
 
         eprintln!("{id:#010x}");
 
         match id {
             tl::RPC_RESULT => {
-                let req_msg_id: i64 = buf.de().unwrap();
+                let req_msg_id: i64 = buf.de_infallible().unwrap();
 
-                self.send_rpc_result(req_msg_id, buf.as_slice().to_vec());
+                let object: tl::Object = buf.de().unwrap();
+
+                self.send_rpc_result(req_msg_id, object);
+            }
+            types::Pong::CONSTRUCTOR_ID => {
+                let pong: types::Pong = buf.de_infallible().expect("TODO");
+
+                let req_msg_id = pong.msg_id;
+
+                let object = tl::Object::mtproto_Pong(pong.into());
+
+                self.send_rpc_result(req_msg_id, object);
+            }
+            types::FutureSalts::CONSTRUCTOR_ID => {
+                let future_salts: types::FutureSalts = buf.de().expect("TODO");
+
+                let req_msg_id = future_salts.req_msg_id;
+
+                let object = tl::Object::mtproto_FutureSalts(future_salts.into());
+
+                self.send_rpc_result(req_msg_id, object);
             }
             _ => {
-
+                // Should be an update.
             }
         }
     }
@@ -116,7 +141,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         let bytes = res.as_slice().to_vec();
         let mut res = tl::de::Buf::new(&bytes);
 
-        let msg: mtproto::BytesMsg = res.de().map_err(|_| Todo("top msg unpack err"))?;
+        let msg: mtproto::BytesMsg = res
+            .de_infallible()
+            .map_err(|_| Todo("top msg unpack err"))?;
 
         let mut buf = res.clone();
 
@@ -132,7 +159,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
                 self.process_msg(msg, buf);
             }
 
-            return Poll::Pending
+            return Poll::Pending;
         }
 
         self.process_msg(msg.msg, res);

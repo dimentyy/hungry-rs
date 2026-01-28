@@ -43,7 +43,7 @@ impl Cfg {
         let mut derive = "".to_owned();
 
         if let Some(x) = iter.next() {
-            derive.push_str("\n#[derive(");
+            derive.push_str("#[derive(");
             derive.push_str(x);
 
             for x in iter {
@@ -63,11 +63,18 @@ impl Cfg {
         }
     }
 
+    fn base_out_dir() -> PathBuf {
+        let mut out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+        out_dir.push("hungry_tl");
+
+        out_dir
+    }
+
     pub(crate) fn switch(&mut self, schema: usize) {
         self.current = schema;
-        self.out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-        self.out_dir.push("hungry_tl");
+        self.out_dir = Self::base_out_dir();
         self.out_dir.push(&self.schemas[schema]);
     }
 }
@@ -101,6 +108,19 @@ macro_rules! file {
 
 impl Cfg {
     pub(crate) const ROOT: &'static str = "_root";
+
+    pub(crate) fn root_file(&self, module: &str) -> io::Result<F> {
+        let mut path = Self::base_out_dir();
+
+        if !path.try_exists()? {
+            fs::create_dir_all(&path)?;
+        }
+
+        path.push(module);
+        path.set_extension("rs");
+
+        Ok(io::BufWriter::new(fs::File::create(path)?))
+    }
 
     pub(crate) fn mod_file(&self, module: &str) -> io::Result<F> {
         Ok(file!(self => module))
