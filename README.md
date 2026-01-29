@@ -1,21 +1,59 @@
-# Telegram MTProto API client in Rust with the main focus on <ins>reliability</ins>.
+# `HUNGRY-RS`
 
-###### Binaries
-* [hungry-test](/bin/hungry-test) — binary for testing the libraries
+Telegram [MTProto] API client in Rust, with **RELIABILITY** as the top priority.
 
-###### Libraries
-* [hungry](/lib/hungry) — connection and protocol logic, client
-* [hungry-tl](/lib/hungry-tl) — generated TL schema with their traits
-* [hungry-tl-gen](/lib/hungry-tl-gen) — building library for `hungry-tl`
+Ideas for this project were massively inspired by ★ [gramme.rs] libraries.
 
-###### To be separated?
-* [unbite](/lib/unbite) — efficient operations on contiguous slices of memory allocations (replacement of `bytes` for `hungry`)  
+## Overview
 
-## TODO:
+This project is **NOT** a framework — it's a library, meaning there is **NO**
+session management, input peer cache, or any high-level convenient API methods.
+The user shall adapt the library for their own specific use-case, rather than
+their projects, with `HUNGRY-RS` providing a stable base for Telegram clients.
+
+## Unbite
+
+See the [crate](/lib/unbite), currently in this repository. This is a
+replacement of `bytes`, designed for efficient, compile-time checked
+operations on contiguous memory, with support for constant-sized buffers.
+
+## Current status
+
+Work in progress.
+
+#### Milestones:
+
+- [x] TL generation
+- [x] MTProto Transports
+- [x] Reader, Writer
+- [ ] Sender
+  - [x] Container
+  - [x] Deserialization
+  - [ ] Gzip compression
+- [ ] Handle
+  - [ ] Salts
+  - [ ] Acknowledgment of Receipt
+  - [ ] RPC results
+  - [ ] Error recovery
+- [ ] Client
+
++ [ ] Stabilization
++ [ ] Active testing
+
+## Binaries
+* [`hungry-test`](/bin/hungry-test) — binary for testing the libraries
+
+## Libraries
+* [`hungry`](/lib/hungry) — client, connection and protocol logic
+* [`hungry-tl`](/lib/hungry-tl) — generated TL-schema, their traits
+* [`hungry-tl-gen`](/lib/hungry-tl-gen) — TL-generator for `hungry-tl`
+
+## Todo
 
 - [x] **Safe** serialization buffer. (`&mut [MaybeUninit<u8>]` => `&mut [u8]`)
-- [ ] Generate an enum with all bare types (determined by `CONSTRUCTOR_ID`) wrapped in a `Box` to catch deserialization failures early.
-  - [x] Box large variants
+- [ ] Generate an enum with all bare types (determined by `CONSTRUCTOR_ID`) to catch deserialization failures early.
+  - [x] Box large variants.
+  - [ ] Optimize this monster.
 - [ ] Wrapper for storing precalculated serialized length.
 - [ ] `unbite::DynRaw` container to easily unsplit buffers after they are received?
 - [ ] Write safety comments.
@@ -60,6 +98,8 @@
 - [ ] Encrypted sender.
   - [x] Message container.
   - [ ] Gzipping.
++ [ ] "Zero-Copy" file uploading?
+- [ ] Handle `msgs_ack`.
 + [ ] Salt management.
 - [ ] `Send`able and `Clone`able `Client` to use the `Handle`.
 + [ ] Use `#[forbid(clippy::todo)]` and `#[forbid(unsafe_code)]` as much as possible.
@@ -69,3 +109,6 @@
 ## License
 
 This project is licensed under the MIT license.
+
+[MTProto]: https://core.telegram.org/mtproto
+[gramme.rs]: https://github.com/lonami/grammers

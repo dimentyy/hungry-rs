@@ -231,9 +231,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(tl::de::Buf::new(buf))
     }
 
-    fn packet(&mut self, packet: Packet) -> Result<SenderOutput, SenderError> {
-        let mut buf = self.packet_de_buf(packet)?;
-
+    fn deserialize(mut buf: tl::de::Buf) -> Result<SenderOutput, SenderError> {
         let mtproto::BytesMsg { msg, obj: len } = buf.de_infallible()?;
 
         let id = u32::from_le_bytes(*buf.peek_exactly()?);
@@ -301,5 +299,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 mtproto::Message::Object { msg, obj }
             }))
         }
+    }
+
+    fn packet(&mut self, packet: Packet) -> Result<SenderOutput, SenderError> {
+        let buf = self.packet_de_buf(packet)?;
+
+        Self::deserialize(buf)
     }
 }
