@@ -7,7 +7,7 @@ pub(super) fn push_enum_variant(_cfg: &Cfg, s: &mut String, x: &Type) {
 }
 
 pub(super) fn push_enum_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) {
-    s.push_str(&cfg.derive);
+    s.push_str(&cfg.enum_derive);
     s.push_str("\npub enum ");
     push_escaped(s, &x.ident.actual);
     s.push_str(" {\n");

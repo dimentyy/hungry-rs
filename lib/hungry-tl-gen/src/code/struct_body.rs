@@ -26,7 +26,7 @@ pub(super) fn push_struct_body(cfg: &Cfg, data: &Data, s: &mut String, x: &Combi
     s.push_str("\n/// ```tl\n/// ");
     std::fmt::write(s, format_args!("{}", x.parsed)).unwrap();
     s.push_str("\n/// ```\n");
-    s.push_str(&cfg.derive);
+    s.push_str(&cfg.struct_derive);
     s.push_str("\npub struct ");
     push_escaped(s, &x.ident.actual);
 

@@ -10,6 +10,7 @@ mod object;
 mod ser;
 mod struct_body;
 mod typ;
+mod debug;
 
 use std::io::{Result, Write};
 
@@ -31,6 +32,7 @@ use object::write_object;
 use ser::{push_enum_ser, push_enum_ser_len, push_struct_ser, push_struct_ser_len};
 use struct_body::push_struct_body;
 use typ::push_typ;
+use debug::push_enum_debug;
 
 macro_rules! write_module {
     ( $cfg:expr , $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr ; $func:expr ; ) => {{
@@ -231,6 +233,11 @@ fn write_enum(cfg: &Cfg, data: &Data, s: &mut String, x: &Enum) -> Result<()> {
     push_imports(cfg, s);
 
     push_enum_body(cfg, data, s, x);
+
+    if cfg.derive_debug {
+        push_enum_debug(cfg, data, s, x);
+    }
+
     if let Some(len) = x.de.const_len() {
         push_const_ser_len(s, &x.ident.actual, len);
     } else {

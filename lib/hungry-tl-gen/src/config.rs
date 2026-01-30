@@ -19,18 +19,19 @@ pub(crate) struct Cfg {
     pub(crate) schemas: Vec<String>,
     pub(crate) current: usize,
     pub(crate) out_dir: PathBuf,
-    pub(crate) derive: String,
+    pub(crate) struct_derive: String,
+    pub(crate) enum_derive: String,
 }
 
 impl Cfg {
-    pub(crate) fn new(config: Config, schemas: Vec<String>) -> Self {
+    fn derive(config: &Config, debug: bool) -> String {
         let mut derives = Vec::new();
 
         if config.derive_clone {
             derives.push("Clone");
         }
 
-        if config.derive_debug {
+        if config.derive_debug && debug {
             derives.push("Debug");
         }
 
@@ -54,12 +55,20 @@ impl Cfg {
             derive.push_str(")]");
         };
 
+        derive
+    }
+
+    pub(crate) fn new(config: Config, schemas: Vec<String>) -> Self {
+        let struct_derive = Self::derive(&config, true);
+        let enum_derive = Self::derive(&config, false);
+
         Self {
             config,
             schemas,
             current: usize::MAX,
             out_dir: PathBuf::new(),
-            derive,
+            struct_derive,
+            enum_derive,
         }
     }
 

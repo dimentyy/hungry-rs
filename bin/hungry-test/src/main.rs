@@ -166,8 +166,6 @@ async fn async_main() -> anyhow::Result<()> {
         unimplemented!()
     };
 
-    dbg!(nearest_dc);
-
     let func = tl::ConstructorId(tl::api::funcs::auth::ImportBotAuthorization {
         flags: 0,
         api_id: std::env::var("API_ID")?.parse()?,
@@ -194,10 +192,6 @@ async fn async_main() -> anyhow::Result<()> {
     let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
         unimplemented!()
     };
-
-    dbg!(auth);
-
-
 
     task.await?
 }
