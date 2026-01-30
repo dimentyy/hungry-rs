@@ -2,6 +2,7 @@
 #![allow(warnings, clippy::all, clippy::pedantic, clippy::nursery)]
 
 use std::collections::VecDeque;
+use std::fmt;
 use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -18,6 +19,23 @@ pub enum HandleError {
     Sender(SenderError),
 
     Todo(&'static str),
+}
+
+impl fmt::Display for HandleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for HandleError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use HandleError::*;
+
+        match self {
+            Sender(err) => Some(err),
+            _ => None,
+        }
+    }
 }
 
 struct Request {

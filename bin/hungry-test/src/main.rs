@@ -1,12 +1,12 @@
 use std::future::poll_fn;
-use std::task::{Poll, ready};
+use std::task::Poll;
 
-use hungry::{crypto_bigint, mtproto, tl, unbite};
+use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
 
+use tl::SerializedLen;
 use tl::mtproto::{enums, funcs, types};
-use tl::{Identifiable, SerializedLen};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -106,10 +106,38 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut handle = hungry::handle::Handle::new(sender);
 
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(
+        tokio::sync::oneshot::Sender<tokio::sync::oneshot::Receiver<tl::Object>>,
+        usize,
+        Box<dyn FnOnce(&mut tl::ser::Buf) + Send>,
+    )>();
+
+    let task = tokio::spawn(async move {
+        loop {
+            let _objects = poll_fn(|cx| {
+                if let Poll::Ready(ready) = handle.poll(cx) {
+                    return Poll::Ready(ready);
+                }
+
+                while let Poll::Ready(ready) = rx.poll_recv(cx) {
+                    let (tx, len, f) = ready.unwrap();
+
+                    tx.send(handle.invoke(len, f)).unwrap();
+
+                    // FIXME: handle not waking up.
+                    cx.waker().wake_by_ref();
+                }
+
+                Poll::Pending
+            })
+            .await?;
+        }
+    });
+
     let func = tl::ConstructorId(tl::api::funcs::InvokeWithLayer {
         layer: 214,
         query: tl::api::funcs::InitConnection {
-            api_id: 1,
+            api_id: std::env::var("API_ID")?.parse()?,
             device_model: "device_model".to_string(),
             system_version: "system_version".to_string(),
             app_version: "0.0.1".to_string(),
@@ -121,21 +149,55 @@ async fn async_main() -> anyhow::Result<()> {
             query: tl::api::funcs::help::GetNearestDc {},
         },
     });
-    let get_nearest_dc_rx = handle.invoke(func.serialized_len(), |buf| buf.ser(&func));
 
-    let task = tokio::spawn(async move {
-        loop {
-            let _objects = poll_fn(|cx| dbg!(handle.poll(cx))).await.unwrap();
-        }
-    });
+    let (get_nearest_dc_tx, get_nearest_dc_rx) = tokio::sync::oneshot::channel();
+
+    let Ok(()) = tx.send((
+        get_nearest_dc_tx,
+        func.serialized_len(),
+        Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+    )) else {
+        unreachable!()
+    };
 
     let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) =
-        get_nearest_dc_rx.await?
+        get_nearest_dc_rx.await?.await?
     else {
-        todo!("welp...")
+        unimplemented!()
     };
 
     dbg!(nearest_dc);
+
+    let func = tl::ConstructorId(tl::api::funcs::auth::ImportBotAuthorization {
+        flags: 0,
+        api_id: std::env::var("API_ID")?.parse()?,
+        api_hash: std::env::var("API_HASH")?,
+        bot_auth_token: std::env::var("BOT_TOKEN")?,
+    });
+
+    let (import_bot_authorization_tx, import_bot_authorization_rx) = tokio::sync::oneshot::channel();
+
+    let Ok(()) = tx.send((
+        import_bot_authorization_tx,
+        func.serialized_len(),
+        Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+    )) else {
+        unreachable!()
+    };
+
+    let obj = dbg!(import_bot_authorization_rx.await?.await?);
+
+    let tl::Object::api_auth_Authorization(auth) = obj else {
+        unimplemented!()
+    };
+
+    let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
+        unimplemented!()
+    };
+
+    dbg!(auth);
+
+
 
     task.await?
 }
