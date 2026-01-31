@@ -30,7 +30,6 @@ Work in progress.
   - [x] Container
   - [x] Deserialization
   - [ ] Gzip compression
-- [ ] Handle
   - [ ] Salts
   - [ ] Acknowledgment of Receipt
   - [ ] RPC results
@@ -101,7 +100,7 @@ Work in progress.
 + [ ] "Zero-Copy" file uploading?
 - [ ] Handle `msgs_ack`.
 + [ ] Salt management.
-- [ ] `Send`able and `Clone`able `Client` to use the `Handle`.
+- [ ] `Send`able and `Clone`able `Client` to use the `Sender`.
 + [ ] Use `#[forbid(clippy::todo)]` and `#[forbid(unsafe_code)]` as much as possible.
 
 > The repository will be recreated once this project is complete and refactored.
