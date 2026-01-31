@@ -150,7 +150,9 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         let mut pos = 0;
 
         loop {
-            let Poll::Ready(ready) = self.driver.poll_checked(cx, &buffer.as_slice()[pos..]) else {
+            let buf = &buffer.as_slice()[pos..];
+
+            let Poll::Ready(ready) = self.driver.poll_checked(cx, buf) else {
                 // The currently blocking `driver` stored the active `Waker`.
                 self.waker = None;
 

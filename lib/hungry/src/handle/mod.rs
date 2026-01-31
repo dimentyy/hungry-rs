@@ -6,7 +6,7 @@ use std::fmt;
 use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::sender::{Messages, Sender, SenderError};
 use crate::transport::Transport;
@@ -55,15 +55,24 @@ pub struct Handle<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     sender: Sender<T, R, W>,
 
     requests: VecDeque<Request>,
+
+    fixme_object_tx: mpsc::UnboundedSender<tl::Object>,
 }
 
 impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> {
-    pub fn new(sender: Sender<T, R, W>) -> Self {
-        Self {
-            sender,
+    pub fn new(sender: Sender<T, R, W>) -> (Self, mpsc::UnboundedReceiver<tl::Object>) {
+        let (tx, rx) = mpsc::unbounded_channel();
 
-            requests: VecDeque::new(),
-        }
+        (
+            Self {
+                sender,
+
+                requests: VecDeque::new(),
+
+                fixme_object_tx: tx,
+            },
+            rx,
+        )
     }
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
@@ -105,7 +114,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
             }
             object => {
                 // Should be an update.
-                dbg!(object);
+                self.fixme_object_tx.send(object).unwrap();
             }
         }
     }
