@@ -14,7 +14,8 @@ use crate::unpack::MsgContainerIter;
 use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
 
-use tl::mtproto::enums;
+use tl::SerializedLen;
+use tl::mtproto::{enums, types};
 
 use container::Container;
 
@@ -39,7 +40,7 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     session_id: mtproto::Session,
 
     // FIXME
-    pub(crate) salt: mtproto::Salt,
+    salt: mtproto::Salt,
 
     container: Option<Container<T>>,
 
@@ -105,6 +106,19 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[inline]
     fn take_container(&mut self) -> Option<Container<T>> {
+        if !self.msgs_ack.is_empty() {
+            let msg_ids = mem::take(&mut self.msgs_ack);
+
+            let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
+
+            let _ = dbg!(self.invoke_inner::<true, _>(func.serialized_len(), |buf| buf.ser(&func)));
+
+            let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
+
+            self.msgs_ack = msg_ids;
+            self.msgs_ack.clear();
+        }
+
         mem::take(&mut self.container)
     }
 
