@@ -1,5 +1,4 @@
 mod buf;
-mod bytes;
 
 use std::fmt;
 use std::ptr::NonNull;
@@ -11,7 +10,6 @@ use tl::de::DeserializeInfallible;
 use tl::ser::SerializeUnchecked;
 
 pub use buf::{BufMsg, BufMsgError};
-pub use bytes::BytesMsg;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NegativeBytesError(pub i32);

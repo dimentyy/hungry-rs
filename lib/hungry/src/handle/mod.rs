@@ -56,6 +56,8 @@ pub struct Handle<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
 
     requests: VecDeque<Request>,
 
+    msgs_ack: Vec<mtproto::MsgId>,
+
     fixme_object_tx: mpsc::UnboundedSender<tl::Object>,
 }
 
@@ -69,6 +71,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
 
                 requests: VecDeque::new(),
 
+                msgs_ack: Vec::with_capacity(8192),
+
                 fixme_object_tx: tx,
             },
             rx,
@@ -80,7 +84,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         len: usize,
         f: F,
     ) -> oneshot::Receiver<tl::Object> {
-        let msg = self.sender.invoke(len, f);
+        let msg = self.sender.invoke::<false, F>(len, f);
 
         let (tx, rx) = oneshot::channel();
 
@@ -91,19 +95,28 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         rx
     }
 
-    fn send_rpc_result(&mut self, req_msg_id: i64, res: tl::Object) {
-        let pos = self
+    fn send_rpc_result(&mut self, req_msg_id: i64, res_object: tl::Object) {
+        let Some(index) = self
             .requests
             .iter()
-            .position(|x| x.msg.msg_id == req_msg_id);
+            .position(|x| x.msg.msg_id == req_msg_id)
+        else {
+            todo!()
+        };
 
-        let request = self.requests.remove(pos.unwrap()).unwrap();
+        let request = self.requests.remove(index).unwrap();
 
-        request.tx.send(res).unwrap();
+        if let Err(_res) = request.tx.send(res_object) {
+            todo!()
+        }
     }
 
     fn handle_object(&mut self, msg: mtproto::Msg, object: tl::Object) {
         use tl::Object::*;
+
+        if msg.seq_no & 1 == 1 {
+            self.msgs_ack.push(msg.msg_id)
+        }
 
         match object {
             mtproto_Pong(enums::Pong::Pong(ref pong)) => {
@@ -113,8 +126,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
                 self.send_rpc_result(future_salts.req_msg_id, object);
             }
             mtproto_BadMsgNotification(x) => match x {
-                BadMsgNotification::BadMsgNotification(x) => {}
-                BadMsgNotification::BadServerSalt(x) => {
+                enums::BadMsgNotification::BadMsgNotification(x) => {}
+                enums::BadMsgNotification::BadServerSalt(x) => {
                     self.sender.salt = x.new_server_salt;
                 }
             },
@@ -127,6 +140,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
 
     fn handle_result(&mut self, msg: mtproto::Msg, res: mtproto::RpcResult) {
         self.send_rpc_result(res.req_msg_id, res.res_object);
+
+        if msg.seq_no & 1 == 1 {
+            self.msgs_ack.push(msg.msg_id)
+        }
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), HandleError>> {

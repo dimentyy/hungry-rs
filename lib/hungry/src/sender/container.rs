@@ -33,13 +33,13 @@ impl<T: Transport> Container<T> {
     }
 
     #[inline]
-    pub(super) const fn can_push(&self, len: usize) -> bool {
-        self.raw_inner.can_push(len)
+    pub(super) const fn can_push<const RESERVED: bool>(&self, len: usize) -> bool {
+        self.raw_inner.can_push::<RESERVED>(len)
     }
 
     #[inline]
-    pub(super) fn push<F: FnOnce(&mut tl::ser::Buf)>(&mut self, msg: &mtproto::BytesMsg, f: F) {
-        self.raw_inner.push(msg, f);
+    pub(super) fn push<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(&mut self, msg: &mtproto::Msg, len: usize, f: F) {
+        self.raw_inner.push::<RESERVED, F>(msg, len, f);
     }
 
     pub(super) fn finalize(self) -> (T::Envelope, mtproto::EncryptedEnvelope, unbite::DynBuf) {

@@ -67,8 +67,31 @@ impl<'a> Buf<'a> {
 
     #[inline]
     #[must_use]
-    pub fn as_mut_slice(&self) -> &'a mut [u8] {
+    pub fn as_mut_slice(&mut self) -> &'a mut [u8] {
         unsafe { slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len) }
+    }
+
+    #[inline]
+    pub fn extend_from_slice(&mut self, slice: &[u8]) {
+        assert!(self.spare_capacity_len() >= slice.len());
+
+        unsafe {
+            self.ptr
+                .add(self.len)
+                .copy_from_nonoverlapping(NonNull::from_ref(slice).cast(), slice.len());
+            self.len = self.len.unchecked_add(slice.len());
+        }
+    }
+
+    pub fn extend_from_array<const N: usize>(&mut self, array: &[u8; N]) {
+        assert!(self.spare_capacity_len() >= N);
+
+        unsafe {
+            self.ptr
+                .add(self.len)
+                .copy_from_nonoverlapping(NonNull::from_ref(array).cast(), N);
+            self.len = self.len.unchecked_add(N);
+        }
     }
 
     pub fn ser<X: SerializeUnchecked + ?Sized>(&mut self, x: &X) {

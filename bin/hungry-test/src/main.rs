@@ -124,7 +124,7 @@ async fn get_auth_key(
 
     file.read_to_end(&mut buf).await?;
 
-    if buf.len() != 256 {
+    // if buf.len() != 256 {
         let hungry::auth::DhGenOk {
             auth_key,
             server_salt,
@@ -135,7 +135,7 @@ async fn get_auth_key(
         file.write_all(auth_key.data()).await?;
 
         return Ok((auth_key, server_salt));
-    }
+    // }
 
     println!("Using the `AuthKey` from `{filename}`");
 

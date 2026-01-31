@@ -102,7 +102,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
-        if self.container.as_ref().is_some_and(|c| c.can_push(len)) {
+        if self
+            .container
+            .as_ref()
+            .is_some_and(|c| c.can_push::<false>(len))
+        {
             return self.container.as_mut().unwrap();
         }
 
@@ -141,17 +145,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     /// # Panics
     ///
     /// * If the provided `len` exceeds the `i32::MAX`.
-    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::Msg {
+    pub(crate) fn invoke<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
+        &mut self,
+        len: usize,
+        f: F,
+    ) -> mtproto::Msg {
         let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.client_seq_nos.get_content_related();
 
+        let msg = mtproto::Msg { msg_id, seq_no };
+
         let bytes = len.try_into().unwrap();
 
-        let bytes_msg = mtproto::BytesMsg::new(msg_id, seq_no, bytes);
+        self.get_container(len).push::<RESERVED, F>(&msg, bytes, f);
 
-        self.get_container(len).push(&bytes_msg, f);
-
-        bytes_msg.msg
+        msg
     }
 
     pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Messages<'a>, SenderError>> {
