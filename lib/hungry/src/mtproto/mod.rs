@@ -6,22 +6,22 @@ mod pack;
 mod seq_no;
 mod unpack;
 
+use std::ops::RangeInclusive;
+
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
-pub use message::{ExternalHeader, InternalHeader, PlainMsgHeader};
-pub use msg::{
-    BufMsg, BufMsgError, BytesMsg, Message, Msg, MsgBytes, MsgError, MsgWith, RpcResult,
-};
+pub use message::{ExternalHeader, InternalHeader, UnencryptedMessage};
+pub use msg::{BufMsg, BufMsgError, BytesMsg, Message, Msg, MsgBytes, MsgWith, RpcResult};
 pub use msg_id::{ClientMsgIds, MsgId, MsgIdError, ServerMsgIds, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
-pub use seq_no::{SeqNo, SeqNoError, SeqNos};
+pub use seq_no::{SeqNo, SeqNoError, SeqNos, content_related};
 pub use unpack::{
     AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
-    auth_key_id,
+    unpack_auth_key_id,
 };
 
-pub const MAX_ENCRYPTED_PADDING: usize = 1024;
+pub const ENCRYPTED_PADDING_RANGE: RangeInclusive<usize> = 12..=1024;
 
-pub type PlainHeader = unbite::Raw<{ PlainMsgHeader::LEN }>;
+pub type PlainHeader = unbite::Raw<{ UnencryptedMessage::LEN }>;
 
 /// # Session
 ///

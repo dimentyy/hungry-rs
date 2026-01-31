@@ -18,7 +18,7 @@ const N: &str = "253428894488404155649716895907134732068988477590847790525820265
     1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
     127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
 
-type Transport = hungry::transport::Full;
+type Transport = hungry::transport::Intermediate;
 
 async fn async_main() -> anyhow::Result<()> {
     let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
@@ -115,85 +115,98 @@ async fn async_main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         loop {
             let _objects = poll_fn(|cx| {
-                if let Poll::Ready(ready) = handle.poll(cx) {
-                    return Poll::Ready(ready);
-                }
+                let poll = {
+                    if let Poll::Ready(ready) = handle.poll(cx) {
+                        return Poll::Ready(ready);
+                    }
 
-                while let Poll::Ready(ready) = rx.poll_recv(cx) {
-                    let (tx, len, f) = ready.unwrap();
+                    while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
+                        let (tx, len, f) = ready;
 
-                    tx.send(handle.invoke(len, f)).unwrap();
+                        tx.send(handle.invoke(len, f)).unwrap();
 
-                    // FIXME: handle not waking up.
-                    cx.waker().wake_by_ref();
-                }
+                        cx.waker().wake_by_ref();
+                    }
 
-                Poll::Pending
+                    Poll::Pending
+                };
+
+                dbg!(poll)
             })
             .await?;
         }
+
+        Ok::<(), anyhow::Error>(())
     });
 
-    let func = tl::ConstructorId(tl::api::funcs::InvokeWithLayer {
-        layer: 214,
-        query: tl::api::funcs::InitConnection {
+    let task2 = tokio::spawn(async move {
+        let func = tl::api::funcs::InvokeWithLayer {
+            layer: 214,
+            query: tl::api::funcs::InitConnection {
+                api_id: std::env::var("API_ID")?.parse()?,
+                device_model: "device_model".to_string(),
+                system_version: "system_version".to_string(),
+                app_version: "0.0.1".to_string(),
+                system_lang_code: "en".to_string(),
+                lang_pack: "".to_string(),
+                lang_code: "en".to_string(),
+                proxy: None,
+                params: None,
+                query: tl::api::funcs::help::GetNearestDc {},
+            },
+        };
+
+        let (get_nearest_dc_tx, get_nearest_dc_rx) = tokio::sync::oneshot::channel();
+
+        let Ok(()) = tx.send((
+            get_nearest_dc_tx,
+            func.serialized_len(),
+            Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+        )) else {
+            unreachable!()
+        };
+
+        let obj = dbg!(get_nearest_dc_rx.await?.await?);
+
+        let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = obj else {
+            unimplemented!()
+        };
+
+        let func = tl::api::funcs::auth::ImportBotAuthorization {
+            flags: 0,
             api_id: std::env::var("API_ID")?.parse()?,
-            device_model: "device_model".to_string(),
-            system_version: "system_version".to_string(),
-            app_version: "0.0.1".to_string(),
-            system_lang_code: "en".to_string(),
-            lang_pack: "".to_string(),
-            lang_code: "en".to_string(),
-            proxy: None,
-            params: None,
-            query: tl::api::funcs::help::GetNearestDc {},
-        },
+            api_hash: std::env::var("API_HASH")?,
+            bot_auth_token: std::env::var("BOT_TOKEN")?,
+        };
+
+        let (import_bot_authorization_tx, import_bot_authorization_rx) =
+            tokio::sync::oneshot::channel();
+
+        let Ok(()) = tx.send((
+            import_bot_authorization_tx,
+            func.serialized_len(),
+            Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+        )) else {
+            unreachable!()
+        };
+
+        let obj = dbg!(import_bot_authorization_rx.await?.await?);
+
+        let tl::Object::api_auth_Authorization(auth) = obj else {
+            unimplemented!()
+        };
+
+        let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
+            unimplemented!()
+        };
+
+        Ok::<(), anyhow::Error>(())
     });
 
-    let (get_nearest_dc_tx, get_nearest_dc_rx) = tokio::sync::oneshot::channel();
+    task.await??;
+    task2.await??;
 
-    let Ok(()) = tx.send((
-        get_nearest_dc_tx,
-        func.serialized_len(),
-        Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
-    )) else {
-        unreachable!()
-    };
-
-    let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) =
-        get_nearest_dc_rx.await?.await?
-    else {
-        unimplemented!()
-    };
-
-    let func = tl::ConstructorId(tl::api::funcs::auth::ImportBotAuthorization {
-        flags: 0,
-        api_id: std::env::var("API_ID")?.parse()?,
-        api_hash: std::env::var("API_HASH")?,
-        bot_auth_token: std::env::var("BOT_TOKEN")?,
-    });
-
-    let (import_bot_authorization_tx, import_bot_authorization_rx) = tokio::sync::oneshot::channel();
-
-    let Ok(()) = tx.send((
-        import_bot_authorization_tx,
-        func.serialized_len(),
-        Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
-    )) else {
-        unreachable!()
-    };
-
-    let obj = dbg!(import_bot_authorization_rx.await?.await?);
-
-    let tl::Object::api_auth_Authorization(auth) = obj else {
-        unimplemented!()
-    };
-
-    let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
-        unimplemented!()
-    };
-
-    task.await?
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {

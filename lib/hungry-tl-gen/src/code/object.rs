@@ -97,7 +97,7 @@ pub(super) fn write_object(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()>
         }
     }
 
-    s.push_str("        }\n    }\n}\n\nimpl de::Deserialize for Object {\n    #[inline(never)]\n    fn deserialize(buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n        Ok(match u32::deserialize(buf)? {\n            TRUE => Self::Bool(true),\n            FALSE => Self::Bool(false),\n\n");
+    s.push_str("        }\n    }\n}\n\nimpl Object {\n    #[inline(never)]\n    pub fn deserialize(typ: u32, buf: &mut crate::de::Buf) -> Result<Self, crate::de::Error> {\n        use de::Deserialize;\n\n        Ok(match typ {\n            TRUE => Self::Bool(true),\n            FALSE => Self::Bool(false),\n\n");
 
     for (i, split) in data.enums_split.windows(2).enumerate() {
         let real_schema = &cfg.schemas[i];

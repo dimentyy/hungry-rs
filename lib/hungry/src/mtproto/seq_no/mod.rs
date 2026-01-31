@@ -2,6 +2,10 @@ mod error;
 
 use std::fmt;
 
+use crate::{mtproto, tl};
+
+use tl::Identifiable;
+
 pub use error::SeqNoError;
 
 /// # Message Sequence Number (msg_seqno)
@@ -29,6 +33,16 @@ pub use error::SeqNoError;
 ///
 /// <https://core.telegram.org/mtproto/description#message-sequence-number-msg-seqno>
 pub type SeqNo = i32;
+
+// FIXME.
+#[inline]
+pub const fn content_related(typ: u32) -> Option<bool> {
+    if typ == tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID {
+        return Some(false);
+    }
+
+    None
+}
 
 #[must_use]
 #[derive(Debug, Default)]
@@ -62,25 +76,32 @@ impl SeqNos {
     }
 
     #[inline]
-    pub const fn validate(
+    pub const fn check_with_typ(
+        &mut self,
+        msg_buf: &mtproto::BufMsg<'_>,
+    ) -> Result<(), SeqNoError> {
+        self.check(msg_buf.msg.seq_no, content_related(msg_buf.typ))
+    }
+
+    pub const fn check(
         &mut self,
         seq_no: SeqNo,
-        content_related: bool,
+        content_related: Option<bool>,
     ) -> Result<(), SeqNoError> {
         use SeqNoError::*;
 
-        let expected = if content_related {
-            if seq_no & 1 == 0 {
+        let expected = if seq_no & 1 == 0 {
+            if let Some(true) = content_related {
                 return Err(Even);
             }
 
-            self.get_content_related()
+            self.non_content_related()
         } else {
-            if seq_no & 1 == 1 {
+            if let Some(false) = content_related {
                 return Err(Odd);
             }
 
-            self.non_content_related()
+            self.get_content_related()
         };
 
         if seq_no != expected {

@@ -1,7 +1,6 @@
 mod buf;
 mod with;
 
-use std::fmt;
 use std::ptr::NonNull;
 
 use crate::{mtproto, tl};
@@ -28,51 +27,37 @@ pub enum Message {
     RpcResult { msg: Msg, res: RpcResult },
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum MsgError {
-    MsgId(mtproto::MsgIdError),
-    SeqNo(mtproto::SeqNoError),
-}
+impl Message {
+    pub fn deserialize(mut buf_msg: BufMsg<'_>) -> Result<Self, tl::de::Error> {
+        if buf_msg.typ != tl::RPC_RESULT {
+            let obj = tl::Object::deserialize(buf_msg.typ, &mut buf_msg.buf)?;
 
-impl fmt::Display for MsgError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use MsgError::*;
-
-        match self {
-            MsgId(err) => err.fmt(f),
-            SeqNo(err) => err.fmt(f),
+            return Ok(Message::Object {
+                msg: buf_msg.msg,
+                obj,
+            });
         }
+
+        let req_msg_id = buf_msg.buf.de_infallible()?;
+
+        let typ = buf_msg.buf.de_infallible()?;
+
+        let object = tl::Object::deserialize(typ, &mut buf_msg.buf)?;
+
+        let res = RpcResult { req_msg_id, object };
+
+        Ok(Message::RpcResult {
+            msg: buf_msg.msg,
+            res,
+        })
     }
 }
-
-impl std::error::Error for MsgError {}
 
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Msg {
     pub msg_id: mtproto::MsgId,
     pub seq_no: mtproto::SeqNo,
-}
-
-impl Msg {
-    pub fn validate(
-        &self,
-        msg_ids: &mut mtproto::ServerMsgIds,
-        seq_nos: &mut mtproto::SeqNos,
-        unix_time: std::time::SystemTime,
-        content_related: bool,
-        is_response: bool,
-    ) -> Result<(), MsgError> {
-        msg_ids
-            .validate(self.msg_id, unix_time, is_response)
-            .map_err(MsgError::MsgId)?;
-
-        seq_nos
-            .validate(self.seq_no, content_related)
-            .map_err(MsgError::SeqNo)?;
-
-        Ok(())
-    }
 }
 
 impl ConstSerializedLen for Msg {

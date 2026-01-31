@@ -1,6 +1,8 @@
 #![forbid(unsafe_code, clippy::todo)]
 
+mod encrypted;
 mod error;
+mod plaintext;
 
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
@@ -8,9 +10,11 @@ use std::{io, mem};
 
 use tokio::io::AsyncRead;
 
-use crate::transport::{Packet, Transport, TransportRead, Unpack, UnpackResult};
+use crate::transport::{Transport, TransportRead, Unpack, UnpackResult};
 
+pub use encrypted::EncryptedMessageError;
 pub use error::ReaderError;
+pub use plaintext::PlaintextMessageError;
 
 const BUFFER_NO_ROTATE_THRESHOLD: usize = 16 * 1024;
 
@@ -39,15 +43,10 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         }
     }
 
-    #[inline]
-    #[must_use]
-    pub fn as_mut_slice(&mut self, packet: Packet) -> &mut [u8] {
-        &mut self.buffer.as_mut_slice()[packet.data]
-    }
-
     /// # Panics
     ///
     /// * If the provided `other` capacity is less than the current length.
+    #[track_caller]
     pub fn swap_buffer(&mut self, other: &mut unbite::DynBuf) {
         let length = self.buffer.len() - self.offset;
 

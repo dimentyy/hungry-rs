@@ -1,5 +1,4 @@
 use std::fmt;
-use std::num::NonZeroI64;
 
 use crate::mtproto;
 
@@ -17,20 +16,20 @@ pub struct SessionIdError(pub mtproto::Session);
 
 impl fmt::Display for SessionIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "received unexpected `session_id`: {:#018x}", self.0)
+        write!(f, "`session_id` error: {:#018x}", self.0)
     }
 }
 
 impl std::error::Error for SessionIdError {}
 
-#[derive(Debug, Eq, PartialEq)]
-pub struct AuthKeyIdError(pub Option<mtproto::AuthKeyId>);
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthKeyIdError(pub mtproto::AuthKeyId);
 
 impl fmt::Display for AuthKeyIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let auth_key_id = self.0.map_or(0, NonZeroI64::get);
+        let auth_key_id = self.0.get();
 
-        write!(f, "received unexpected `auth_key_id`: {auth_key_id:#018x}")
+        write!(f, "`auth_key_id` error: {auth_key_id:#018x}",)
     }
 }
 

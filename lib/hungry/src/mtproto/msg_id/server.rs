@@ -1,17 +1,13 @@
-use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::mtproto;
+use crate::mtproto::MsgId;
 
-// TODO: better naming.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MsgIdError {
-    Client,
-    Response,
-    InvalidRemainder,
-    NonResponse,
+    Even,
+    Negative,
     LowerThanAll,
     EqualToAny,
     InTheFuture,
@@ -22,18 +18,15 @@ impl fmt::Display for MsgIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use MsgIdError::*;
 
-        f.write_str("`msg_id` validation error: ")?;
+        f.write_str("`msg_id` error: ")?;
 
-        // TODO: better messages.
         f.write_str(match self {
-            Client => "divisible by 4 (client message)",
-            Response => "mod 4 yielded 1 (response)",
-            InvalidRemainder => "mod 4 yielded 2 (invalid)",
-            NonResponse => "mod 4 yielded 3 (not a response)",
+            Even => "even parity",
+            Negative => "negative",
             LowerThanAll => "lower than all",
-            EqualToAny => "already received",
-            InTheFuture => "message `unix_time` is in the future",
-            InThePast => "message `unix_time` is in the past",
+            EqualToAny => "equal to any",
+            InTheFuture => "calculated `unix_time` is in the future",
+            InThePast => "calculated `unix_time` is in the past",
         })
     }
 }
@@ -42,9 +35,9 @@ impl std::error::Error for MsgIdError {}
 
 #[must_use]
 pub struct ServerMsgIds {
-    vec: VecDeque<mtproto::MsgId>,
-    max: mtproto::MsgId,
-    min: mtproto::MsgId,
+    vec: VecDeque<MsgId>,
+    max: MsgId,
+    min: MsgId,
 }
 
 impl ServerMsgIds {
@@ -52,22 +45,41 @@ impl ServerMsgIds {
     pub fn new(capacity: usize) -> Self {
         Self {
             vec: VecDeque::with_capacity(capacity),
-            max: mtproto::MsgId::MIN,
-            min: mtproto::MsgId::MIN,
+            max: i64::MIN,
+            min: i64::MIN,
         }
     }
 
-    #[inline]
-    fn push(&mut self, msg_id: mtproto::MsgId) {
+    #[inline(always)]
+    fn gt_max_branch(&mut self, msg_id: MsgId, sys_secs: i32) {
+        self.max = msg_id;
+
+        // Not possible to push.
         if self.vec.capacity() == 0 {
+            self.min = msg_id;
+
             return;
         }
 
+        if !self.vec.is_empty() {
+            self.drain_front(sys_secs);
+        }
+
+        self.vec.push_back(msg_id);
+    }
+
+    #[inline(always)]
+    fn drain_front(&mut self, sys_secs: i32) {
+        // Do not reserve extra, pop the front immediately.
         if self.vec.len() == self.vec.capacity() {
             let _ = self.vec.pop_front();
         }
 
-        self.vec.push_front(msg_id);
+        let index = self.vec.partition_point(|&x| is_in_the_past(x, sys_secs));
+
+        if let Some(last) = self.vec.drain(..index).last() {
+            self.min = last;
+        }
     }
 
     /// Validates provided [`MsgId`] against provided the `unix_time`.
@@ -81,62 +93,88 @@ impl ServerMsgIds {
     /// See [Security Guidelines] page for information.
     ///
     /// [Security Guidelines]: https://core.telegram.org/mtproto/security_guidelines#checking-msg-id
-    pub fn validate(
-        &mut self,
-        msg_id: mtproto::MsgId,
-        unix_time: SystemTime,
-        is_response: bool,
-    ) -> Result<(), MsgIdError> {
-        use Ordering::*;
-
+    pub fn check(&mut self, msg_id: MsgId, unix_time: SystemTime) -> Result<(), MsgIdError> {
         use MsgIdError::*;
 
-        match msg_id & 3 {
-            0 => return Err(Client),
-            1 if !is_response => return Err(Response),
-            2 => return Err(InvalidRemainder),
-            3 if is_response => return Err(NonResponse),
-            _ => {}
+        assert!(self.vec.capacity() > 0);
+
+        if msg_id & 1 == 0 {
+            return Err(Even);
         }
 
-        let sys_secs = unix_time
+        if msg_id.is_negative() {
+            return Err(Negative);
+        }
+
+        let sys_secs: i32 = unix_time
             .duration_since(UNIX_EPOCH)
             .expect("system clock time to be after the Unix epoch")
-            .as_secs();
+            .as_secs()
+            .try_into()
+            .expect("number of secs since the Unix epoch to not overflow");
 
-        let msg_secs = msg_id.cast_unsigned() >> 32;
+        check_unix_time(msg_id, sys_secs)?;
 
-        if sys_secs - 300 > msg_secs {
-            return Err(InThePast);
+        if self.vec.is_empty() {
+            self.vec.push_back(msg_id);
+
+            return Ok(());
         }
 
-        if msg_secs > sys_secs + 30 {
-            return Err(InTheFuture);
+        // Should be the hot path.
+        if msg_id > self.max {
+            self.gt_max_branch(msg_id, sys_secs);
+
+            return Ok(());
         }
 
-        match msg_id.cmp(&self.max) {
-            Less => {}
-            Equal => return Err(EqualToAny),
-            Greater => {
-                self.push(msg_id);
-
-                return Ok(());
-            }
+        // Unless `self.min` is set, this will not error.
+        if msg_id < self.min {
+            return Err(LowerThanAll);
         }
 
-        match msg_id.cmp(&self.min) {
-            Less => return Err(LowerThanAll),
-            Equal => return Err(EqualToAny),
-            Greater => {}
-        }
-
-        // Probably better to iterate backwards, though it is not a happy path.
-        if self.vec.contains(&msg_id) {
+        // Range bounds `self.max` & `self.min` are equal.
+        if self.vec.capacity() == 0 {
             return Err(EqualToAny);
         }
 
-        self.push(msg_id);
+        if !self.vec.is_empty() {
+            self.drain_front(sys_secs)
+        }
+
+        let index = match self.vec.binary_search(&msg_id) {
+            Ok(_pos) => return Err(EqualToAny),
+            Err(pos) => pos,
+        };
+
+        self.vec.insert(index, msg_id);
 
         Ok(())
     }
+}
+
+#[inline(always)]
+fn is_in_the_past(msg_id: MsgId, sys_secs: i32) -> bool {
+    #[expect(clippy::cast_possible_truncation)]
+    let msg_secs = (msg_id >> 32) as i32;
+
+    sys_secs - 300 > msg_secs
+}
+
+#[inline(always)]
+fn check_unix_time(msg_id: MsgId, sys_secs: i32) -> Result<(), MsgIdError> {
+    use MsgIdError::*;
+
+    #[expect(clippy::cast_possible_truncation)]
+    let msg_secs = (msg_id >> 32) as i32;
+
+    if sys_secs - 300 > msg_secs {
+        return Err(InThePast);
+    }
+
+    if msg_secs > sys_secs + 30 {
+        return Err(InTheFuture);
+    }
+
+    Ok(())
 }

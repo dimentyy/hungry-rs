@@ -22,23 +22,23 @@ use crate::mtproto;
 /// <https://core.telegram.org/mtproto/description#unencrypted-messages>
 #[must_use]
 #[derive(Debug)]
-pub struct PlainMsgHeader {
-    pub message_id: mtproto::MsgId,
-    pub message_data_length: i32,
+pub struct UnencryptedMessage {
+    pub id: mtproto::MsgId,
+    pub data_length: i32,
 }
 
-impl fmt::Display for PlainMsgHeader {
+impl fmt::Display for UnencryptedMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "plain msg header [message_id={:#018x}, message_data_length={}]",
-            self.message_id, self.message_data_length
+            "unencrypted message [id={:#018x}, data_length={}]",
+            self.id, self.data_length
         )
     }
 }
 
-impl PlainMsgHeader {
-    /// Length of the [`PlainMsgHeader`] in bytes.
+impl UnencryptedMessage {
+    /// Length of the [`UnencryptedMessage`] in bytes.
     ///
     /// # Layout
     ///

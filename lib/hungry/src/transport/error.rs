@@ -44,14 +44,17 @@ pub enum TransportError {
     /// [HTTPS]: https://core.telegram.org/mtproto/transports#https
     Status(i32),
 
-    /// Length field contains an invalid value, usually less than the minimum.
     BadLen(i32),
 
-    /// CRC-32 failed.
-    BadCrc { received: u32, computed: u32 },
+    BadSeq {
+        received: i32,
+        expected: i32,
+    },
 
-    /// Bad sequence number.
-    BadSeq { received: i32, expected: i32 },
+    BadCrc {
+        received: u32,
+        computed: u32,
+    },
 }
 
 impl fmt::Display for TransportError {
@@ -63,13 +66,13 @@ impl fmt::Display for TransportError {
         match self {
             Status(code) => write!(f, "status code: {code}"),
             BadLen(len) => write!(f, "bad len: {len}"),
-            BadCrc { received, computed } => write!(
-                f,
-                "bad crc: received {received:#010x}, computed {computed:#010x}"
-            ),
             BadSeq { received, expected } => write!(
                 f,
                 "bad sequence number: received {received}, expected {expected}"
+            ),
+            BadCrc { received, computed } => write!(
+                f,
+                "bad crc: received {received:#010x}, computed {computed:#010x}"
             ),
         }
     }

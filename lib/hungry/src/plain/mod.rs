@@ -5,9 +5,9 @@ use std::future::poll_fn;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::reader::{Reader, ReaderResult};
+use crate::tl;
 use crate::transport::{Transport, Unpack};
 use crate::writer::Writer;
-use crate::{mtproto, tl};
 
 pub use error::PlainError;
 
@@ -40,14 +40,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
 
         let header = buffer.split_raw_front();
 
-        buffer.init_with(|spare_capacity| {
-            let mut buf = tl::ser::Buf::uninit(spare_capacity);
-
-            buf.ser(&F::CONSTRUCTOR_ID);
-            buf.ser(f);
-
-            buf.as_slice()
-        });
+        buffer.init_with(|spare_capacity| tl::ser_uninit(spare_capacity, f));
 
         let mut fut = self.writer.single_plain(envelope, header, buffer, 0);
 
@@ -64,37 +57,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
             Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let buf = self.reader.as_mut_slice(packet);
-
-        if buf.len() < mtproto::PlainMsgHeader::LEN {
-            todo!()
-        }
-
-        let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
-
-        if let Some(_auth_key_id) = mtproto::auth_key_id(*auth_key_id) {
-            todo!()
-        }
-
-        let (header, buf) = buf.split_first_chunk().unwrap();
-
-        let header = mtproto::PlainMsgHeader::unpack(*header);
-
-        let data_length = header.message_data_length;
-
-        let Ok(data_length) = usize::try_from(data_length) else {
-            todo!()
-        };
-
-        if data_length != buf.len() {
-            todo!()
-        }
-
-        if !data_length.is_multiple_of(4) {
-            todo!()
-        }
-
-        let mut buf = tl::de::Buf::new(buf);
+        let (message_id, mut buf) = self.reader.plaintext_message(&packet).expect("TODO");
 
         Ok(buf.de()?)
     }

@@ -8,7 +8,7 @@ use std::task::{Context, Poll, ready};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::oneshot;
 
-use crate::sender::{Sender, SenderError, SenderOutput};
+use crate::sender::{Messages, Sender, SenderError};
 use crate::transport::Transport;
 use crate::{mtproto, tl};
 
@@ -23,7 +23,14 @@ pub enum HandleError {
 
 impl fmt::Display for HandleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
+        use HandleError::*;
+
+        f.write_str("handle error: ")?;
+
+        match self {
+            Sender(err) => err.fmt(f),
+            Todo(msg) => f.write_str(msg),
+        }
     }
 }
 
@@ -47,9 +54,6 @@ struct Request {
 pub struct Handle<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     sender: Sender<T, R, W>,
 
-    seq_nos: mtproto::SeqNos,
-    msg_ids: mtproto::ServerMsgIds,
-
     requests: VecDeque<Request>,
 }
 
@@ -57,9 +61,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
     pub fn new(sender: Sender<T, R, W>) -> Self {
         Self {
             sender,
-
-            seq_nos: mtproto::SeqNos::new(),
-            msg_ids: mtproto::ServerMsgIds::new(1024),
 
             requests: VecDeque::new(),
         }
@@ -79,22 +80,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         self.requests.push_back(request);
 
         rx
-    }
-
-    #[inline]
-    fn validate_msg(
-        &mut self,
-        msg: mtproto::Msg,
-        content_related: bool,
-        is_response: bool,
-    ) -> Result<(), mtproto::MsgError> {
-        msg.validate(
-            &mut self.msg_ids,
-            &mut self.seq_nos,
-            std::time::SystemTime::now(),
-            content_related,
-            is_response,
-        )
     }
 
     fn send_rpc_result(&mut self, req_msg_id: i64, res: tl::Object) {
@@ -135,13 +120,19 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         let output = ready!(self.sender.poll(cx)).map_err(Sender)?;
 
         match output {
-            SenderOutput::Message(message) => match message {
+            Messages::Msg(buf_msg) => match mtproto::Message::deserialize(buf_msg).unwrap() {
                 mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
                 mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
             },
-            SenderOutput::MsgContainer(_msg, messages) => {
-                for message in messages {
-                    match message {
+            Messages::MsgContainer(_msg, container) => {
+                let mut res = Vec::with_capacity(container.len());
+
+                for buf_msg in container {
+                    res.push(mtproto::Message::deserialize(buf_msg).unwrap());
+                }
+
+                for res in res {
+                    match res {
                         mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
                         mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
                     }

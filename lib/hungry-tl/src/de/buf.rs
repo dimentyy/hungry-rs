@@ -5,7 +5,7 @@ use std::{hint, ptr, slice};
 use crate::de::{Deserialize, DeserializeInfallible, EndOfBufferError, Error};
 
 #[must_use]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Buf<'a> {
     pub(crate) ptr: NonNull<u8>,
     pub(crate) len: usize,

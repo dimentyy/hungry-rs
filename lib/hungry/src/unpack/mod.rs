@@ -22,12 +22,12 @@ impl<'a> Iterator for MsgContainer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.len = self.len.checked_sub(1)?;
 
-        let msg_de = match mtproto::BufMsg::deserialize(&mut self.buf) {
-            Ok(msg_de) => msg_de,
+        let buf_msg = match mtproto::BufMsg::deserialize(&mut self.buf) {
+            Ok(buf_msg) => buf_msg,
             Err(err) => return Some(Err(err)),
         };
 
-        Some(Ok(msg_de))
+        Some(Ok(buf_msg))
     }
 
     #[inline]

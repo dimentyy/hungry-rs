@@ -39,7 +39,6 @@ pub type AuthKeyAuxHash = [u8; 8];
 /// <https://core.telegram.org/mtproto/description#authorization-key-auth-key>
 #[must_use]
 #[derive(Clone, Eq)]
-#[repr(align(8))]
 pub struct AuthKey {
     data: [u8; 256],
 

@@ -9,17 +9,15 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
-use crate::{common, mtproto, tl, unpack};
-
-use common::infallible;
+use crate::{mtproto, tl, unpack};
 
 use container::Container;
 
 pub use error::SenderError;
 
-pub enum SenderOutput {
-    Message(mtproto::Message),
-    MsgContainer(mtproto::Msg, Vec<mtproto::Message>),
+pub enum Messages<'a> {
+    Msg(mtproto::BufMsg<'a>),
+    MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
 }
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
@@ -27,15 +25,18 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     writer: QueuedWriter<W, T>,
 
     auth_key: mtproto::AuthKey,
-    session: mtproto::Session,
+    session_id: mtproto::Session,
 
     // FIXME
     salt: mtproto::Salt,
 
     container: Option<Container<T>>,
 
-    msg_ids: mtproto::ClientMsgIds,
-    seq_nos: mtproto::SeqNos,
+    client_msg_ids: mtproto::ClientMsgIds,
+    client_seq_nos: mtproto::SeqNos,
+
+    server_seq_nos: mtproto::SeqNos,
+    server_msg_ids: mtproto::ServerMsgIds,
 }
 
 impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> {
@@ -53,14 +54,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             writer,
 
             auth_key,
-            session,
+            session_id: session,
 
             salt,
 
             container: None,
 
-            msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
-            seq_nos: mtproto::SeqNos::new(),
+            client_msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
+            client_seq_nos: mtproto::SeqNos::new(),
+
+            server_msg_ids: mtproto::ServerMsgIds::new(1024),
+            server_seq_nos: mtproto::SeqNos::new(),
         }
     }
 
@@ -74,6 +78,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         eprintln!("TODO: push_immediate_writer_buffer(..)");
     }
 
+    #[inline]
     fn take_container(&mut self) -> Option<Container<T>> {
         mem::take(&mut self.container)
     }
@@ -119,11 +124,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             &self.auth_key,
             mtproto::InternalHeader {
                 salt: self.salt,
-                session_id: self.session,
+                session_id: self.session_id,
             },
             mtproto::Msg {
-                msg_id: self.msg_ids.get(std::time::SystemTime::now()),
-                seq_no: self.seq_nos.non_content_related(),
+                msg_id: self.client_msg_ids.get(std::time::SystemTime::now()),
+                seq_no: self.client_seq_nos.non_content_related(),
             },
         );
 
@@ -136,8 +141,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     ///
     /// * If the provided `len` exceeds the `i32::MAX`.
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::BytesMsg {
-        let msg_id = self.msg_ids.get(std::time::SystemTime::now());
-        let seq_no = self.seq_nos.get_content_related();
+        let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
+        let seq_no = self.client_seq_nos.get_content_related();
 
         let msg = mtproto::MsgWith::bytes(msg_id, seq_no, len.try_into().unwrap());
 
@@ -146,7 +151,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<SenderOutput, SenderError>> {
+    pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Messages<'a>, SenderError>> {
         if !self.writer.is_empty() || self.container.is_some() {
             loop {
                 let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
@@ -181,129 +186,54 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                 }
             };
 
-            let buf = self.packet(packet)?;
+            let messages = self.packet(packet)?;
 
-            return Poll::Ready(Ok(buf));
+            return Poll::Ready(Ok(messages));
         }
 
         Poll::Pending
     }
 
-    fn packet_de_buf(&'_ mut self, packet: Packet) -> Result<tl::de::Buf<'_>, SenderError> {
-        pub use SenderError::*;
+    fn packet(&'_ mut self, packet: Packet) -> Result<Messages<'_>, SenderError> {
+        use SenderError::*;
 
-        let buf = self.reader.as_mut_slice(packet);
+        let (internal, mut buf) = self
+            .reader
+            .encrypted_message(&packet, &self.auth_key)
+            .map_err(Message)?;
 
-        if buf.len() < mtproto::ExternalHeader::LEN + mtproto::InternalHeader::LEN {
-            return Err(TooSmall { len: buf.len() });
+        if internal.session_id != self.session_id {
+            return Err(Session(mtproto::SessionIdError(internal.session_id)));
         }
 
-        infallible! {
-            let (auth_key_id, buf) = buf.split_first_chunk_mut().unwrap();
+        let buf_msg = mtproto::BufMsg::deserialize(&mut buf)?;
+
+        if !mtproto::ENCRYPTED_PADDING_RANGE.contains(&buf.len()) {
+            return Err(PaddingLength(buf.len()));
         }
 
-        let Some(auth_key_id) = mtproto::auth_key_id(*auth_key_id) else {
-            return Err(AuthKeyId(mtproto::AuthKeyIdError(None)));
-        };
+        let unix_time = std::time::SystemTime::now();
 
-        if auth_key_id != self.auth_key.id() {
-            return Err(AuthKeyId(mtproto::AuthKeyIdError(Some(auth_key_id))));
+        if buf_msg.typ != tl::MSG_CONTAINER {
+            self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
+            self.server_seq_nos.check_with_typ(&buf_msg)?;
+
+            return Ok(Messages::Msg(buf_msg));
         }
 
-        infallible! {
-            let (external, buf) = buf.split_first_chunk_mut().unwrap();
+        let msg_container = unpack::MsgContainer::new(buf_msg.buf).map_err(EndOfDeBuffer)?;
+
+        let mut container = Vec::with_capacity(dbg!(msg_container.len()));
+
+        for item in msg_container {
+            let buf_msg = dbg!(item)?;
+
+            self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
+            self.server_seq_nos.check_with_typ(&buf_msg)?;
+
+            container.push(buf_msg);
         }
 
-        let external = mtproto::ExternalHeader::unpack(auth_key_id, *external);
-
-        external.decrypt(&self.auth_key, buf).map_err(MsgKeyCheck)?;
-
-        infallible! {
-            let (internal, buf) = buf.split_first_chunk_mut().unwrap();
-        }
-
-        let internal = mtproto::InternalHeader::unpack(*internal);
-
-        if internal.session_id != self.session {
-            return Err(SessionId(mtproto::SessionIdError(internal.session_id)));
-        }
-
-        Ok(tl::de::Buf::new(buf))
-    }
-
-    fn deserialize(mut buf: tl::de::Buf) -> Result<SenderOutput, SenderError> {
-        let mtproto::BytesMsg { msg, obj: len } = buf.de_infallible()?;
-
-        let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-        if id == tl::MSG_CONTAINER {
-            let Ok(_) = buf.advance(4) else {
-                unreachable!()
-            };
-
-            let msg_container = unpack::MsgContainer::new(buf)?;
-
-            let mut output = Vec::with_capacity(msg_container.len());
-
-            for msg in msg_container {
-                let mtproto::BufMsg { msg, mut buf } = msg?;
-
-                let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-                let message = if id == tl::RPC_RESULT {
-                    let req_msg_id: i64 = buf.de_infallible()?;
-
-                    let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-                    if id == tl::GZIP_PACKED {
-                        todo!()
-                    }
-
-                    let object: tl::Object = buf.de()?;
-
-                    let res = mtproto::RpcResult { req_msg_id, object };
-
-                    mtproto::Message::RpcResult { msg, res }
-                } else {
-                    let obj: tl::Object = buf.de()?;
-
-                    mtproto::Message::Object { msg, obj }
-                };
-
-                output.push(message);
-            }
-
-            Ok(SenderOutput::MsgContainer(msg, output))
-        } else {
-            Ok(SenderOutput::Message(if id == tl::RPC_RESULT {
-                let Ok(_) = buf.advance(4) else {
-                    unreachable!()
-                };
-
-                let req_msg_id: i64 = buf.de_infallible()?;
-
-                let id = u32::from_le_bytes(*buf.peek_exactly()?);
-
-                if id == tl::GZIP_PACKED {
-                    todo!()
-                }
-
-                let object: tl::Object = buf.de()?;
-
-                let res = mtproto::RpcResult { req_msg_id, object };
-
-                mtproto::Message::RpcResult { msg, res }
-            } else {
-                let obj: tl::Object = buf.de()?;
-
-                mtproto::Message::Object { msg, obj }
-            }))
-        }
-    }
-
-    fn packet(&mut self, packet: Packet) -> Result<SenderOutput, SenderError> {
-        let buf = self.packet_de_buf(packet)?;
-
-        Self::deserialize(buf)
+        Ok(Messages::MsgContainer(buf_msg.msg, container))
     }
 }

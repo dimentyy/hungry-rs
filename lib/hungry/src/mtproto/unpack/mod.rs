@@ -1,6 +1,6 @@
 mod error;
 
-use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, PlainMsgHeader, Side};
+use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, UnencryptedMessage, Side};
 use crate::{common, crypto, tl};
 
 use common::infallible;
@@ -11,16 +11,16 @@ pub use error::{
 
 #[inline]
 #[must_use]
-pub const fn auth_key_id(buf: [u8; 8]) -> Option<AuthKeyId> {
+pub const fn unpack_auth_key_id(buf: [u8; 8]) -> Option<AuthKeyId> {
     std::num::NonZeroI64::new(i64::from_le_bytes(buf))
 }
 
-impl PlainMsgHeader {
+impl UnencryptedMessage {
     #[inline]
     pub fn unpack(buf: [u8; 12]) -> Self {
         infallible!(Self {
-            message_id: i64::from_le_bytes(buf[0..8].try_into().unwrap()),
-            message_data_length: i32::from_le_bytes(buf[8..12].try_into().unwrap()),
+            id: i64::from_le_bytes(buf[0..8].try_into().unwrap()),
+            data_length: i32::from_le_bytes(buf[8..12].try_into().unwrap()),
         })
     }
 }

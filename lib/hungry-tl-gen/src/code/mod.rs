@@ -197,9 +197,9 @@ fn write_type(cfg: &Cfg, data: &Data, s: &mut String, x: &Type) -> Result<()> {
     if let Some(len) = x.combinator.de.const_len() {
         push_const_ser_len(s, &x.combinator.ident.actual, len);
     } else {
-        push_struct_ser_len(cfg, data, s, &x.combinator);
+        push_struct_ser_len(cfg, data, s, &x.combinator, false);
     }
-    push_struct_ser(cfg, data, s, &x.combinator);
+    push_struct_ser(cfg, data, s, &x.combinator, false);
     push_type_de(cfg, data, s, x);
 
     f.write_all(s.as_bytes())?;
@@ -216,11 +216,11 @@ fn write_func(cfg: &Cfg, data: &Data, s: &mut String, x: &Func) -> Result<()> {
     push_identifiable(s, &x.combinator);
     push_function(cfg, data, s, x);
     if let Some(len) = x.combinator.de.const_len() {
-        push_const_ser_len(s, &x.combinator.ident.actual, len);
+        push_const_ser_len(s, &x.combinator.ident.actual, len + 4);
     } else {
-        push_struct_ser_len(cfg, data, s, &x.combinator);
+        push_struct_ser_len(cfg, data, s, &x.combinator, true);
     }
-    push_struct_ser(cfg, data, s, &x.combinator);
+    push_struct_ser(cfg, data, s, &x.combinator, true);
 
     f.write_all(s.as_bytes())?;
     s.clear();

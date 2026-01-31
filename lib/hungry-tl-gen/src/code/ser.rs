@@ -5,22 +5,16 @@ use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
 fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     match &x.typ {
         ArgTyp::Flags { .. } => s.push('4'),
-        ArgTyp::Typ { typ, .. } => {
-            if matches!(typ, Typ::Generic { .. }) {
-                s.push_str("crate::ConstructorId::from_ref(&");
-            }
+        ArgTyp::Typ { .. } => {
             s.push_str("self.");
             push_escaped(s, &x.ident);
-            if matches!(typ, Typ::Generic { .. }) {
-                s.push(')');
-            }
             s.push_str(".serialized_len()");
         }
         ArgTyp::True { .. } => {}
     }
 }
 
-pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator) {
+pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator, func: bool) {
     s.push_str("\nimpl");
     push_function_generics(s, &x.generic_args, true);
     s.push_str(" crate::SerializedLen for ");
@@ -31,10 +25,16 @@ pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Co
         0 => unreachable!(),
         1 => {
             s.push_str(" {\n    #[inline]\n    fn serialized_len(&self) -> usize {\n        ");
+            if func {
+                s.push_str("4 + ")
+            }
             write_structure_arg_len(cfg, data, s, &x.args[0]);
         }
         _ => {
             s.push_str(" {\n    fn serialized_len(&self) -> usize {\n        ");
+            if func {
+                s.push_str("4 + ")
+            }
 
             let mut iter = x.args.iter();
 
@@ -108,7 +108,7 @@ fn write_flag_arg(_cfg: &Cfg, s: &mut String, x: &Combinator, i: usize) {
     }
 }
 
-pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combinator) {
+pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combinator, func: bool) {
     s.push_str("\nimpl");
     push_function_generics(s, &x.generic_args, true);
     s.push_str(" crate::ser::SerializeUnchecked for ");
@@ -116,16 +116,24 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
     push_function_generics(s, &x.generic_args, false);
 
     s.push_str(match x.args.len() {
-        0 => {
+        0 if !func => {
             s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        buf\n    }\n}\n");
+            return;
+        }
+        0 => {
+            s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        Self::CONSTRUCTOR_ID.serialize_unchecked(buf)\n    }\n}\n");
             return;
         }
         1 => " {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n",
         _ => " {\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n",
     });
 
+    if func {
+        s.push_str("            buf = Self::CONSTRUCTOR_ID.serialize_unchecked(buf);\n");
+    }
+
     for arg in &x.args {
-        let (typ, _) = match &arg.typ {
+        let (_, _) = match &arg.typ {
             ArgTyp::Flags { args } => {
                 s.push_str("            buf = ");
                 if args.is_empty() {
@@ -150,15 +158,8 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
             ArgTyp::True { .. } => continue,
         };
 
-        s.push_str(if matches!(typ, Typ::Generic { .. }) {
-            "            buf = crate::ConstructorId::from_ref(&self."
-        } else {
-            "            buf = self."
-        });
+        s.push_str("            buf = self.");
         push_escaped(s, &arg.ident);
-        if matches!(typ, Typ::Generic { .. }) {
-            s.push(')');
-        }
         s.push_str(".serialize_unchecked(buf);\n");
     }
 

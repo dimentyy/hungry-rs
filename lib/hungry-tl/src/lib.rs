@@ -106,40 +106,6 @@ impl ConstSerializedLen for bool {
     const SERIALIZED_LEN: usize = u32::SERIALIZED_LEN;
 }
 
-#[repr(transparent)]
-pub struct ConstructorId<X: Function>(pub X);
-
-impl<X: Function> ConstructorId<X> {
-    #[inline(always)]
-    pub const fn from_ref(r: &X) -> &Self {
-        // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
-        unsafe { &*std::ptr::from_ref(r).cast() }
-    }
-
-    #[inline(always)]
-    pub const fn from_mut(r: &mut X) -> &mut Self {
-        // SAFETY: `ConstructorId<X>` is `#[repr(transparent)]` over `X`.
-        unsafe { &mut *std::ptr::from_mut(r).cast() }
-    }
-}
-
-impl<X: Function> SerializedLen for ConstructorId<X> {
-    #[inline(always)]
-    fn serialized_len(&self) -> usize {
-        4 + self.0.serialized_len()
-    }
-}
-
-impl<X: Function> ser::SerializeUnchecked for ConstructorId<X> {
-    #[inline(always)]
-    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {
-        unsafe {
-            buf = X::CONSTRUCTOR_ID.serialize_unchecked(buf);
-            self.0.serialize_unchecked(buf)
-        }
-    }
-}
-
 #[inline]
 pub fn ser<X: ser::SerializeUnchecked>(buf: &mut [u8], x: &X) {
     let _ = ser::Buf::new(buf).chain_ser(x);
