@@ -1,4 +1,5 @@
 use std::fmt;
+
 use tokio::io::AsyncRead;
 
 use crate::mtproto::{AuthKeyIdError, UnencryptedMessage, unpack_auth_key_id};
@@ -66,9 +67,9 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
             return Err(InvalidDataLength);
         };
 
-        // if data_length != buf.len() {
-        //     return Err(InvalidDataLength);
-        // }
+        if data_length != buf.len() {
+            return Err(InvalidDataLength);
+        }
 
         if !data_length.is_multiple_of(4) {
             return Err(InvalidDataLength);

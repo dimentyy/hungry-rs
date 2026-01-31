@@ -6,6 +6,7 @@ mod rsa;
 pub use aes::{AesIgeIv, AesIgeKey, aes_ige_decrypt, aes_ige_encrypt};
 pub use rsa::{RsaKey, RsaKeyFingerprint};
 
+#[inline]
 #[must_use]
 pub fn trim_zeroes_left(x: &[u8]) -> &[u8] {
     let Some(pos) = x.iter().position(|x| *x != 0) else {

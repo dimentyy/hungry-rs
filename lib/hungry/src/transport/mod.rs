@@ -83,7 +83,6 @@ pub trait TransportEnvelope {
     fn header_swap<const N: usize>(&mut self, buffer: &mut unbite::Raw<N>);
 }
 
-#[cfg(feature = "obfuscated-transport")]
 pub trait IdentifiableTransport: Transport {
     /// The protocol identifier, if its length
     /// is less than 4, it must be padded using

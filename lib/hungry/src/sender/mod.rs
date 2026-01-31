@@ -144,7 +144,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.client_seq_nos.get_content_related();
 
-        let msg = mtproto::MsgWith::bytes(msg_id, seq_no, len.try_into().unwrap());
+        let msg = mtproto::BytesMsg {
+            msg: mtproto::Msg { msg_id, seq_no },
+            bytes: len.try_into().unwrap(),
+        };
 
         self.get_container(len).push(&msg, f);
 

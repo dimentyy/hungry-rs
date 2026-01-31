@@ -1,6 +1,6 @@
 use crate::transport::{
-    Packet, QuickAck, Transport, TransportEnvelope, TransportRead, TransportWrite, Unpack,
-    UnpackResult,
+    IdentifiableTransport, Packet, QuickAck, Transport, TransportEnvelope, TransportRead,
+    TransportWrite, Unpack, UnpackResult,
 };
 
 /// # Intermediate
@@ -79,7 +79,7 @@ impl Transport for Intermediate {
     const INIT_SIZE: usize = 4;
 
     fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
-        writer_buffer.extend_from_array(&[0xee, 0xee, 0xee, 0xee]);
+        writer_buffer.extend_from_array(&Self::TRANSPORT_IDENTIFIER);
 
         (
             IntermediateRead { _private: () },
@@ -138,8 +138,7 @@ impl TransportWrite for IntermediateWrite {
     }
 }
 
-#[cfg(feature = "obfuscated-transport")]
-impl super::IdentifiableTransport for Intermediate {
+impl IdentifiableTransport for Intermediate {
     const TRANSPORT_IDENTIFIER: [u8; 4] = [0xee, 0xee, 0xee, 0xee];
 }
 

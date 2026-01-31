@@ -49,12 +49,14 @@ pub struct BufMsg<'a> {
 impl Deref for BufMsg<'_> {
     type Target = Msg;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.msg
     }
 }
 
 impl DerefMut for BufMsg<'_> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.msg
     }

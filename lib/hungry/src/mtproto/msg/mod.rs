@@ -1,5 +1,5 @@
 mod buf;
-mod with;
+mod bytes;
 
 use std::ptr::NonNull;
 
@@ -10,15 +10,12 @@ use tl::de::DeserializeInfallible;
 use tl::ser::SerializeUnchecked;
 
 pub use buf::{BufMsg, BufMsgError};
-pub use with::{MsgBytes, MsgWith};
+pub use bytes::BytesMsg;
 
-/// Type alias representing the `message` constructor header without the `body`.
-pub type BytesMsg = MsgWith<MsgBytes>;
-
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RpcResult {
     pub req_msg_id: mtproto::MsgId,
-    pub object: tl::Object,
+    pub res_object: tl::Object,
 }
 
 #[derive(Debug, PartialEq)]
@@ -44,7 +41,10 @@ impl Message {
 
         let object = tl::Object::deserialize(typ, &mut buf_msg.buf)?;
 
-        let res = RpcResult { req_msg_id, object };
+        let res = RpcResult {
+            req_msg_id,
+            res_object: object,
+        };
 
         Ok(Message::RpcResult {
             msg: buf_msg.msg,

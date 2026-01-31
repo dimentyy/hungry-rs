@@ -111,7 +111,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
     }
 
     fn handle_result(&mut self, msg: mtproto::Msg, res: mtproto::RpcResult) {
-        self.send_rpc_result(res.req_msg_id, res.object);
+        self.send_rpc_result(res.req_msg_id, res.res_object);
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), HandleError>> {
