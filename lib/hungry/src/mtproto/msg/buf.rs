@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
-use crate::mtproto::Msg;
+use crate::mtproto::{Msg, NegativeBytesError};
 use crate::{common, tl};
 
 use common::infallible;
@@ -10,8 +10,10 @@ use tl::de::Buf;
 
 #[derive(Debug)]
 pub enum BufMsgError {
-    EndOfDeBuffer(tl::de::EndOfBufferError),
-    NegativeBytes(i32),
+    Insufficient(tl::de::EndOfBufferError),
+    NegativeBytes(NegativeBytesError),
+    IncompleteBody(tl::de::EndOfBufferError),
+    NotEnoughForTyp(tl::de::EndOfBufferError),
 }
 
 impl fmt::Display for BufMsgError {
@@ -21,8 +23,19 @@ impl fmt::Display for BufMsgError {
         f.write_str("`mtproto::BufMsg` deserialization error: ")?;
 
         match self {
-            EndOfDeBuffer(err) => err.fmt(f),
-            NegativeBytes(len) => write!(f, "negative length: {len}"),
+            Insufficient(err) => {
+                f.write_str("insufficient length to read the header: ")?;
+                err.fmt(f)
+            }
+            NegativeBytes(err) => err.fmt(f),
+            IncompleteBody(err) => {
+                f.write_str("incomplete body or length is too large: ")?;
+                err.fmt(f)
+            }
+            NotEnoughForTyp(err) => {
+                f.write_str("not enough length to read 4-byte `typ`: ")?;
+                err.fmt(f)
+            }
         }
     }
 }
@@ -31,10 +44,10 @@ impl std::error::Error for BufMsgError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use BufMsgError::*;
 
-        match self {
-            EndOfDeBuffer(err) => Some(err),
-            NegativeBytes(_) => None,
-        }
+        Some(match self {
+            Insufficient(err) | IncompleteBody(err) | NotEnoughForTyp(err) => err,
+            NegativeBytes(err) => err,
+        })
     }
 }
 
@@ -70,7 +83,7 @@ impl<'a> BufMsg<'a> {
     pub fn deserialize(buf: &mut Buf<'a>) -> Result<Self, BufMsgError> {
         use BufMsgError::*;
 
-        let header = buf.take_exactly::<16>().map_err(EndOfDeBuffer)?;
+        let header = buf.take_exactly::<16>().map_err(Insufficient)?;
 
         infallible! {
             let msg_id = i64::from_le_bytes(header[0..8].try_into().unwrap());
@@ -81,12 +94,12 @@ impl<'a> BufMsg<'a> {
         let msg = Msg { msg_id, seq_no };
 
         let Ok(bytes) = usize::try_from(bytes) else {
-            return Err(NegativeBytes(bytes));
+            return Err(NegativeBytes(NegativeBytesError(bytes)));
         };
 
-        let mut buf = Buf::new(buf.take(bytes).map_err(EndOfDeBuffer)?);
+        let mut buf = Buf::new(buf.take(bytes).map_err(IncompleteBody)?);
 
-        let typ = buf.de_infallible().map_err(EndOfDeBuffer)?;
+        let typ = buf.de_infallible().map_err(NotEnoughForTyp)?;
 
         Ok(Self { msg, typ, buf })
     }

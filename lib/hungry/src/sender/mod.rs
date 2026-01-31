@@ -8,8 +8,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
+use crate::unpack::MsgContainerIter;
 use crate::writer::QueuedWriter;
-use crate::{mtproto, tl, unpack};
+use crate::{mtproto, tl};
 
 use container::Container;
 
@@ -140,18 +141,17 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     /// # Panics
     ///
     /// * If the provided `len` exceeds the `i32::MAX`.
-    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::BytesMsg {
+    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(&mut self, len: usize, f: F) -> mtproto::Msg {
         let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.client_seq_nos.get_content_related();
 
-        let msg = mtproto::BytesMsg {
-            msg: mtproto::Msg { msg_id, seq_no },
-            bytes: len.try_into().unwrap(),
-        };
+        let bytes = len.try_into().unwrap();
 
-        self.get_container(len).push(&msg, f);
+        let bytes_msg = mtproto::BytesMsg::new(msg_id, seq_no, bytes);
 
-        msg
+        self.get_container(len).push(&bytes_msg, f);
+
+        bytes_msg.msg
     }
 
     pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Messages<'a>, SenderError>> {
@@ -224,12 +224,13 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Ok(Messages::Msg(buf_msg));
         }
 
-        let msg_container = unpack::MsgContainer::new(buf_msg.buf).map_err(EndOfDeBuffer)?;
+        let msg_container =
+            MsgContainerIter::new(buf_msg.buf).map_err(|err| Deserialization(err.into()))?;
 
-        let mut container = Vec::with_capacity(dbg!(msg_container.len()));
+        let mut container = Vec::with_capacity(msg_container.len());
 
         for item in msg_container {
-            let buf_msg = dbg!(item)?;
+            let buf_msg = item?;
 
             self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
             self.server_seq_nos.check_with_typ(&buf_msg)?;

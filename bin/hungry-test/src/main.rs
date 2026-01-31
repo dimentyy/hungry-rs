@@ -115,23 +115,19 @@ async fn async_main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         loop {
             let _objects = poll_fn(|cx| {
-                let poll = {
-                    if let Poll::Ready(ready) = handle.poll(cx) {
-                        return Poll::Ready(ready);
-                    }
+                if let Poll::Ready(ready) = handle.poll(cx) {
+                    return Poll::Ready(ready);
+                }
 
-                    while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
-                        let (tx, len, f) = ready;
+                while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
+                    let (tx, len, f) = ready;
 
-                        tx.send(handle.invoke(len, f)).unwrap();
+                    tx.send(handle.invoke(len, f)).unwrap();
 
-                        cx.waker().wake_by_ref();
-                    }
+                    cx.waker().wake_by_ref();
+                }
 
-                    Poll::Pending
-                };
-
-                dbg!(poll)
+                Poll::Pending
             })
             .await?;
         }
@@ -168,7 +164,8 @@ async fn async_main() -> anyhow::Result<()> {
 
         let obj = dbg!(get_nearest_dc_rx.await?.await?);
 
-        let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = obj else {
+        let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = obj
+        else {
             unimplemented!()
         };
 

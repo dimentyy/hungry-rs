@@ -16,9 +16,9 @@ pub enum SenderError {
     MsgId(MsgIdError),
     SeqNo(SeqNoError),
 
+    BufMsg(BufMsgError),
     PaddingLength(usize),
-    EndOfDeBuffer(tl::de::EndOfBufferError),
-    NegativeBytes(i32),
+    Deserialization(tl::de::Error),
 }
 
 impl From<MsgIdError> for SenderError {
@@ -38,12 +38,7 @@ impl From<SeqNoError> for SenderError {
 impl From<BufMsgError> for SenderError {
     #[inline]
     fn from(value: BufMsgError) -> Self {
-        use SenderError::*;
-
-        match value {
-            BufMsgError::EndOfDeBuffer(err) => EndOfDeBuffer(err),
-            BufMsgError::NegativeBytes(bytes) => NegativeBytes(bytes),
-        }
+        Self::BufMsg(value)
     }
 }
 
@@ -63,9 +58,9 @@ impl fmt::Display for SenderError {
             MsgId(err) => err.fmt(f),
             SeqNo(err) => err.fmt(f),
 
-            PaddingLength(len) => todo!(),
-            EndOfDeBuffer(err) => err.fmt(f),
-            NegativeBytes(bytes) => todo!(),
+            BufMsg(err) => err.fmt(f),
+            PaddingLength(_) => todo!(),
+            Deserialization(err) => err.fmt(f),
         }
     }
 }
@@ -84,9 +79,9 @@ impl std::error::Error for SenderError {
             MsgId(err) => err,
             SeqNo(err) => err,
 
+            BufMsg(err) => err,
             PaddingLength(_) => return None,
-            EndOfDeBuffer(err) => err,
-            NegativeBytes(_) => return None,
+            Deserialization(err) => err,
         })
     }
 }

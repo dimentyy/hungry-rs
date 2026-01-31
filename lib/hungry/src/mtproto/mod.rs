@@ -10,7 +10,7 @@ use std::ops::RangeInclusive;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, UnencryptedMessage};
-pub use msg::{BufMsg, BufMsgError, BytesMsg, Message, Msg, RpcResult};
+pub use msg::{BufMsg, BufMsgError, BytesMsg, Message, Msg, RpcResult, NegativeBytesError};
 pub use msg_id::{ClientMsgIds, MsgId, MsgIdError, ServerMsgIds, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
 pub use seq_no::{SeqNo, SeqNoError, SeqNos, content_related};

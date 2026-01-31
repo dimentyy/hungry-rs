@@ -71,7 +71,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
         len: usize,
         f: F,
     ) -> oneshot::Receiver<tl::Object> {
-        let msg = self.sender.invoke(len, f).msg;
+        let msg = self.sender.invoke(len, f);
 
         let (tx, rx) = oneshot::channel();
 

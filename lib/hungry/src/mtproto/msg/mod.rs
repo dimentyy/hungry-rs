@@ -1,6 +1,7 @@
 mod buf;
 mod bytes;
 
+use std::fmt;
 use std::ptr::NonNull;
 
 use crate::{mtproto, tl};
@@ -11,6 +12,17 @@ use tl::ser::SerializeUnchecked;
 
 pub use buf::{BufMsg, BufMsgError};
 pub use bytes::BytesMsg;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NegativeBytesError(pub i32);
+
+impl fmt::Display for NegativeBytesError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "negative value in the `bytes` field: {}", self.0)
+    }
+}
+
+impl std::error::Error for NegativeBytesError {}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RpcResult {

@@ -1,11 +1,11 @@
 use crate::{mtproto, tl};
 
-pub struct MsgContainer<'a> {
+pub struct MsgContainerIter<'a> {
     buf: tl::de::Buf<'a>,
     len: u32,
 }
 
-impl<'a> MsgContainer<'a> {
+impl<'a> MsgContainerIter<'a> {
     /// # Errors
     ///
     /// * [`tl::de::EndOfBufferError`] occurs if the 4-byte `len` read failed.
@@ -16,7 +16,7 @@ impl<'a> MsgContainer<'a> {
     }
 }
 
-impl<'a> Iterator for MsgContainer<'a> {
+impl<'a> Iterator for MsgContainerIter<'a> {
     type Item = Result<mtproto::BufMsg<'a>, mtproto::BufMsgError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -36,7 +36,7 @@ impl<'a> Iterator for MsgContainer<'a> {
     }
 }
 
-impl ExactSizeIterator for MsgContainer<'_> {
+impl ExactSizeIterator for MsgContainerIter<'_> {
     #[inline]
     fn len(&self) -> usize {
         self.len as usize

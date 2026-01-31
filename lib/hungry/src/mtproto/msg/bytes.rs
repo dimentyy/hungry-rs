@@ -1,7 +1,7 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
-use crate::mtproto::Msg;
+use crate::mtproto::{Msg, MsgId, SeqNo};
 use crate::tl;
 
 use tl::ConstSerializedLen;
@@ -21,6 +21,23 @@ impl Deref for BytesMsg {
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.msg
+    }
+}
+
+impl DerefMut for BytesMsg {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.msg
+    }
+}
+
+impl BytesMsg {
+    #[inline]
+    pub fn new(msg_id: MsgId, seq_no: SeqNo, bytes: i32) -> Self {
+        Self {
+            msg: Msg { msg_id, seq_no },
+            bytes,
+        }
     }
 }
 
