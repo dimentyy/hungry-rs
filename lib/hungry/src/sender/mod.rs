@@ -47,8 +47,8 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     client_msg_ids: mtproto::ClientMsgIds,
     client_seq_nos: mtproto::SeqNos,
 
-    server_seq_nos: mtproto::SeqNos,
     server_msg_ids: mtproto::ServerMsgIds,
+    server_seq_nos: mtproto::SeqNos,
 
     requests: VecDeque<Request>,
 
@@ -63,7 +63,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         writer: QueuedWriter<W, T>,
 
         auth_key: mtproto::AuthKey,
-        session: mtproto::Session,
+        session_id: mtproto::Session,
 
         salt: mtproto::Salt,
     ) -> (Self, mpsc::UnboundedReceiver<tl::Object>) {
@@ -74,7 +74,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             writer,
 
             auth_key,
-            session_id: session,
+            session_id,
 
             salt,
 
@@ -200,25 +200,36 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg
     }
 
+    fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+        while !self.writer.is_empty() {
+            let buffer = ready!(self.writer.poll(cx)).map_err(SenderError::Writer)?;
+
+            self.push_completed_writer_buffer(buffer);
+        }
+
+        Poll::Ready(Ok(()))
+    }
+
+    #[inline]
+    fn poll_writer(&mut self, cx: &mut Context<'_>) -> Result<(), SenderError> {
+        if self.poll_writer_once(cx)?.is_ready()
+            && let Some(container) = self.take_container()
+        {
+            self.queue_container_write(container);
+
+            // We intentionally discard the `Poll<()>` as we do
+            // not need the confirmation about writer readiness.
+            let _ = self.poll_writer_once(cx)?;
+        }
+
+        Ok(())
+    }
+
     fn poll_messages<'a>(
         &'a mut self,
         cx: &mut Context<'_>,
     ) -> Poll<Result<Messages<'a>, SenderError>> {
-        if !self.writer.is_empty() || self.container.is_some() {
-            loop {
-                let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
-                    let Some(container) = self.take_container() else {
-                        break;
-                    };
-
-                    self.queue_container_write(container);
-
-                    continue;
-                };
-
-                self.push_completed_writer_buffer(buffer);
-            }
-        }
+        self.poll_writer(cx)?;
 
         if let Poll::Ready(result) = self.reader.poll(cx) {
             let unpack = match result {
