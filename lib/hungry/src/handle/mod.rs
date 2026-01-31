@@ -112,6 +112,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Handle<T, R, W> 
             mtproto_FutureSalts(enums::FutureSalts::FutureSalts(ref future_salts)) => {
                 self.send_rpc_result(future_salts.req_msg_id, object);
             }
+            mtproto_BadMsgNotification(x) => match x {
+                BadMsgNotification::BadMsgNotification(x) => {}
+                BadMsgNotification::BadServerSalt(x) => {
+                    self.sender.salt = x.new_server_salt;
+                }
+            },
             object => {
                 // Should be an update.
                 self.fixme_object_tx.send(object).unwrap();

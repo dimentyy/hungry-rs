@@ -5,6 +5,6 @@ edition = "2024"
 [dependencies]
 hungry = { path = "../../lib/hungry" }
 
-tokio = { version = "1.49.0", features = ["rt", "net", "signal", "io-util", "time"] }
+tokio = { version = "1.49.0", features = ["rt", "net", "signal", "io-util", "time", "fs"] }
 getrandom = "0.4.0-rc.0"
 anyhow = "1.0.100"

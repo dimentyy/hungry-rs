@@ -29,7 +29,7 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     session_id: mtproto::Session,
 
     // FIXME
-    salt: mtproto::Salt,
+    pub(crate) salt: mtproto::Salt,
 
     container: Option<Container<T>>,
 

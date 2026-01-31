@@ -1,12 +1,12 @@
 use std::future::poll_fn;
 use std::task::Poll;
 
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
 use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
-
 use tl::SerializedLen;
-use tl::mtproto::{enums, funcs, types};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -18,14 +18,14 @@ const N: &str = "253428894488404155649716895907134732068988477590847790525820265
     1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
     127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
 
+type R = tokio::net::tcp::OwnedReadHalf;
+type W = tokio::net::tcp::OwnedWriteHalf;
+
 type Transport = hungry::transport::Intermediate;
 
-async fn async_main() -> anyhow::Result<()> {
-    let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
-    let e = Odd::new(U2048::from_word(65537)).unwrap();
+type Plain = hungry::plain::Plain<Transport, R, W>;
 
-    let server_public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
-
+async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
     let transport = Transport::default();
 
     let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
@@ -35,10 +35,23 @@ async fn async_main() -> anyhow::Result<()> {
 
     let (r, w) = hungry::init(transport, r, r_buffer, w, w_buffer);
 
-    let hungry::writer::OwnedWriteInner {
-        driver: w,
-        mut buffer,
-    } = w.await?;
+    let hungry::writer::OwnedWriteInner { driver: w, buffer } = w.await?;
+
+    let plain = Plain::new(r, w);
+
+    Ok((plain, buffer))
+}
+
+async fn generate_auth_key(
+    plain: &mut Plain,
+    buffer: &mut unbite::DynBuf,
+) -> anyhow::Result<hungry::auth::DhGenOk> {
+    println!("Generating new `AuthKey`");
+
+    let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
+    let e = Odd::new(U2048::from_word(65537)).unwrap();
+
+    let server_public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
 
     let mut nonce = tl::Int128::default();
 
@@ -46,9 +59,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let req_pq_multi = hungry::auth::start(nonce);
 
-    let mut plain = hungry::plain::Plain::new(r, w);
-
-    let enums::ResPq::ResPq(res_pq) = plain.send(&mut buffer, req_pq_multi.func()).await?;
+    let tl::mtproto::enums::ResPq::ResPq(res_pq) = plain.send(buffer, req_pq_multi.func()).await?;
 
     let res_pq = req_pq_multi.res_pq(&res_pq)?;
 
@@ -71,10 +82,10 @@ async fn async_main() -> anyhow::Result<()> {
         }
     };
 
-    let enums::ServerDhParams::ServerDhParamsOk(server_dh_params) =
-        plain.send(&mut buffer, func).await?
+    let tl::mtproto::enums::ServerDhParams::ServerDhParamsOk(server_dh_params) =
+        plain.send(buffer, func).await?
     else {
-        todo!()
+        anyhow::bail!("not ServerDhParamsOk")
     };
 
     let server_dh_params = req_dh_params.server_dh_params_ok(&server_dh_params)?;
@@ -85,22 +96,64 @@ async fn async_main() -> anyhow::Result<()> {
     let set_client_dh_params =
         server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0)?;
 
-    let enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
-        plain.send(&mut buffer, set_client_dh_params.func()).await?
+    let tl::mtproto::enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
+        plain.send(buffer, set_client_dh_params.func()).await?
     else {
-        todo!()
+        anyhow::bail!("not DhGenOk")
     };
 
-    let hungry::auth::DhGenOk {
-        auth_key,
-        server_salt,
-    } = dbg!(set_client_dh_params.dh_gen_ok(&dh_gen_ok)?);
+    Ok(set_client_dh_params.dh_gen_ok(&dh_gen_ok)?)
+}
+
+async fn get_auth_key(
+    plain: &mut Plain,
+    buffer: &mut unbite::DynBuf,
+) -> anyhow::Result<(hungry::mtproto::AuthKey, hungry::mtproto::Salt)> {
+    let filename = "test.session";
+
+    let path = std::path::Path::new(filename);
+
+    let mut file = tokio::fs::File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)
+        .await?;
+
+    let mut buf = Vec::new();
+
+    file.read_to_end(&mut buf).await?;
+
+    if buf.len() != 256 {
+        let hungry::auth::DhGenOk {
+            auth_key,
+            server_salt,
+        } = generate_auth_key(plain, buffer).await?;
+
+        println!("Writing the `AuthKey` to `{filename}`");
+
+        file.write_all(auth_key.data()).await?;
+
+        return Ok((auth_key, server_salt));
+    }
+
+    println!("Using the `AuthKey` from `{filename}`");
+
+    let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
+
+    Ok((auth_key, 0))
+}
+
+async fn async_main() -> anyhow::Result<()> {
+    let (mut plain, mut buffer) = connect().await?;
+
+    let (auth_key, server_salt) = get_auth_key(&mut plain, &mut buffer).await?;
 
     let (r, w) = plain.into_inner();
 
     let w = hungry::writer::QueuedWriter::new(w);
 
-    let session = getrandom::u64()? as i64;
+    let session = getrandom::u64()?.cast_signed();
 
     let sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
@@ -131,10 +184,15 @@ async fn async_main() -> anyhow::Result<()> {
                                         _ => todo!(),
                                     };
 
-                                    let tl::api::enums::User::User(user) = updates.users.iter().find(|x| match x {
-                                        tl::api::enums::User::UserEmpty(_) => false,
-                                        tl::api::enums::User::User(x) => x.id == id,
-                                    }).unwrap() else {
+                                    let tl::api::enums::User::User(user) = updates
+                                        .users
+                                        .iter()
+                                        .find(|x| match x {
+                                            tl::api::enums::User::UserEmpty(_) => false,
+                                            tl::api::enums::User::User(x) => x.id == id,
+                                        })
+                                        .unwrap()
+                                    else {
                                         todo!()
                                     };
 
@@ -150,9 +208,10 @@ async fn async_main() -> anyhow::Result<()> {
                                         peer: tl::api::types::InputPeerUser {
                                             user_id: id,
                                             access_hash: user.access_hash.unwrap(),
-                                        }.into(),
+                                        }
+                                        .into(),
                                         reply_to: None,
-                                        message: "бургеры зшика3г2кзп7".to_string(),
+                                        message: format!("pong: {}", msg.message),
                                         random_id: getrandom::u64().unwrap().cast_signed(),
                                         reply_markup: None,
                                         entities: None,
