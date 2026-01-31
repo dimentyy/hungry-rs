@@ -1,15 +1,21 @@
 use std::marker::PhantomData;
 use std::ptr::NonNull;
-use std::{hint, ptr, slice};
+use std::{fmt, hint, ptr, slice};
 
 use crate::de::{Deserialize, DeserializeInfallible, EndOfBufferError, Error};
 
 #[must_use]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Buf<'a> {
     pub(crate) ptr: NonNull<u8>,
     pub(crate) len: usize,
     _marker: PhantomData<&'a ()>,
+}
+
+impl fmt::Debug for Buf<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "tl::de::Buf {{ len: {}, .. }}", self.len)
+    }
 }
 
 impl<'a> Buf<'a> {
