@@ -18,7 +18,6 @@ mod private;
 
 pub mod auth;
 pub mod crypto;
-pub mod handle;
 pub mod mtproto;
 pub mod pack;
 pub mod plain;

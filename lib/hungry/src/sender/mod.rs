@@ -1,16 +1,20 @@
 mod container;
 mod error;
 
+use std::collections::VecDeque;
 use std::mem;
-use std::task::{Context, Poll};
+use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::{mpsc, oneshot};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::unpack::MsgContainerIter;
 use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
+
+use tl::mtproto::enums;
 
 use container::Container;
 
@@ -19,6 +23,12 @@ pub use error::SenderError;
 pub enum Messages<'a> {
     Msg(mtproto::BufMsg<'a>),
     MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
+}
+
+struct Request {
+    msg: mtproto::Msg,
+
+    tx: oneshot::Sender<tl::Object>,
 }
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
@@ -38,6 +48,12 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
 
     server_seq_nos: mtproto::SeqNos,
     server_msg_ids: mtproto::ServerMsgIds,
+
+    requests: VecDeque<Request>,
+
+    msgs_ack: Vec<mtproto::MsgId>,
+
+    fixme_object_tx: mpsc::UnboundedSender<tl::Object>,
 }
 
 impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> {
@@ -49,8 +65,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         session: mtproto::Session,
 
         salt: mtproto::Salt,
-    ) -> Self {
-        Self {
+    ) -> (Self, mpsc::UnboundedReceiver<tl::Object>) {
+        let (tx, rx) = mpsc::unbounded_channel();
+
+        let sender = Self {
             reader,
             writer,
 
@@ -66,7 +84,13 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             server_msg_ids: mtproto::ServerMsgIds::new(1024),
             server_seq_nos: mtproto::SeqNos::new(),
-        }
+
+            requests: VecDeque::new(),
+            msgs_ack: Vec::with_capacity(8192),
+            fixme_object_tx: tx,
+        };
+
+        (sender, rx)
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
@@ -145,7 +169,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     /// # Panics
     ///
     /// * If the provided `len` exceeds the `i32::MAX`.
-    pub(crate) fn invoke<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
+    pub(crate) fn invoke_inner<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
         len: usize,
         f: F,
@@ -162,7 +186,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg
     }
 
-    pub fn poll<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Messages<'a>, SenderError>> {
+    fn poll_messages<'a>(
+        &'a mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Messages<'a>, SenderError>> {
         if !self.writer.is_empty() || self.container.is_some() {
             loop {
                 let Poll::Ready(buffer) = self.writer.poll(cx).map_err(SenderError::Writer)? else {
@@ -247,5 +274,101 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
 
         Ok(Messages::MsgContainer(buf_msg.msg, container))
+    }
+
+    pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
+        &mut self,
+        len: usize,
+        f: F,
+    ) -> oneshot::Receiver<tl::Object> {
+        let msg = self.invoke_inner::<false, F>(len, f);
+
+        let (tx, rx) = oneshot::channel();
+
+        let request = Request { msg, tx };
+
+        self.requests.push_back(request);
+
+        rx
+    }
+
+    fn send_rpc_result(&mut self, req_msg_id: i64, res_object: tl::Object) {
+        let Some(index) = self
+            .requests
+            .iter()
+            .position(|x| x.msg.msg_id == req_msg_id)
+        else {
+            todo!()
+        };
+
+        let request = self.requests.remove(index).unwrap();
+
+        if let Err(_res) = request.tx.send(res_object) {
+            todo!()
+        }
+    }
+
+    fn handle_object(&mut self, msg: mtproto::Msg, object: tl::Object) {
+        use tl::Object::*;
+
+        if msg.seq_no & 1 == 1 {
+            self.msgs_ack.push(msg.msg_id)
+        }
+
+        match object {
+            mtproto_Pong(enums::Pong::Pong(ref pong)) => {
+                self.send_rpc_result(pong.msg_id, object);
+            }
+            mtproto_FutureSalts(enums::FutureSalts::FutureSalts(ref future_salts)) => {
+                self.send_rpc_result(future_salts.req_msg_id, object);
+            }
+            mtproto_BadMsgNotification(x) => match x {
+                enums::BadMsgNotification::BadMsgNotification(x) => {}
+                enums::BadMsgNotification::BadServerSalt(x) => {
+                    self.salt = x.new_server_salt;
+                }
+            },
+            object => {
+                // Should be an update.
+                self.fixme_object_tx.send(object).unwrap();
+            }
+        }
+    }
+
+    fn handle_result(&mut self, msg: mtproto::Msg, res: mtproto::RpcResult) {
+        self.send_rpc_result(res.req_msg_id, res.res_object);
+
+        if msg.seq_no & 1 == 1 {
+            self.msgs_ack.push(msg.msg_id)
+        }
+    }
+
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+        let output = ready!(self.poll_messages(cx))?;
+
+        match output {
+            Messages::Msg(buf_msg) => match mtproto::Message::deserialize(buf_msg).unwrap() {
+                mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+            },
+            Messages::MsgContainer(_msg, container) => {
+                let mut res = Vec::with_capacity(container.len());
+
+                for buf_msg in container {
+                    res.push(mtproto::Message::deserialize(buf_msg).unwrap());
+                }
+
+                for res in res {
+                    match res {
+                        mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                        mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+                    }
+                }
+            }
+        }
+
+        cx.waker().wake_by_ref();
+
+        Poll::Pending
     }
 }

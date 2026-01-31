@@ -155,9 +155,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()?.cast_signed();
 
-    let sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
-
-    let (mut handle, mut objects_rx) = hungry::handle::Handle::new(sender);
+    let (mut sender, mut objects_rx) = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(
         tokio::sync::oneshot::Sender<tokio::sync::oneshot::Receiver<tl::Object>>,
@@ -259,14 +257,14 @@ async fn async_main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         loop {
             let objects = poll_fn(|cx| {
-                if let Poll::Ready(ready) = handle.poll(cx) {
+                if let Poll::Ready(ready) = sender.poll(cx) {
                     return Poll::Ready(ready);
                 }
 
                 while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
                     let (tx, len, f) = ready;
 
-                    tx.send(handle.invoke(len, f)).unwrap();
+                    tx.send(sender.invoke(len, f)).unwrap();
 
                     cx.waker().wake_by_ref();
                 }
