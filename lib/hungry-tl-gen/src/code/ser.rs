@@ -14,7 +14,13 @@ fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     }
 }
 
-pub(super) fn push_struct_ser_len(cfg: &Cfg, data: &Data, s: &mut String, x: &Combinator, func: bool) {
+pub(super) fn push_struct_ser_len(
+    cfg: &Cfg,
+    data: &Data,
+    s: &mut String,
+    x: &Combinator,
+    func: bool,
+) {
     s.push_str("\nimpl");
     push_function_generics(s, &x.generic_args, true);
     s.push_str(" crate::SerializedLen for ");

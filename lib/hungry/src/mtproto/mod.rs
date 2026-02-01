@@ -3,23 +3,20 @@ mod message;
 mod msg;
 mod msg_id;
 mod pack;
+mod padding;
 mod seq_no;
 mod unpack;
 
-use std::ops::RangeInclusive;
-
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, UnencryptedMessage};
-pub use msg::{BufMsg, BufMsgError, Message, Msg, RpcResult, NegativeBytesError};
+pub use msg::{BufMsg, BufMsgError, Message, Msg, NegativeBytesError, RpcResult};
 pub use msg_id::{ClientMsgIds, MsgId, MsgIdError, ServerMsgIds, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
+pub use padding::{ENCRYPTED_DATA_PADDING, PaddingError, check_random_padding};
 pub use seq_no::{SeqNo, SeqNoError, SeqNos, content_related};
 pub use unpack::{
-    AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
-    unpack_auth_key_id,
+    AuthKeyIdError, MsgIdCheckError, MsgKeyCheckError, SessionIdError, unpack_auth_key_id,
 };
-
-pub const ENCRYPTED_PADDING_RANGE: RangeInclusive<usize> = 12..=1024;
 
 pub type PlainHeader = unbite::Raw<{ UnencryptedMessage::LEN }>;
 

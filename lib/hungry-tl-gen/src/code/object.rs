@@ -211,9 +211,7 @@ pub(super) fn write_object(cfg: &Cfg, data: &Data, s: &mut String) -> Result<()>
             }
         }
 
-        s.push_str(
-            "        }\n    }\n}\n",
-        );
+        s.push_str("        }\n    }\n}\n");
     }
 
     f.write_all(s.as_bytes())?;

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::mtproto::{BufMsgError, MsgIdError, SeqNoError, SessionIdError};
+use crate::mtproto::{BufMsgError, MsgIdError, PaddingError, SeqNoError, SessionIdError};
 use crate::reader::{EncryptedMessageError, ReaderError};
 use crate::tl;
 use crate::writer::WriterError;
@@ -17,7 +17,7 @@ pub enum SenderError {
     SeqNo(SeqNoError),
 
     BufMsg(BufMsgError),
-    PaddingLength(usize),
+    Padding(PaddingError),
     Deserialization(tl::de::Error),
 }
 
@@ -59,7 +59,7 @@ impl fmt::Display for SenderError {
             SeqNo(err) => err.fmt(f),
 
             BufMsg(err) => err.fmt(f),
-            PaddingLength(_) => todo!(),
+            Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
         }
     }
@@ -80,7 +80,7 @@ impl std::error::Error for SenderError {
             SeqNo(err) => err,
 
             BufMsg(err) => err,
-            PaddingLength(_) => return None,
+            Padding(err) => err,
             Deserialization(err) => err,
         })
     }

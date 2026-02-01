@@ -2,8 +2,9 @@ use std::future::poll_fn;
 use std::task::Poll;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing_subscriber::layer::SubscriberExt;
 
-use hungry::{crypto_bigint, tl, unbite};
+use hungry::{crypto_bigint, tl, tracing, unbite};
 
 use crypto_bigint::{Odd, U2048};
 use tl::SerializedLen;
@@ -125,16 +126,16 @@ async fn get_auth_key(
     file.read_to_end(&mut buf).await?;
 
     // if buf.len() != 256 {
-        let hungry::auth::DhGenOk {
-            auth_key,
-            server_salt,
-        } = generate_auth_key(plain, buffer).await?;
+    let hungry::auth::DhGenOk {
+        auth_key,
+        server_salt,
+    } = generate_auth_key(plain, buffer).await?;
 
-        println!("Writing the `AuthKey` to `{filename}`");
+    println!("Writing the `AuthKey` to `{filename}`");
 
-        file.write_all(auth_key.data()).await?;
+    file.write_all(auth_key.data()).await?;
 
-        return Ok((auth_key, server_salt));
+    return Ok((auth_key, server_salt));
     // }
 
     println!("Using the `AuthKey` from `{filename}`");
@@ -145,6 +146,13 @@ async fn get_auth_key(
 }
 
 async fn async_main() -> anyhow::Result<()> {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
+
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking));
+
+    tracing::subscriber::set_global_default(subscriber)?;
+
     let (mut plain, mut buffer) = connect().await?;
 
     let (auth_key, server_salt) = get_auth_key(&mut plain, &mut buffer).await?;
@@ -155,7 +163,8 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()?.cast_signed();
 
-    let (mut sender, mut objects_rx) = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
+    let (mut sender, mut objects_rx) =
+        hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(
         tokio::sync::oneshot::Sender<tokio::sync::oneshot::Receiver<tl::Object>>,
@@ -290,32 +299,13 @@ async fn async_main() -> anyhow::Result<()> {
                 lang_code: "en".to_string(),
                 proxy: None,
                 params: None,
-                query: tl::api::funcs::help::GetNearestDc {},
+                query: tl::api::funcs::auth::ImportBotAuthorization {
+                    flags: 0,
+                    api_id: std::env::var("API_ID")?.parse()?,
+                    api_hash: std::env::var("API_HASH")?,
+                    bot_auth_token: std::env::var("BOT_TOKEN")?,
+                },
             },
-        };
-
-        let (get_nearest_dc_tx, get_nearest_dc_rx) = tokio::sync::oneshot::channel();
-
-        let Ok(()) = tx.send((
-            get_nearest_dc_tx,
-            func.serialized_len(),
-            Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
-        )) else {
-            unreachable!()
-        };
-
-        let obj = dbg!(get_nearest_dc_rx.await?.await?);
-
-        let tl::Object::api_NearestDc(tl::api::enums::NearestDc::NearestDc(nearest_dc)) = obj
-        else {
-            unimplemented!()
-        };
-
-        let func = tl::api::funcs::auth::ImportBotAuthorization {
-            flags: 0,
-            api_id: std::env::var("API_ID")?.parse()?,
-            api_hash: std::env::var("API_HASH")?,
-            bot_auth_token: std::env::var("BOT_TOKEN")?,
         };
 
         let (import_bot_authorization_tx, import_bot_authorization_rx) =
@@ -329,7 +319,7 @@ async fn async_main() -> anyhow::Result<()> {
             unreachable!()
         };
 
-        let obj = dbg!(import_bot_authorization_rx.await?.await?);
+        let obj = import_bot_authorization_rx.await?.await?;
 
         let tl::Object::api_auth_Authorization(auth) = obj else {
             unimplemented!()

@@ -1,5 +1,5 @@
 use crate::mtproto::{
-    AuthKey, ENCRYPTED_PADDING_RANGE, ExternalHeader, InternalHeader, Msg, PlainHeader, Side,
+    AuthKey, ENCRYPTED_DATA_PADDING, ExternalHeader, InternalHeader, Msg, PlainHeader, Side,
 };
 
 /// # Panics
@@ -19,7 +19,7 @@ pub fn pack_plain(header: PlainHeader, buffer: &mut unbite::DynBuf, id: i64) {
 
 pub struct EncryptedEnvelope {
     header: unbite::Raw<{ ExternalHeader::LEN + InternalHeader::LEN + 16 }>,
-    padding: unbite::Raw<{ *ENCRYPTED_PADDING_RANGE.end() }>,
+    padding: unbite::Raw<{ *ENCRYPTED_DATA_PADDING.end() }>,
 }
 
 impl EncryptedEnvelope {

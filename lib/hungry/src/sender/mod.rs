@@ -7,6 +7,7 @@ use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{mpsc, oneshot};
+use tracing::{debug, trace};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
@@ -95,6 +96,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
+    fn reserve(&mut self, length: usize) {
+        unimplemented!("TODO: reserve(length={length})");
+    }
+
+    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
         eprintln!("TODO: push_completed_writer_buffer(..)");
     }
@@ -108,6 +114,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     fn take_container(&mut self) -> Option<Container<T>> {
         if !self.msgs_ack.is_empty() {
             let msg_ids = mem::take(&mut self.msgs_ack);
+
+            debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
 
             let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
 
@@ -200,6 +208,38 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         msg
     }
 
+    #[inline]
+    fn poll_reader<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Packet, SenderError>> {
+        while let Poll::Ready(result) = self.reader.poll(cx) {
+            let unpack = match result {
+                ReaderResult::Reserve(length) => {
+                    self.reserve(length);
+
+                    continue;
+                }
+                ReaderResult::Unpack(unpack) => unpack,
+                ReaderResult::Error(err) => return Poll::Ready(Err(SenderError::Reader(err))),
+            };
+
+            let packet = match unpack {
+                Unpack::Packet(packet) => packet,
+                Unpack::QuickAck(quick_ack) => {
+                    self.quick_ack(quick_ack);
+
+                    cx.waker().wake_by_ref();
+
+                    return Poll::Pending;
+                }
+            };
+
+            debug!(data = ?packet.data, "packet");
+
+            return Poll::Ready(Ok(packet));
+        }
+
+        Poll::Pending
+    }
+
     fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
         while !self.writer.is_empty() {
             let buffer = ready!(self.writer.poll(cx)).map_err(SenderError::Writer)?;
@@ -225,34 +265,37 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    fn poll_messages<'a>(
-        &'a mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<Messages<'a>, SenderError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+        trace!("polled");
+
         self.poll_writer(cx)?;
 
-        if let Poll::Ready(result) = self.reader.poll(cx) {
-            let unpack = match result {
-                ReaderResult::Reserve(_) => todo!(),
-                ReaderResult::Unpack(unpack) => unpack,
-                ReaderResult::Error(err) => return Poll::Ready(Err(SenderError::Reader(err))),
-            };
+        let packet = ready!(self.poll_reader(cx))?;
 
-            let packet = match unpack {
-                Unpack::Packet(packet) => packet,
-                Unpack::QuickAck(quick_ack) => {
-                    self.quick_ack(quick_ack);
+        let messages = self.packet(packet)?;
 
-                    cx.waker().wake_by_ref();
+        match messages {
+            Messages::Msg(buf_msg) => match mtproto::Message::deserialize(buf_msg).unwrap() {
+                mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+            },
+            Messages::MsgContainer(_msg, container) => {
+                let mut res = Vec::with_capacity(container.len());
 
-                    return Poll::Pending;
+                for buf_msg in container {
+                    res.push(mtproto::Message::deserialize(buf_msg).unwrap());
                 }
-            };
 
-            let messages = self.packet(packet)?;
-
-            return Poll::Ready(Ok(messages));
+                for res in res {
+                    match res {
+                        mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
+                        mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
+                    }
+                }
+            }
         }
+
+        cx.waker().wake_by_ref();
 
         Poll::Pending
     }
@@ -271,9 +314,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let buf_msg = mtproto::BufMsg::deserialize(&mut buf)?;
 
-        if !mtproto::ENCRYPTED_PADDING_RANGE.contains(&buf.len()) {
-            return Err(PaddingLength(buf.len()));
-        }
+        mtproto::check_random_padding(buf.as_slice()).map_err(Padding)?;
 
         let unix_time = std::time::SystemTime::now();
 
@@ -283,6 +324,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             return Ok(Messages::Msg(buf_msg));
         }
+
+        debug!("unpacking `msg_container#73f1f8dc`");
 
         let msg_container =
             MsgContainerIter::new(buf_msg.buf).map_err(|err| Deserialization(err.into()))?;
@@ -366,34 +409,5 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         if msg.seq_no & 1 == 1 {
             self.msgs_ack.push(msg.msg_id)
         }
-    }
-
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
-        let output = ready!(self.poll_messages(cx))?;
-
-        match output {
-            Messages::Msg(buf_msg) => match mtproto::Message::deserialize(buf_msg).unwrap() {
-                mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
-                mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
-            },
-            Messages::MsgContainer(_msg, container) => {
-                let mut res = Vec::with_capacity(container.len());
-
-                for buf_msg in container {
-                    res.push(mtproto::Message::deserialize(buf_msg).unwrap());
-                }
-
-                for res in res {
-                    match res {
-                        mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
-                        mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
-                    }
-                }
-            }
-        }
-
-        cx.waker().wake_by_ref();
-
-        Poll::Pending
     }
 }

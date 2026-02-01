@@ -38,7 +38,12 @@ impl<T: Transport> Container<T> {
     }
 
     #[inline]
-    pub(super) fn push<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(&mut self, msg: &mtproto::Msg, len: usize, f: F) {
+    pub(super) fn push<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
+        &mut self,
+        msg: &mtproto::Msg,
+        len: usize,
+        f: F,
+    ) {
         self.raw_inner.push::<RESERVED, F>(msg, len, f);
     }
 

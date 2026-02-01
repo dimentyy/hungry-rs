@@ -28,5 +28,6 @@ num-prime = { version = "0.4.4", default-features = false }
 
 ctr = { version = "0.10.0-rc.2", optional = true }
 
+tracing = "0.1.44"
 tokio = { version = "1.49.0", features = ["net", "sync"] }
 getrandom = "0.4.0-rc.0"

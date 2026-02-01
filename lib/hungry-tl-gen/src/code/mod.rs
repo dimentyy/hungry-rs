@@ -1,5 +1,6 @@
 mod const_ser_len;
 mod de;
+mod debug;
 mod enum_body;
 mod function;
 mod generic;
@@ -10,7 +11,6 @@ mod object;
 mod ser;
 mod struct_body;
 mod typ;
-mod debug;
 
 use std::io::{Result, Write};
 
@@ -22,6 +22,7 @@ use crate::meta::{Data, Enum, Func, Ident, Type};
 use crate::code::de::push_type_de;
 use const_ser_len::push_const_ser_len;
 use de::push_enum_de;
+use debug::push_enum_debug;
 use enum_body::{push_enum_body, push_enum_variant};
 use function::push_function;
 use generic::push_function_generics;
@@ -32,7 +33,6 @@ use object::write_object;
 use ser::{push_enum_ser, push_enum_ser_len, push_struct_ser, push_struct_ser_len};
 use struct_body::push_struct_body;
 use typ::push_typ;
-use debug::push_enum_debug;
 
 macro_rules! write_module {
     ( $cfg:expr , $s:expr , $module:literal : for $x:ident in $iter:expr => $ident:expr ; $func:expr ; ) => {{

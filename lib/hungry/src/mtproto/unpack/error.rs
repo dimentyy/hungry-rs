@@ -68,36 +68,6 @@ impl fmt::Display for MsgKeyCheckError {
 
 impl std::error::Error for MsgKeyCheckError {}
 
-/// # Checking message length
-///
-/// The client **must** check that the length of the
-/// message or container obtained from the decrypted
-/// message (computed from its `length` field) does not
-/// exceed the total size of the plaintext, and that the
-/// difference (i.e. the length of the random padding)
-/// lies in the range from 12 to 1024 bytes.
-///
-/// The length should be always divisible by 4 and non-negative.
-/// On no account the client is to access data past the end
-/// of the decryption buffer containing the plaintext message.
-///
-/// ---
-///
-/// <https://core.telegram.org/mtproto/security_guidelines#checking-message-length>
-#[must_use]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MessageLengthCheckError {
-    pub received: i32,
-}
-
-impl fmt::Display for MessageLengthCheckError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("message length check error")
-    }
-}
-
-impl std::error::Error for MessageLengthCheckError {}
-
 /// # Checking msg_id
 ///
 /// The client must check that `msg_id` has even parity for messages from

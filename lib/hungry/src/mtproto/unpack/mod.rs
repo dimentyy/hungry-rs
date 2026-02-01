@@ -1,13 +1,13 @@
 mod error;
 
-use crate::mtproto::{AuthKey, AuthKeyId, ExternalHeader, InternalHeader, UnencryptedMessage, Side};
+use crate::mtproto::{
+    AuthKey, AuthKeyId, ExternalHeader, InternalHeader, Side, UnencryptedMessage,
+};
 use crate::{common, crypto, tl};
 
 use common::infallible;
 
-pub use error::{
-    AuthKeyIdError, MessageLengthCheckError, MsgIdCheckError, MsgKeyCheckError, SessionIdError,
-};
+pub use error::{AuthKeyIdError, MsgIdCheckError, MsgKeyCheckError, SessionIdError};
 
 #[inline]
 #[must_use]
