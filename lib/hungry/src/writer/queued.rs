@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::io;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll};
 
 use tokio::io::AsyncWrite;
 
@@ -11,8 +11,7 @@ use crate::{common, mtproto};
 use common::infallible;
 
 pub struct QueuedWriter<W: AsyncWrite + Unpin, T: Transport> {
-    err: Option<io::Error>,
-    waker: Option<Waker>,
+    error: Option<io::Error>,
     driver: Writer<W, T>,
     buffers: VecDeque<unbite::DynBuf>,
 }
@@ -21,8 +20,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[must_use]
     pub const fn new(driver: Writer<W, T>) -> Self {
         Self {
-            err: None,
-            waker: None,
+            error: None,
             driver,
             buffers: VecDeque::new(),
         }
@@ -34,8 +32,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         buffers.push_back(buffer);
 
         Self {
-            err: None,
-            waker: None,
+            error: None,
             driver,
             buffers,
         }
@@ -44,7 +41,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.buffers.is_empty() && self.err.is_none()
+        self.buffers.is_empty() && self.error.is_none()
     }
 
     #[inline]
@@ -63,19 +60,6 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         self.buffers.shrink_to(min_capacity);
     }
 
-    #[inline]
-    fn store_waker(&mut self, cx: &Context<'_>) {
-        debug_assert!(self.buffers.is_empty());
-
-        if let Some(ref waker) = self.waker
-            && cx.waker().will_wake(waker)
-        {
-            return;
-        }
-
-        self.waker = Some(cx.waker().clone());
-    }
-
     fn queue_impl(
         &mut self,
         mut buffer: unbite::DynBuf,
@@ -91,21 +75,18 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
         // Only unsplit with the last buffer. All packets are strictly ordered.
         if let Some(back) = self.buffers.back_mut()
-            && !back.has_spare_capacity()
             && back.can_unsplit_dyn_buf_back(&buffer)
+            && !back.has_spare_capacity()
         {
             back.unsplit_back(buffer);
         } else {
             self.buffers.push_back(buffer);
         }
 
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
-
         ret
     }
 
+    #[inline]
     #[must_use]
     pub fn queue_plain(
         &mut self,
@@ -119,6 +100,7 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         self.queue_impl(buffer, transport)
     }
 
+    #[inline]
     #[must_use]
     pub fn queue(
         &mut self,
@@ -135,15 +117,11 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<unbite::DynBuf, WriterError>> {
-        if let Some(err) = self.err.take() {
-            self.waker = None;
-
+        if let Some(err) = self.error.take() {
             return Poll::Ready(Err(WriterError::Io(err)));
         }
 
         let Some(buffer) = self.buffers.front_mut() else {
-            self.store_waker(cx);
-
             return Poll::Pending;
         };
 
@@ -153,9 +131,6 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
             let buf = &buffer.as_slice()[pos..];
 
             let Poll::Ready(ready) = self.driver.poll_checked(cx, buf) else {
-                // The currently blocking `driver` stored the active `Waker`.
-                self.waker = None;
-
                 return if pos == 0 {
                     Poll::Pending
                 } else {
@@ -166,19 +141,10 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
             let n = match ready {
                 Ok(n) => n.get(),
                 Err(err) if pos == 0 => {
-                    self.waker = None;
-
                     return Poll::Ready(Err(WriterError::Io(err)));
                 }
                 Err(err) => {
-                    // Immediately wake the task so the error will be returned.
-                    if let Some(waker) = self.waker.take() {
-                        waker.wake();
-                    } else {
-                        cx.waker().wake_by_ref();
-                    }
-
-                    self.err = Some(err);
+                    self.error = Some(err);
 
                     return Poll::Ready(Ok(buffer.split_to(pos)));
                 }
@@ -192,14 +158,6 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
 
             infallible! {
                 let buffer = self.buffers.pop_front().unwrap();
-            }
-
-            if self.buffers.is_empty() {
-                self.store_waker(cx);
-            } else {
-                self.waker = None;
-
-                cx.waker().wake_by_ref();
             }
 
             return Poll::Ready(Ok(buffer));

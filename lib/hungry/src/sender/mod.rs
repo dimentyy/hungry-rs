@@ -7,7 +7,7 @@ use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
@@ -102,12 +102,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
-        eprintln!("TODO: push_completed_writer_buffer(..)");
+        warn!("TODO: push_completed_writer_buffer(..)");
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
-        eprintln!("TODO: push_immediate_writer_buffer(..)");
+        warn!("TODO: push_immediate_writer_buffer(..)");
     }
 
     #[inline]
@@ -119,7 +119,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
 
-            let _ = dbg!(self.invoke_inner::<true, _>(func.serialized_len(), |buf| buf.ser(&func)));
+            let _ = self.invoke_inner::<true, _>(func.serialized_len(), |buf| buf.ser(&func));
 
             let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
 
@@ -132,7 +132,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn new_container(&mut self, len: usize) -> Container<T> {
-        eprintln!("TODO: new_container(len={len})");
+        warn!("TODO: new_container(len={len})");
 
         // FIXME
         Container::new(unbite::DynBuf::new(len + 2048))
@@ -144,7 +144,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         clippy::needless_pass_by_value
     )]
     fn quick_ack(&mut self, quick_ack: QuickAck) {
-        eprintln!("TODO: quick_ack(quick_ack={quick_ack:?})");
+        warn!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }
 
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
@@ -166,6 +166,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
+        debug!(
+            len = container.len(),
+            "finalizing `Container` and queuing buffer to the `QueuedWriter`"
+        );
+
         let (transport, encrypted, buffer) = container.finalize();
 
         let buffer = self.writer.queue(
@@ -196,6 +201,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         len: usize,
         f: F,
     ) -> mtproto::Msg {
+        debug!(len, "invoking");
+
         let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
         let seq_no = self.client_seq_nos.get_content_related();
 

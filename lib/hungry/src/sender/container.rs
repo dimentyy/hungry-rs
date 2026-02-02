@@ -21,7 +21,6 @@ impl<T: Transport> Container<T> {
     }
 
     #[inline]
-    #[expect(unused)]
     pub(super) const fn len(&self) -> usize {
         self.raw_inner.len()
     }

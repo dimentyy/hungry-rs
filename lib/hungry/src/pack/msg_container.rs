@@ -79,7 +79,7 @@ impl MsgContainer {
         len: usize,
         f: F,
     ) {
-        assert!(self.can_push::<RESERVED>(len));
+        assert!(self.can_push::<RESERVED>(len) && len.is_multiple_of(4) && len >= 4);
 
         self.buffer.init_with(|spare_capacity| {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
@@ -87,6 +87,8 @@ impl MsgContainer {
             buf.ser(msg);
             buf.extend_from_array(&i32::try_from(len).unwrap().to_le_bytes());
             f(&mut buf);
+
+            assert_eq!(buf.len(), 16 + len);
 
             buf.as_slice()
         });

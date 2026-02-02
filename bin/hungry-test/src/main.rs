@@ -7,6 +7,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use hungry::{crypto_bigint, tl, tracing, unbite};
 
 use crypto_bigint::{Odd, U2048};
+use tracing::info;
+
 use tl::SerializedLen;
 
 const ADDR: &str = "149.154.167.40:443";
@@ -47,7 +49,7 @@ async fn generate_auth_key(
     plain: &mut Plain,
     buffer: &mut unbite::DynBuf,
 ) -> anyhow::Result<hungry::auth::DhGenOk> {
-    println!("Generating new `AuthKey`");
+    info!("generating new `AuthKey`");
 
     let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
     let e = Odd::new(U2048::from_word(65537)).unwrap();
@@ -131,7 +133,7 @@ async fn get_auth_key(
         server_salt,
     } = generate_auth_key(plain, buffer).await?;
 
-    println!("Writing the `AuthKey` to `{filename}`");
+    info!("writing the `AuthKey` to `{filename}`");
 
     file.write_all(auth_key.data()).await?;
 
@@ -255,7 +257,7 @@ async fn async_main() -> anyhow::Result<()> {
                 }
 
                 object => {
-                    let _ = dbg!(object);
+                    info!(?object, "received object");
                 }
             }
         }
@@ -266,16 +268,14 @@ async fn async_main() -> anyhow::Result<()> {
     let task = tokio::spawn(async move {
         loop {
             let objects = poll_fn(|cx| {
-                if let Poll::Ready(ready) = sender.poll(cx) {
-                    return Poll::Ready(ready);
-                }
-
                 while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
                     let (tx, len, f) = ready;
 
                     tx.send(sender.invoke(len, f)).unwrap();
+                }
 
-                    cx.waker().wake_by_ref();
+                if let Poll::Ready(ready) = sender.poll(cx) {
+                    return Poll::Ready(ready);
                 }
 
                 Poll::Pending

@@ -23,6 +23,7 @@ impl ResPq {
     /// # Panics
     ///
     /// * If the provided `server_public_key` fingerprint is not found.
+    #[track_caller]
     pub fn req_dh_params<'a>(
         &self,
         mut random_padding_bytes: [u8; 192],
