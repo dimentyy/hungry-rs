@@ -112,22 +112,37 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[inline]
     fn take_container(&mut self) -> Option<Container<T>> {
-        if !self.msgs_ack.is_empty() {
-            let msg_ids = mem::take(&mut self.msgs_ack);
+        mem::take(&mut self.container)
+    }
 
-            debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
-
-            let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
-
-            let _ = self.invoke_inner::<true, _>(func.serialized_len(), |buf| buf.ser(&func));
-
-            let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
-
-            self.msgs_ack = msg_ids;
-            self.msgs_ack.clear();
+    fn ack(&mut self) {
+        if self.msgs_ack.is_empty() {
+            return;
         }
 
-        mem::take(&mut self.container)
+        let msg_ids = mem::take(&mut self.msgs_ack);
+
+        debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
+
+        let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
+
+        let len = func.serialized_len();
+        let msg = self.get_msg::<false>();
+        let bytes = len.try_into().unwrap();
+
+        let container = if let Some(ref mut container) = self.container {
+            container
+        } else {
+            let container = self.new_container(len);
+            self.container.insert(container)
+        };
+
+        container.push::<true, _>(&msg, bytes, |buf| buf.ser(&func));
+
+        let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
+
+        self.msgs_ack = msg_ids;
+        self.msgs_ack.clear();
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
@@ -135,7 +150,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         warn!("TODO: new_container(len={len})");
 
         // FIXME
-        Container::new(unbite::DynBuf::new(len + 2048))
+        Container::new(unbite::DynBuf::new(len + 4096))
     }
 
     #[expect(
@@ -147,7 +162,22 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         warn!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }
 
+    #[inline]
+    fn get_msg<const CONTENT_RELATED: bool>(&mut self) -> mtproto::Msg {
+        let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
+
+        let seq_no = if CONTENT_RELATED {
+            self.client_seq_nos.get_content_related()
+        } else {
+            self.client_seq_nos.non_content_related()
+        };
+
+        mtproto::Msg { msg_id, seq_no }
+    }
+
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
+        self.ack();
+
         if self
             .container
             .as_ref()
@@ -173,46 +203,20 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let (transport, encrypted, buffer) = container.finalize();
 
-        let buffer = self.writer.queue(
-            transport,
-            encrypted,
-            buffer,
-            &self.auth_key,
-            mtproto::InternalHeader {
-                salt: self.salt,
-                session_id: self.session_id,
-            },
-            mtproto::Msg {
-                msg_id: self.client_msg_ids.get(std::time::SystemTime::now()),
-                seq_no: self.client_seq_nos.non_content_related(),
-            },
-        );
+        let internal = mtproto::InternalHeader {
+            salt: self.salt,
+            session_id: self.session_id,
+        };
+
+        let msg = self.get_msg::<false>();
+
+        let buffer = self
+            .writer
+            .queue(transport, encrypted, buffer, &self.auth_key, internal, msg);
 
         if let Some(buffer) = buffer {
             self.push_immediate_writer_buffer(buffer);
         }
-    }
-
-    /// # Panics
-    ///
-    /// * If the provided `len` exceeds the `i32::MAX`.
-    pub(crate) fn invoke_inner<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
-        &mut self,
-        len: usize,
-        f: F,
-    ) -> mtproto::Msg {
-        debug!(len, "invoking");
-
-        let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
-        let seq_no = self.client_seq_nos.get_content_related();
-
-        let msg = mtproto::Msg { msg_id, seq_no };
-
-        let bytes = len.try_into().unwrap();
-
-        self.get_container(len).push::<RESERVED, F>(&msg, bytes, f);
-
-        msg
     }
 
     #[inline]
@@ -259,15 +263,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[inline]
     fn poll_writer(&mut self, cx: &mut Context<'_>) -> Result<(), SenderError> {
-        if self.poll_writer_once(cx)?.is_ready()
-            && let Some(container) = self.take_container()
-        {
-            self.queue_container_write(container);
-
-            // We intentionally discard the `Poll<()>` as we do
-            // not need the confirmation about writer readiness.
-            let _ = self.poll_writer_once(cx)?;
+        if self.poll_writer_once(cx)?.is_pending() {
+            return Ok(());
         }
+
+        self.ack();
+
+        let Some(container) = self.take_container() else {
+            return Ok(());
+        };
+
+        self.queue_container_write(container);
+
+        // We intentionally discard the `Poll<()>` as we do
+        // not need the confirmation about writer readiness.
+        let _ = self.poll_writer_once(cx)?;
 
         Ok(())
     }
@@ -329,6 +339,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
             self.server_seq_nos.check_with_typ(&buf_msg)?;
 
+            if buf_msg.seq_no & 1 == 1 {
+                self.msgs_ack.push(buf_msg.msg_id);
+            }
+
             return Ok(Messages::Msg(buf_msg));
         }
 
@@ -345,6 +359,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
             self.server_seq_nos.check_with_typ(&buf_msg)?;
 
+            if buf_msg.seq_no & 1 == 1 {
+                self.msgs_ack.push(buf_msg.msg_id);
+            }
+
             container.push(buf_msg);
         }
 
@@ -356,7 +374,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         len: usize,
         f: F,
     ) -> oneshot::Receiver<tl::Object> {
-        let msg = self.invoke_inner::<false, F>(len, f);
+        debug!(len, "invoking");
+
+        let msg = self.get_msg::<true>();
+        let bytes = len.try_into().unwrap();
+
+        self.get_container(len).push::<false, F>(&msg, bytes, f);
 
         let (tx, rx) = oneshot::channel();
 
@@ -383,12 +406,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    fn handle_object(&mut self, msg: mtproto::Msg, object: tl::Object) {
+    fn handle_object(&mut self, _msg: mtproto::Msg, object: tl::Object) {
         use tl::Object::*;
-
-        if msg.seq_no & 1 == 1 {
-            self.msgs_ack.push(msg.msg_id)
-        }
 
         match object {
             mtproto_Pong(enums::Pong::Pong(ref pong)) => {
@@ -410,11 +429,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    fn handle_result(&mut self, msg: mtproto::Msg, res: mtproto::RpcResult) {
+    fn handle_result(&mut self, _msg: mtproto::Msg, res: mtproto::RpcResult) {
         self.send_rpc_result(res.req_msg_id, res.res_object);
-
-        if msg.seq_no & 1 == 1 {
-            self.msgs_ack.push(msg.msg_id)
-        }
     }
 }
