@@ -464,6 +464,7 @@ dependencies = [
  "tokio",
  "tracing",
  "unbite",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -1512,6 +1513,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7948af682ccbc3342b6e9420e8c51c1fe5d7bf7756002b4a3c6cabfe96a7e3c"
 
 [[package]]
 name = "zmij"

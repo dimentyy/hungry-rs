@@ -2,6 +2,7 @@ use std::future::poll_fn;
 use std::task::Poll;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::{mpsc, oneshot};
 use tracing_subscriber::layer::SubscriberExt;
 
 use hungry::{crypto_bigint, tl, tracing, unbite};
@@ -27,6 +28,12 @@ type W = tokio::net::tcp::OwnedWriteHalf;
 type Transport = hungry::transport::Intermediate;
 
 type Plain = hungry::plain::Plain<Transport, R, W>;
+
+type Item = (
+    oneshot::Sender<oneshot::Receiver<tl::Object>>,
+    usize,
+    Box<dyn FnOnce(&mut tl::ser::Buf) + Send>,
+);
 
 async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
     let transport = Transport::default();
@@ -165,16 +172,11 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()?.cast_signed();
 
-    let (mut sender, mut objects_rx) =
-        hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
+    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
 
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<(
-        tokio::sync::oneshot::Sender<tokio::sync::oneshot::Receiver<tl::Object>>,
-        usize,
-        Box<dyn FnOnce(&mut tl::ser::Buf) + Send>,
-    )>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Item>();
 
-    let tx_clone = tx.clone();
+    let mut tx_clone = tx.clone();
 
     let task = tokio::spawn(async move {
         loop {
@@ -188,97 +190,8 @@ async fn async_main() -> anyhow::Result<()> {
                 }
 
                 while let Poll::Ready(ready) = sender.poll(cx) {
-                    ready?;
-                }
-
-                while let Poll::Ready(ready) = objects_rx.poll_recv(cx) {
-                    use tl::Object::*;
-
-                    match ready.unwrap() {
-                        api_Updates(tl::api::enums::Updates::Updates(updates)) => {
-                            for upd in &updates.updates {
-                                match upd {
-                                    tl::api::enums::Update::UpdateNewMessage(msg) => match &msg
-                                        .message
-                                    {
-                                        tl::api::enums::Message::Message(msg) => {
-                                            let id = match msg.peer_id {
-                                                tl::api::enums::Peer::PeerUser(ref x) => x.user_id,
-                                                _ => todo!(),
-                                            };
-
-                                            let tl::api::enums::User::User(user) = updates
-                                                .users
-                                                .iter()
-                                                .find(|x| match x {
-                                                    tl::api::enums::User::UserEmpty(_) => false,
-                                                    tl::api::enums::User::User(x) => x.id == id,
-                                                })
-                                                .unwrap()
-                                            else {
-                                                todo!()
-                                            };
-
-                                            let func = tl::api::funcs::messages::SendMessage {
-                                                no_webpage: false,
-                                                silent: false,
-                                                background: false,
-                                                clear_draft: false,
-                                                noforwards: false,
-                                                update_stickersets_order: false,
-                                                invert_media: false,
-                                                allow_paid_floodskip: false,
-                                                peer: tl::api::types::InputPeerUser {
-                                                    user_id: id,
-                                                    access_hash: user.access_hash.unwrap(),
-                                                }
-                                                .into(),
-                                                reply_to: None,
-                                                message: format!("pong: {}", msg.message),
-                                                random_id: getrandom::u64().unwrap().cast_signed(),
-                                                reply_markup: None,
-                                                entities: None,
-                                                schedule_date: None,
-                                                send_as: None,
-                                                quick_reply_shortcut: None,
-                                                effect: None,
-                                                allow_paid_stars: None,
-                                                suggested_post: None,
-                                            };
-
-                                            let (send_message_tx, send_message_rx) =
-                                                tokio::sync::oneshot::channel();
-
-                                            let Ok(()) = tx_clone.send((
-                                                send_message_tx,
-                                                func.serialized_len(),
-                                                Box::new(move |buf: &mut tl::ser::Buf| {
-                                                    buf.ser(&func)
-                                                }),
-                                            )) else {
-                                                unreachable!()
-                                            };
-
-                                            tokio::spawn(async move {
-                                                let _obj = dbg!(
-                                                    send_message_rx.await.unwrap().await.unwrap()
-                                                );
-                                            });
-                                        }
-                                        msg => {
-                                            let _ = dbg!(msg);
-                                        }
-                                    },
-                                    upd => {
-                                        let _ = dbg!(upd);
-                                    }
-                                }
-                            }
-                        }
-
-                        object => {
-                            info!(?object, "received object");
-                        }
+                    for update in ready? {
+                        handle(update, &mut tx_clone);
                     }
                 }
 
@@ -340,6 +253,89 @@ async fn async_main() -> anyhow::Result<()> {
     task2.await??;
 
     Ok(())
+}
+
+fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>) {
+    match updates {
+        tl::api::enums::Updates::Updates(updates) => {
+            for upd in &updates.updates {
+                match upd {
+                    tl::api::enums::Update::UpdateNewMessage(msg) => match &msg.message {
+                        tl::api::enums::Message::Message(msg) => {
+                            let id = match msg.peer_id {
+                                tl::api::enums::Peer::PeerUser(ref x) => x.user_id,
+                                _ => todo!(),
+                            };
+
+                            let tl::api::enums::User::User(user) = updates
+                                .users
+                                .iter()
+                                .find(|x| match x {
+                                    tl::api::enums::User::UserEmpty(_) => false,
+                                    tl::api::enums::User::User(x) => x.id == id,
+                                })
+                                .unwrap()
+                            else {
+                                todo!()
+                            };
+
+                            let func = tl::api::funcs::messages::SendMessage {
+                                no_webpage: false,
+                                silent: false,
+                                background: false,
+                                clear_draft: false,
+                                noforwards: false,
+                                update_stickersets_order: false,
+                                invert_media: false,
+                                allow_paid_floodskip: false,
+                                peer: tl::api::types::InputPeerUser {
+                                    user_id: id,
+                                    access_hash: user.access_hash.unwrap(),
+                                }
+                                .into(),
+                                reply_to: None,
+                                message: format!("pong: {}", msg.message),
+                                random_id: getrandom::u64().unwrap().cast_signed(),
+                                reply_markup: None,
+                                entities: None,
+                                schedule_date: None,
+                                send_as: None,
+                                quick_reply_shortcut: None,
+                                effect: None,
+                                allow_paid_stars: None,
+                                suggested_post: None,
+                            };
+
+                            let (send_message_tx, send_message_rx) =
+                                tokio::sync::oneshot::channel();
+
+                            let Ok(()) = tx.send((
+                                send_message_tx,
+                                func.serialized_len(),
+                                Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+                            )) else {
+                                unreachable!()
+                            };
+
+                            tokio::spawn(async move {
+                                let _obj = dbg!(send_message_rx.await.unwrap().await.unwrap());
+                            });
+                        }
+                        msg => {
+                            let _ = dbg!(msg);
+                        }
+                    },
+                    upd => {
+                        let _ = dbg!(upd);
+                    }
+                }
+            }
+        }
+
+        object => {
+            info!(?object, "received object");
+        }
+    }
 }
 
 fn main() -> anyhow::Result<()> {

@@ -19,6 +19,9 @@ pub enum SenderError {
     BufMsg(BufMsgError),
     Padding(PaddingError),
     Deserialization(tl::de::Error),
+
+    DoubleGzipPacked,
+    DoubleMsgContainer,
 }
 
 impl From<MsgIdError> for SenderError {
@@ -61,6 +64,9 @@ impl fmt::Display for SenderError {
             BufMsg(err) => err.fmt(f),
             Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
+
+            DoubleGzipPacked => todo!(),
+            DoubleMsgContainer => todo!(),
         }
     }
 }
@@ -82,6 +88,9 @@ impl std::error::Error for SenderError {
             BufMsg(err) => err,
             Padding(err) => err,
             Deserialization(err) => err,
+
+            DoubleGzipPacked => todo!(),
+            DoubleMsgContainer => todo!(),
         })
     }
 }

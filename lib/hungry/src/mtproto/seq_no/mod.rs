@@ -37,11 +37,12 @@ pub type SeqNo = i32;
 // FIXME.
 #[inline]
 pub const fn content_related(typ: u32) -> Option<bool> {
-    if typ == tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID {
-        return Some(false);
+    match typ {
+        tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID | tl::MSG_CONTAINER | tl::GZIP_PACKED => {
+            Some(false)
+        }
+        _ => None,
     }
-
-    None
 }
 
 #[must_use]
@@ -76,11 +77,8 @@ impl SeqNos {
     }
 
     #[inline]
-    pub const fn check_with_typ(
-        &mut self,
-        msg_buf: &mtproto::BufMsg<'_>,
-    ) -> Result<(), SeqNoError> {
-        self.check(msg_buf.msg.seq_no, content_related(msg_buf.typ))
+    pub const fn check_with_typ(&mut self, msg: mtproto::Msg, typ: u32) -> Result<(), SeqNoError> {
+        self.check(msg.seq_no, content_related(typ))
     }
 
     pub const fn check(

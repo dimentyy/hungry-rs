@@ -1,36 +1,33 @@
 mod container;
 mod error;
+mod sanity;
 
 use std::collections::VecDeque;
-use std::mem;
 use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::oneshot;
 use tracing::{debug, trace, warn};
 
 use crate::reader::{Reader, ReaderResult};
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
-use crate::unpack::MsgContainerIter;
 use crate::writer::QueuedWriter;
 use crate::{mtproto, tl};
 
-use tl::SerializedLen;
-use tl::mtproto::{enums, types};
-
 use container::Container;
+use sanity::Sanity;
 
 pub use error::SenderError;
-
-pub enum Messages<'a> {
-    Msg(mtproto::BufMsg<'a>),
-    MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
-}
 
 struct Request {
     msg: mtproto::Msg,
 
     tx: oneshot::Sender<tl::Object>,
+}
+
+pub enum Messages<'a> {
+    Msg(mtproto::BufMsg<'a>),
+    MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
 }
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
@@ -43,19 +40,7 @@ pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     // FIXME
     salt: mtproto::Salt,
 
-    container: Option<Container<T>>,
-
-    client_msg_ids: mtproto::ClientMsgIds,
-    client_seq_nos: mtproto::SeqNos,
-
-    server_msg_ids: mtproto::ServerMsgIds,
-    server_seq_nos: mtproto::SeqNos,
-
-    requests: VecDeque<Request>,
-
-    msgs_ack: Vec<mtproto::MsgId>,
-
-    fixme_object_tx: mpsc::UnboundedSender<tl::Object>,
+    sanity: Sanity<T>,
 }
 
 impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> {
@@ -67,18 +52,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         session_id: mtproto::Session,
 
         salt: mtproto::Salt,
-    ) -> (Self, mpsc::UnboundedReceiver<tl::Object>) {
-        let (tx, rx) = mpsc::unbounded_channel();
-
-        let sender = Self {
-            reader,
-            writer,
-
-            auth_key,
-            session_id,
-
-            salt,
-
+    ) -> Self {
+        let sanity = Sanity {
             container: None,
 
             client_msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
@@ -89,10 +64,19 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             requests: VecDeque::new(),
             msgs_ack: Vec::with_capacity(8192),
-            fixme_object_tx: tx,
         };
 
-        (sender, rx)
+        Self {
+            reader,
+            writer,
+
+            auth_key,
+            session_id,
+
+            salt,
+
+            sanity,
+        }
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
@@ -110,49 +94,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         warn!("TODO: push_immediate_writer_buffer(..)");
     }
 
-    #[inline]
-    fn take_container(&mut self) -> Option<Container<T>> {
-        mem::take(&mut self.container)
-    }
-
-    fn ack(&mut self) {
-        if self.msgs_ack.is_empty() {
-            return;
-        }
-
-        let msg_ids = mem::take(&mut self.msgs_ack);
-
-        debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
-
-        let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
-
-        let len = func.serialized_len();
-        let msg = self.get_msg::<false>();
-        let bytes = len.try_into().unwrap();
-
-        let container = if let Some(ref mut container) = self.container {
-            container
-        } else {
-            let container = self.new_container(len);
-            self.container.insert(container)
-        };
-
-        container.push::<true, _>(&msg, bytes, |buf| buf.ser(&func));
-
-        let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
-
-        self.msgs_ack = msg_ids;
-        self.msgs_ack.clear();
-    }
-
-    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
-    fn new_container(&mut self, len: usize) -> Container<T> {
-        warn!("TODO: new_container(len={len})");
-
-        // FIXME
-        Container::new(unbite::DynBuf::new(len + 4096))
-    }
-
     #[expect(
         clippy::unused_self,
         clippy::needless_pass_by_ref_mut,
@@ -162,37 +103,25 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         warn!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }
 
-    #[inline]
-    fn get_msg<const CONTENT_RELATED: bool>(&mut self) -> mtproto::Msg {
-        let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
-
-        let seq_no = if CONTENT_RELATED {
-            self.client_seq_nos.get_content_related()
-        } else {
-            self.client_seq_nos.non_content_related()
-        };
-
-        mtproto::Msg { msg_id, seq_no }
-    }
-
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
-        self.ack();
+        self.sanity.ack();
 
         if self
+            .sanity
             .container
             .as_ref()
             .is_some_and(|c| c.can_push::<false>(len))
         {
-            return self.container.as_mut().unwrap();
+            return self.sanity.container.as_mut().unwrap();
         }
 
-        if let Some(container) = self.take_container() {
+        if let Some(container) = self.sanity.take_container() {
             self.queue_container_write(container);
         }
 
-        let new = self.new_container(len);
+        let new = self.sanity.new_container(len);
 
-        self.container.insert(new)
+        self.sanity.container.insert(new)
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
@@ -208,7 +137,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             session_id: self.session_id,
         };
 
-        let msg = self.get_msg::<false>();
+        let msg = self.sanity.get_msg::<false>();
 
         let buffer = self
             .writer
@@ -267,9 +196,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Ok(());
         }
 
-        self.ack();
+        self.sanity.ack();
 
-        let Some(container) = self.take_container() else {
+        let Some(container) = self.sanity.take_container() else {
             return Ok(());
         };
 
@@ -282,43 +211,31 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+    pub fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<Vec<tl::api::enums::Updates>, SenderError>> {
         trace!("polled");
 
-        self.poll_writer(cx)?;
+        // Poll the `Reader` first to push ACKs before write.
+        if let Poll::Ready(packet) = self.poll_reader(cx)? {
+            let updates = self.handle_packet(packet)?;
 
-        let packet = ready!(self.poll_reader(cx))?;
-
-        let messages = self.packet(packet)?;
-
-        match messages {
-            Messages::Msg(buf_msg) => match mtproto::Message::deserialize(buf_msg).unwrap() {
-                mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
-                mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
-            },
-            Messages::MsgContainer(_msg, container) => {
-                let mut res = Vec::with_capacity(container.len());
-
-                for buf_msg in container {
-                    res.push(mtproto::Message::deserialize(buf_msg).unwrap());
-                }
-
-                for res in res {
-                    match res {
-                        mtproto::Message::Object { msg, obj } => self.handle_object(msg, obj),
-                        mtproto::Message::RpcResult { msg, res } => self.handle_result(msg, res),
-                    }
-                }
-            }
+            return Poll::Ready(Ok(updates));
         }
 
-        cx.waker().wake_by_ref();
+        self.poll_writer(cx)?;
 
         Poll::Pending
     }
 
-    fn packet(&'_ mut self, packet: Packet) -> Result<Messages<'_>, SenderError> {
+    fn handle_packet(
+        &mut self,
+        packet: Packet,
+    ) -> Result<Vec<tl::api::enums::Updates>, SenderError> {
         use SenderError::*;
+
+        let unix_time = std::time::SystemTime::now();
 
         let (internal, mut buf) = self
             .reader
@@ -333,40 +250,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         mtproto::check_random_padding(buf.as_slice()).map_err(Padding)?;
 
-        let unix_time = std::time::SystemTime::now();
+        let mut updates = Vec::new();
 
-        if buf_msg.typ != tl::MSG_CONTAINER {
-            self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
-            self.server_seq_nos.check_with_typ(&buf_msg)?;
+        self.sanity
+            .handle_buf_msg(buf_msg, unix_time, &mut updates)?;
 
-            if buf_msg.seq_no & 1 == 1 {
-                self.msgs_ack.push(buf_msg.msg_id);
-            }
-
-            return Ok(Messages::Msg(buf_msg));
-        }
-
-        debug!("unpacking `msg_container#73f1f8dc`");
-
-        let msg_container =
-            MsgContainerIter::new(buf_msg.buf).map_err(|err| Deserialization(err.into()))?;
-
-        let mut container = Vec::with_capacity(msg_container.len());
-
-        for item in msg_container {
-            let buf_msg = item?;
-
-            self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
-            self.server_seq_nos.check_with_typ(&buf_msg)?;
-
-            if buf_msg.seq_no & 1 == 1 {
-                self.msgs_ack.push(buf_msg.msg_id);
-            }
-
-            container.push(buf_msg);
-        }
-
-        Ok(Messages::MsgContainer(buf_msg.msg, container))
+        Ok(updates)
     }
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
@@ -376,7 +265,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     ) -> oneshot::Receiver<tl::Object> {
         debug!(len, "invoking");
 
-        let msg = self.get_msg::<true>();
+        let msg = self.sanity.get_msg::<true>();
         let bytes = len.try_into().unwrap();
 
         self.get_container(len).push::<false, F>(&msg, bytes, f);
@@ -385,51 +274,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let request = Request { msg, tx };
 
-        self.requests.push_back(request);
+        self.sanity.requests.push_back(request);
 
         rx
-    }
-
-    fn send_rpc_result(&mut self, req_msg_id: i64, res_object: tl::Object) {
-        let Some(index) = self
-            .requests
-            .iter()
-            .position(|x| x.msg.msg_id == req_msg_id)
-        else {
-            todo!()
-        };
-
-        let request = self.requests.remove(index).unwrap();
-
-        if let Err(_res) = request.tx.send(res_object) {
-            todo!()
-        }
-    }
-
-    fn handle_object(&mut self, _msg: mtproto::Msg, object: tl::Object) {
-        use tl::Object::*;
-
-        match object {
-            mtproto_Pong(enums::Pong::Pong(ref pong)) => {
-                self.send_rpc_result(pong.msg_id, object);
-            }
-            mtproto_FutureSalts(enums::FutureSalts::FutureSalts(ref future_salts)) => {
-                self.send_rpc_result(future_salts.req_msg_id, object);
-            }
-            mtproto_BadMsgNotification(x) => match x {
-                enums::BadMsgNotification::BadMsgNotification(x) => {}
-                enums::BadMsgNotification::BadServerSalt(x) => {
-                    self.salt = x.new_server_salt;
-                }
-            },
-            object => {
-                // Should be an update.
-                self.fixme_object_tx.send(object).unwrap();
-            }
-        }
-    }
-
-    fn handle_result(&mut self, _msg: mtproto::Msg, res: mtproto::RpcResult) {
-        self.send_rpc_result(res.req_msg_id, res.res_object);
     }
 }
