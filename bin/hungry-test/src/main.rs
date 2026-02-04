@@ -25,7 +25,7 @@ const N: &str = "253428894488404155649716895907134732068988477590847790525820265
 type R = tokio::net::tcp::OwnedReadHalf;
 type W = tokio::net::tcp::OwnedWriteHalf;
 
-type Transport = hungry::transport::Intermediate;
+type Transport = hungry::transport::Full;
 
 type Plain = hungry::plain::Plain<Transport, R, W>;
 
@@ -318,7 +318,9 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                             };
 
                             tokio::spawn(async move {
-                                let _obj = dbg!(send_message_rx.await.unwrap().await.unwrap());
+                                let _obj = dbg!(send_message_rx.await?.await?);
+
+                                Ok::<(), anyhow::Error>(())
                             });
                         }
                         msg => {

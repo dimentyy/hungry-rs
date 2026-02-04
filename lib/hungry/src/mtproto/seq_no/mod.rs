@@ -2,7 +2,7 @@ mod error;
 
 use std::fmt;
 
-use crate::{mtproto, tl};
+use crate::tl;
 
 use tl::Identifiable;
 
@@ -36,7 +36,7 @@ pub type SeqNo = i32;
 
 // FIXME.
 #[inline]
-pub const fn content_related(typ: u32) -> Option<bool> {
+pub const fn must_be_content_related(typ: u32) -> Option<bool> {
     match typ {
         tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID | tl::MSG_CONTAINER | tl::GZIP_PACKED => {
             Some(false)
@@ -76,36 +76,29 @@ impl SeqNos {
         (self.current * 2) - 1
     }
 
-    #[inline]
-    pub const fn check_with_typ(&mut self, msg: mtproto::Msg, typ: u32) -> Result<(), SeqNoError> {
-        self.check(msg.seq_no, content_related(typ))
-    }
-
-    pub const fn check(
-        &mut self,
-        seq_no: SeqNo,
-        content_related: Option<bool>,
-    ) -> Result<(), SeqNoError> {
+    pub const fn check(&mut self, seq_no: SeqNo, typ: u32) -> Result<bool, SeqNoError> {
         use SeqNoError::*;
 
-        let expected = if seq_no & 1 == 0 {
-            if let Some(true) = content_related {
-                return Err(Even);
-            }
+        let content_related = seq_no & 1 == 1;
 
-            self.non_content_related()
-        } else {
-            if let Some(false) = content_related {
+        let expected = if content_related {
+            if let Some(false) = must_be_content_related(typ) {
                 return Err(Odd);
             }
 
             self.get_content_related()
+        } else {
+            if let Some(true) = must_be_content_related(typ) {
+                return Err(Even);
+            }
+
+            self.non_content_related()
         };
 
         if seq_no != expected {
             return Err(Invalid);
         }
 
-        Ok(())
+        Ok(content_related)
     }
 }

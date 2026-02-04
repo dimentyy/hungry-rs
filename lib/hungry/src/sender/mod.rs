@@ -104,7 +104,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn get_container(&mut self, len: usize) -> &mut Container<T> {
-        self.sanity.ack();
+        self.sanity.push_msgs_ack();
 
         if self
             .sanity
@@ -196,7 +196,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Ok(());
         }
 
-        self.sanity.ack();
+        self.sanity.push_msgs_ack();
 
         let Some(container) = self.sanity.take_container() else {
             return Ok(());

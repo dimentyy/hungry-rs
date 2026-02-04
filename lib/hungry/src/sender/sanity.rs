@@ -32,7 +32,7 @@ impl<T: Transport> Sanity<T> {
         mem::take(&mut self.container)
     }
 
-    pub(super) fn ack(&mut self) {
+    pub(super) fn push_msgs_ack(&mut self) {
         if self.msgs_ack.is_empty() {
             return;
         }
@@ -93,11 +93,16 @@ impl<T: Transport> Sanity<T> {
 
         let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
 
-        self.check_msg(msg, typ, unix_time)?;
+        let content_related = self.server_seq_nos.check(dbg!(msg.seq_no), typ)?;
 
-        println!("{typ:#010x}");
+        if content_related {
+            self.msgs_ack.push(msg.msg_id);
+        }
 
         match typ {
+            tl::GZIP_PACKED => return Err(DoubleGzipPacked),
+            tl::MSG_CONTAINER => return Err(DoubleMsgContainer),
+
             tl::RPC_RESULT => {
                 let req_msg_id = buf
                     .de_infallible()
@@ -140,28 +145,21 @@ impl<T: Transport> Sanity<T> {
         let bytes = tl::Bytes::deserialize(&mut buf_msg.buf).expect("TODO");
         let buf = bytes.0.as_slice();
 
-        *out = vec![0; dbg!(u32::from_le_bytes(buf[dbg!(buf.len()) - 4..].try_into().unwrap())) as usize];
+        *out = vec![
+            0;
+            dbg!(u32::from_le_bytes(
+                buf[dbg!(buf.len()) - 4..].try_into().unwrap()
+            )) as usize
+        ];
 
-        let (slice, _) = zlib_rs::decompress_slice(out, buf, Default::default());
+        let config = zlib_rs::InflateConfig { window_bits: 31 };
 
-        buf_msg.buf = tl::de::Buf::new(slice);
+        let (output, zlib_rs::ReturnCode::Ok) = zlib_rs::decompress_slice(out, buf, config) else {
+            todo!()
+        };
+
+        buf_msg.buf = tl::de::Buf::new(output);
         buf_msg.typ = buf_msg.buf.de_infallible().expect("TODO");
-
-        Ok(())
-    }
-
-    fn check_msg(
-        &mut self,
-        msg: mtproto::Msg,
-        typ: u32,
-        unix_time: std::time::SystemTime,
-    ) -> Result<(), SenderError> {
-        self.server_msg_ids.check(msg.msg_id, unix_time)?;
-        self.server_seq_nos.check_with_typ(msg, typ)?;
-
-        if msg.seq_no & 1 == 1 {
-            self.msgs_ack.push(msg.msg_id);
-        }
 
         Ok(())
     }
@@ -177,6 +175,8 @@ impl<T: Transport> Sanity<T> {
         let mut buf_msg = buf_msg;
 
         let mut out = Vec::new();
+
+        self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
 
         if buf_msg.typ == tl::GZIP_PACKED {
             self.ungzip(&mut out, &mut buf_msg)?;
@@ -194,7 +194,11 @@ impl<T: Transport> Sanity<T> {
                 let mut container = Vec::with_capacity(msg_container.len());
 
                 for buf_msg in msg_container {
-                    container.push(buf_msg?);
+                    let buf_msg = buf_msg?;
+
+                    self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
+
+                    container.push(buf_msg);
                 }
 
                 let mut out = Vec::new();
@@ -207,7 +211,9 @@ impl<T: Transport> Sanity<T> {
                     self.handle_single(buf_msg, unix_time, updates)?
                 }
 
-                self.check_msg(msg, typ, unix_time)?;
+                let false = self.server_seq_nos.check(msg.seq_no, typ)? else {
+                    unreachable!();
+                };
             }
             _ => self.handle_single(buf_msg, unix_time, updates)?,
         }
