@@ -36,6 +36,7 @@ pub type SeqNo = i32;
 
 // FIXME.
 #[inline]
+#[must_use]
 pub const fn must_be_content_related(typ: u32) -> Option<bool> {
     match typ {
         tl::mtproto::types::MsgsAck::CONSTRUCTOR_ID | tl::MSG_CONTAINER | tl::GZIP_PACKED => {
@@ -76,6 +77,10 @@ impl SeqNos {
         (self.current * 2) - 1
     }
 
+    #[expect(
+        clippy::equatable_if_let,
+        reason = "`std::cmp::PartialEq` is not yet stable as a const trait"
+    )]
     pub const fn check(&mut self, seq_no: SeqNo, typ: u32) -> Result<bool, SeqNoError> {
         use SeqNoError::*;
 

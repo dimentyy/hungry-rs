@@ -5,7 +5,9 @@ use tokio::io::AsyncRead;
 use crate::mtproto::{AuthKeyIdError, UnencryptedMessage, unpack_auth_key_id};
 use crate::reader::Reader;
 use crate::transport::{Packet, Transport};
-use crate::{mtproto, tl};
+use crate::{common, mtproto, tl};
+
+use common::infallible;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PlaintextMessageError {
@@ -43,23 +45,27 @@ impl std::error::Error for PlaintextMessageError {
 impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     pub fn plaintext_message(
         &'_ self,
-        packet: &Packet,
+        packet: Packet,
     ) -> Result<(mtproto::MsgId, tl::de::Buf<'_>), PlaintextMessageError> {
         use PlaintextMessageError::*;
 
-        let buf = &self.buffer.as_slice()[packet.data.clone()];
+        let buf = &self.buffer.as_slice()[packet.data];
 
         if buf.len() < UnencryptedMessage::LEN {
             return Err(TooSmall { len: buf.len() });
         }
 
-        let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
+        infallible! {
+            let (auth_key_id, buf) = buf.split_first_chunk().unwrap();
+        }
 
         if let Some(auth_key_id) = unpack_auth_key_id(*auth_key_id) {
             return Err(AuthKeyId(AuthKeyIdError(auth_key_id)));
         }
 
-        let (header, buf) = buf.split_first_chunk().unwrap();
+        infallible! {
+            let (header, buf) = buf.split_first_chunk().unwrap();
+        }
 
         let message = UnencryptedMessage::unpack(*header);
 

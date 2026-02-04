@@ -77,7 +77,7 @@ impl ServerMsgIds {
 
         let index = self.vec.partition_point(|&x| is_in_the_past(x, sys_secs));
 
-        if let Some(last) = self.vec.drain(..index).last() {
+        if let Some(last) = self.vec.drain(..index).next_back() {
             self.min = last;
         }
     }
@@ -139,7 +139,7 @@ impl ServerMsgIds {
         }
 
         if !self.vec.is_empty() {
-            self.drain_front(sys_secs)
+            self.drain_front(sys_secs);
         }
 
         let index = match self.vec.binary_search(&msg_id) {
@@ -154,18 +154,16 @@ impl ServerMsgIds {
 }
 
 #[inline(always)]
-fn is_in_the_past(msg_id: MsgId, sys_secs: i32) -> bool {
-    #[expect(clippy::cast_possible_truncation)]
+const fn is_in_the_past(msg_id: MsgId, sys_secs: i32) -> bool {
     let msg_secs = (msg_id >> 32) as i32;
 
     sys_secs - 300 > msg_secs
 }
 
 #[inline(always)]
-fn check_unix_time(msg_id: MsgId, sys_secs: i32) -> Result<(), MsgIdError> {
+const fn check_unix_time(msg_id: MsgId, sys_secs: i32) -> Result<(), MsgIdError> {
     use MsgIdError::*;
 
-    #[expect(clippy::cast_possible_truncation)]
     let msg_secs = (msg_id >> 32) as i32;
 
     if sys_secs - 300 > msg_secs {

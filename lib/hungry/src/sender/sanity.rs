@@ -45,7 +45,6 @@ impl<T: Transport> Sanity<T> {
 
         let len = func.serialized_len();
         let msg = self.get_msg::<false>();
-        let bytes = len.try_into().unwrap();
 
         let container = if let Some(ref mut container) = self.container {
             container
@@ -54,7 +53,7 @@ impl<T: Transport> Sanity<T> {
             self.container.insert(container)
         };
 
-        container.push::<true, _>(&msg, bytes, |buf| buf.ser(&func));
+        container.push::<true, _>(&msg, len, |buf| buf.ser(&func));
 
         let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
 
@@ -149,8 +148,9 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
+    #[expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)]
     fn ungzip<'a>(
-        &'_ mut self,
+        &mut self,
         out: &'a mut Vec<u8>,
         buf_msg: &mut mtproto::BufMsg<'a>,
     ) -> Result<(), SenderError> {
@@ -217,7 +217,7 @@ impl<T: Transport> Sanity<T> {
                         self.ungzip(&mut out, &mut buf_msg)?;
                     }
 
-                    self.handle_single(buf_msg, unix_time, updates)?
+                    self.handle_single(buf_msg, unix_time, updates)?;
                 }
 
                 let false = self.server_seq_nos.check(msg.seq_no, typ)? else {

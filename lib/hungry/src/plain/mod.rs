@@ -57,7 +57,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Plain<T, R, W> {
             Unpack::QuickAck(_) => unimplemented!(),
         };
 
-        let (message_id, mut buf) = self.reader.plaintext_message(&packet).expect("TODO");
+        let (_message_id, mut buf) = self.reader.plaintext_message(packet).expect("TODO");
 
         Ok(buf.de()?)
     }

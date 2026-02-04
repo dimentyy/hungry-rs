@@ -79,7 +79,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
     }
 
-    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
+    #[expect(clippy::needless_pass_by_ref_mut)]
     fn reserve(&mut self, length: usize) {
         unimplemented!("TODO: reserve(length={length})");
     }
@@ -149,7 +149,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[inline]
-    fn poll_reader<'a>(&'a mut self, cx: &mut Context<'_>) -> Poll<Result<Packet, SenderError>> {
+    fn poll_reader(&mut self, cx: &mut Context<'_>) -> Poll<Result<Packet, SenderError>> {
         while let Poll::Ready(result) = self.reader.poll(cx) {
             let unpack = match result {
                 ReaderResult::Reserve(length) => {
@@ -239,7 +239,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let (internal, mut buf) = self
             .reader
-            .encrypted_message(&packet, &self.auth_key)
+            .encrypted_message(packet, &self.auth_key)
             .map_err(Message)?;
 
         if internal.session_id != self.session_id {
@@ -266,9 +266,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         debug!(len, "invoking");
 
         let msg = self.sanity.get_msg::<true>();
-        let bytes = len.try_into().unwrap();
 
-        self.get_container(len).push::<false, F>(&msg, bytes, f);
+        self.get_container(len).push::<false, F>(&msg, len, f);
 
         let (tx, rx) = oneshot::channel();
 

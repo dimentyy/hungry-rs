@@ -54,12 +54,12 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
     #[track_caller]
     pub fn encrypted_message(
         &mut self,
-        packet: &Packet,
+        packet: Packet,
         auth_key: &AuthKey,
     ) -> Result<(InternalHeader, tl::de::Buf<'_>), EncryptedMessageError> {
         use EncryptedMessageError::*;
 
-        let buf = &mut self.buffer.as_mut_slice()[packet.data.clone()];
+        let buf = &mut self.buffer.as_mut_slice()[packet.data];
 
         if buf.len() < ExternalHeader::LEN + InternalHeader::LEN {
             return Err(TooSmall { len: buf.len() });
@@ -83,7 +83,7 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
 
         let external = ExternalHeader::unpack(auth_key_id, *external);
 
-        external.decrypt(&auth_key, buf).map_err(MsgKeyCheck)?;
+        external.decrypt(auth_key, buf).map_err(MsgKeyCheck)?;
 
         infallible! {
             let (internal, buf) = buf.split_first_chunk_mut().unwrap();
