@@ -180,7 +180,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let task = tokio::spawn(async move {
         loop {
-            poll_fn(|cx| {
+            if let Err(err) = poll_fn(|cx| {
                 info!("polling objects");
 
                 while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
@@ -197,7 +197,10 @@ async fn async_main() -> anyhow::Result<()> {
 
                 Poll::<anyhow::Result<()>>::Pending
             })
-            .await?;
+            .await {
+                eprintln!("{err}");
+                dbg!(err);
+            }
         }
 
         Ok::<(), anyhow::Error>(())
@@ -318,7 +321,7 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                             };
 
                             tokio::spawn(async move {
-                                let _obj = dbg!(send_message_rx.await?.await?);
+                                let _obj = send_message_rx.await?.await?;
 
                                 Ok::<(), anyhow::Error>(())
                             });

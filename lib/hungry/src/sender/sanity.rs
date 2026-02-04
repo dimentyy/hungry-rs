@@ -86,14 +86,14 @@ impl<T: Transport> Sanity<T> {
     fn handle_single(
         &mut self,
         buf_msg: mtproto::BufMsg<'_>,
-        unix_time: std::time::SystemTime,
+        _unix_time: std::time::SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
         let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
 
-        let content_related = self.server_seq_nos.check(dbg!(msg.seq_no), typ)?;
+        let content_related = self.server_seq_nos.check(msg.seq_no, typ)?;
 
         if content_related {
             self.msgs_ack.push(msg.msg_id);
@@ -112,21 +112,33 @@ impl<T: Transport> Sanity<T> {
                     .de_infallible()
                     .map_err(|err| Deserialization(err.into()))?;
 
-                let object = tl::Object::deserialize(typ, &mut buf).map_err(Deserialization)?;
+                let object = tl::Object::deserialize(typ, &mut buf)?;
 
                 self.send_rpc_result(req_msg_id, object);
             }
-            types::MsgsAck::CONSTRUCTOR_ID => {}
-            types::NewSessionCreated::CONSTRUCTOR_ID => {}
-            types::FutureSalts::CONSTRUCTOR_ID => {}
-            types::Pong::CONSTRUCTOR_ID => {}
+            types::MsgsAck::CONSTRUCTOR_ID => {
+                let msgs_ack: types::MsgsAck = buf.de()?;
+
+                dbg!(msgs_ack);
+            }
+            types::NewSessionCreated::CONSTRUCTOR_ID => {
+                let new_session_created: types::NewSessionCreated = buf.de()?;
+
+                dbg!(new_session_created);
+            }
+            types::FutureSalts::CONSTRUCTOR_ID => {
+                let future_salts: types::FutureSalts = buf.de()?;
+
+                dbg!(future_salts);
+            }
+            types::Pong::CONSTRUCTOR_ID => {
+                let pong: types::Pong = buf.de()?;
+
+                dbg!(pong);
+            }
 
             tl::api::types::Updates::CONSTRUCTOR_ID => {
-                updates.push(
-                    buf.de::<tl::api::types::Updates>()
-                        .map_err(Deserialization)?
-                        .into(),
-                );
+                updates.push(buf.de::<tl::api::types::Updates>()?.into());
             }
 
             _ => {
@@ -145,12 +157,9 @@ impl<T: Transport> Sanity<T> {
         let bytes = tl::Bytes::deserialize(&mut buf_msg.buf).expect("TODO");
         let buf = bytes.0.as_slice();
 
-        *out = vec![
-            0;
-            dbg!(u32::from_le_bytes(
-                buf[dbg!(buf.len()) - 4..].try_into().unwrap()
-            )) as usize
-        ];
+        let gzip_isize = u32::from_le_bytes(buf[buf.len() - 4..].try_into().unwrap());
+
+        *out = vec![0; gzip_isize as usize];
 
         let config = zlib_rs::InflateConfig { window_bits: 31 };
 

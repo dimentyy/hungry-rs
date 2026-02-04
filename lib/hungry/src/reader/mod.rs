@@ -70,7 +70,7 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
 
         if buffer_len < BUFFER_NO_ROTATE_THRESHOLD || packet_len > capacity {
             self.buffer.as_mut_slice().copy_within(self.offset.., 0);
-            self.buffer.truncate(self.buffer.len() - self.offset);
+            self.buffer.truncate(buffer_len);
             self.offset = 0;
         }
     }
@@ -92,11 +92,20 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
 
             let length = match self.transport.unpack(buffer) {
                 UnpackResult::Unpacked { result, offset } => {
+                    let unpack_offset = self.offset;
+
                     self.offset += offset;
 
                     return Poll::Ready(match result {
-                        // Quick ACK is passed through.
-                        Ok(unpack) => ReaderResult::Unpack(unpack),
+                        Ok(Unpack::Packet(mut packet)) => {
+                            packet.data.start += unpack_offset;
+                            packet.data.end += unpack_offset;
+
+                            ReaderResult::Unpack(Unpack::Packet(packet))
+                        }
+                        Ok(Unpack::QuickAck(quick_ack)) => {
+                            ReaderResult::Unpack(Unpack::QuickAck(quick_ack))
+                        }
                         Err(err) => ReaderResult::Error(ReaderError::Transport(err)),
                     });
                 }

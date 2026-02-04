@@ -24,6 +24,13 @@ pub enum SenderError {
     DoubleMsgContainer,
 }
 
+impl From<tl::de::Error> for SenderError {
+    #[inline]
+    fn from(value: tl::de::Error) -> Self {
+        Self::Deserialization(value)
+    }
+}
+
 impl From<MsgIdError> for SenderError {
     #[inline]
     fn from(value: MsgIdError) -> Self {
