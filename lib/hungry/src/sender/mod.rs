@@ -112,10 +112,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
-        debug!(
-            len = container.len(),
-            "finalizing `Container` and queuing buffer to the `QueuedWriter`"
-        );
+        debug!(len = container.len(), "queuing container");
 
         let (transport, encrypted, buffer) = container.finalize();
 

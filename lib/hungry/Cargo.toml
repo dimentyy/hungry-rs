@@ -17,18 +17,18 @@ hungry-tl = { path = "../hungry-tl" }
 
 unbite = { path = "../unbite", features = ["read-buf"] }
 
-aes = "0.9.0-rc.2"
-cipher = "0.5.0-rc.6"
+aes = "0.9.0-rc.4"
+cipher = "0.5.0"
 crc32fast = "1.5.0"
-crypto-bigint = { version = "0.7.0-rc.22", default-features = false }
-digest = "0.11.0-rc.9"
-sha1 = "0.11.0-rc.4"
-sha2 = "0.11.0-rc.4"
+crypto-bigint = { version = "0.7.0-rc.25", default-features = false }
+digest = "0.11.0-rc.11"
+sha1 = "0.11.0-rc.5"
+sha2 = "0.11.0-rc.5"
 num-prime = { version = "0.4.4", default-features = false }
 
-ctr = { version = "0.10.0-rc.2", optional = true }
+ctr = { version = "0.10.0-rc.3", optional = true }
 
-tracing = "0.1.44"
+tracing = { version = "0.1.44", features = ["std"] }
 tokio = { version = "1.49.0", features = ["net", "sync"] }
-getrandom = "0.4.0-rc.0"
+getrandom = "0.4.1"
 zlib-rs = "0.6.0"

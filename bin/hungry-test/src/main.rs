@@ -1,4 +1,5 @@
 use std::future::poll_fn;
+use std::pin::pin;
 use std::sync::Arc;
 use std::task::Poll;
 
@@ -9,10 +10,10 @@ use tracing_subscriber::layer::SubscriberExt;
 use hungry::{crypto_bigint, tl, tracing, unbite};
 
 use crypto_bigint::{Odd, U2048};
-use tracing::info;
+use tracing::{error, info};
 
 use tl::SerializedLen;
-use tl::api::funcs;
+use tl::api::{enums, funcs, types};
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -177,7 +178,7 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
         unimplemented!()
     };
 
-    let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
+    let enums::auth::Authorization::Authorization(_) = auth else {
         unimplemented!()
     };
 
@@ -206,42 +207,43 @@ async fn async_main() -> anyhow::Result<()> {
 
     let (tx, mut rx) = mpsc::unbounded_channel::<Item>();
 
-    let mut tx_clone = tx.clone();
+    let sender_tx = tx.clone();
 
-    let task = tokio::spawn(async move {
-        loop {
-            if let Err(err) = poll_fn(|cx| {
-                info!("polling objects");
+    let sender_task = tokio::spawn(async move {
+        let mut ctrl_c = pin!(tokio::signal::ctrl_c());
 
-                while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
-                    let (tx, len, f) = ready;
+        while let Err(err) = poll_fn::<Result<(), hungry::sender::SenderError>, _>(|cx| {
+            if let Poll::Ready(ready) = ctrl_c.as_mut().poll(cx) {
+                ready.unwrap();
 
-                    tx.send(sender.invoke(len, |buf| buf.ser(&*f))).unwrap();
-                }
-
-                while let Poll::Ready(ready) = sender.poll(cx) {
-                    for update in ready? {
-                        handle(update, &mut tx_clone);
-                    }
-                }
-
-                Poll::<anyhow::Result<()>>::Pending
-            })
-            .await
-            {
-                eprintln!("{err}");
-                dbg!(err);
+                return Poll::Ready(Ok(()));
             }
-        }
 
-        Ok::<(), anyhow::Error>(())
+            while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
+                let (tx, len, f) = ready;
+
+                tx.send(sender.invoke(len, |buf| buf.ser(&*f))).unwrap();
+            }
+
+            while let Poll::Ready(ready) = sender.poll(cx) {
+                for update in ready? {
+                    handle(update, &sender_tx);
+                }
+            }
+
+            Poll::Pending
+        })
+        .await
+        {
+            error!(?err);
+        }
     });
 
-    let task2 = tokio::spawn(async move {
-        // FIXME.
+    let auth_task = tokio::spawn(async move {
+        // FIXME: salt handling / retries.
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-        let func = funcs::InvokeWithLayer {
+        let func = Arc::new(funcs::InvokeWithLayer {
             layer: 214,
             query: funcs::InitConnection {
                 api_id: std::env::var("API_ID")?.parse()?,
@@ -255,11 +257,11 @@ async fn async_main() -> anyhow::Result<()> {
                 params: None,
                 query: funcs::updates::GetState {},
             },
-        };
+        });
 
         let (func_tx, func_rx) = oneshot::channel();
 
-        let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::new(func))) else {
+        let Ok(()) = tx.send((func_tx, func.serialized_len(), func)) else {
             unreachable!()
         };
 
@@ -275,46 +277,46 @@ async fn async_main() -> anyhow::Result<()> {
         Ok::<(), anyhow::Error>(())
     });
 
-    task.await??;
-    task2.await??;
+    auth_task.await??;
+    sender_task.await?;
 
     Ok(())
 }
 
-fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>) {
+fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
     match updates {
-        tl::api::enums::Updates::Updates(updates) => {
-            for upd in &updates.updates {
-                match upd {
-                    tl::api::enums::Update::UpdateNewMessage(msg) => match &msg.message {
-                        tl::api::enums::Message::Message(msg) => {
-                            let id = match msg.peer_id {
-                                tl::api::enums::Peer::PeerUser(ref x) => x.user_id,
+        enums::Updates::Updates(updates) => {
+            for update in &updates.updates {
+                match update {
+                    enums::Update::UpdateNewMessage(update) => match &update.message {
+                        enums::Message::Message(message) => {
+                            let id = match message.peer_id {
+                                enums::Peer::PeerUser(ref x) => x.user_id,
                                 _ => todo!(),
                             };
 
-                            let tl::api::enums::User::User(user) = updates
+                            let enums::User::User(user) = updates
                                 .users
                                 .iter()
                                 .find(|x| match x {
-                                    tl::api::enums::User::UserEmpty(_) => false,
-                                    tl::api::enums::User::User(x) => x.id == id,
+                                    enums::User::UserEmpty(_) => false,
+                                    enums::User::User(x) => x.id == id,
                                 })
                                 .unwrap()
                             else {
                                 todo!()
                             };
 
-                            let input_peer = tl::api::types::InputPeerUser {
+                            let input_peer = types::InputPeerUser {
                                 user_id: id,
                                 access_hash: user.access_hash.unwrap_or(0),
                             };
 
-                            let message = format!("echo: {}", msg.message);
+                            let message = format!("echo: {}", message.message);
 
                             let random_id = getrandom::u64().unwrap().cast_signed();
 
-                            let func = tl::api::funcs::messages::SendMessage {
+                            let func = Arc::new(funcs::messages::SendMessage {
                                 no_webpage: false,
                                 silent: false,
                                 background: false,
@@ -335,35 +337,33 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                                 effect: None,
                                 allow_paid_stars: None,
                                 suggested_post: None,
-                            };
+                            });
 
-                            let (send_message_tx, send_message_rx) = oneshot::channel();
+                            let (func_tx, func_rx) = oneshot::channel();
 
-                            let Ok(()) =
-                                tx.send((send_message_tx, func.serialized_len(), Arc::new(func)))
-                            else {
+                            let Ok(()) = tx.send((func_tx, func.serialized_len(), func)) else {
                                 unreachable!()
                             };
 
                             tokio::spawn(async move {
-                                let _obj = send_message_rx.await?.await?;
+                                let _obj = func_rx.await?.await?;
 
                                 Ok::<(), anyhow::Error>(())
                             });
                         }
-                        msg => {
-                            let _ = dbg!(msg);
+                        message => {
+                            let _ = dbg!(message);
                         }
                     },
-                    upd => {
-                        let _ = dbg!(upd);
+                    update => {
+                        info!(?update);
                     }
                 }
             }
         }
 
-        object => {
-            info!(?object, "received object");
+        updates => {
+            info!(?updates);
         }
     }
 }

@@ -11,7 +11,8 @@
     clippy::enum_glob_use,
     clippy::doc_markdown,
     clippy::unreadable_literal,
-    clippy::inline_always
+    clippy::inline_always,
+    clippy::missing_errors_doc
 )]
 
 mod private;

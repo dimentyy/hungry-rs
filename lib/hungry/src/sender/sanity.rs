@@ -21,6 +21,8 @@ use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
 
+const BAD_SALT_UNTIL: i32 = i32::MIN;
+
 struct Now {
     unix_time: i32,
     instant: Instant,
@@ -78,7 +80,7 @@ impl<T: Transport> Sanity<T> {
 
             get_future_salts_msg: None,
             future_salts: Vec::new(),
-            server_salt_until: 0,
+            server_salt_until: BAD_SALT_UNTIL,
             server_salt,
 
             now: None,
@@ -316,8 +318,7 @@ impl<T: Transport> Sanity<T> {
             server_salt,
         } = x;
 
-        self.server_salt_until = 0;
-        self.server_salt = server_salt;
+        self.reset_salts(server_salt);
 
         Ok(())
     }
@@ -353,8 +354,7 @@ impl<T: Transport> Sanity<T> {
 
         self.future_salts.clear();
 
-        self.server_salt_until = 0;
-        self.server_salt = new_server_salt;
+        self.reset_salts(new_server_salt);
 
         self.push_get_future_salts();
 
@@ -407,5 +407,11 @@ impl<T: Transport> Sanity<T> {
         self.update_current_salt();
 
         self.server_salt
+    }
+
+    #[inline]
+    const fn reset_salts(&mut self, server_salt: mtproto::Salt) {
+        self.server_salt_until = BAD_SALT_UNTIL;
+        self.server_salt = server_salt;
     }
 }
