@@ -12,6 +12,7 @@ use crypto_bigint::{Odd, U2048};
 use tracing::info;
 
 use tl::SerializedLen;
+use tl::api::funcs;
 
 const ADDR: &str = "149.154.167.40:443";
 
@@ -135,24 +136,52 @@ async fn get_auth_key(
 
     file.read_to_end(&mut buf).await?;
 
-    // if buf.len() != 256 {
-    let hungry::auth::DhGenOk {
-        auth_key,
-        server_salt,
-    } = generate_auth_key(plain, buffer).await?;
+    if buf.len() != 256 {
+        let hungry::auth::DhGenOk {
+            auth_key,
+            server_salt,
+        } = generate_auth_key(plain, buffer).await?;
 
-    info!("writing the `AuthKey` to `{filename}`");
+        info!("writing the `AuthKey` to `{filename}`");
 
-    file.write_all(auth_key.data()).await?;
+        file.set_len(0).await?;
+        file.write_all(auth_key.data()).await?;
 
-    return Ok((auth_key, server_salt));
-    // }
+        return Ok((auth_key, server_salt));
+    }
 
-    println!("Using the `AuthKey` from `{filename}`");
+    info!("Using the `AuthKey` from `{filename}`");
 
     let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
 
     Ok((auth_key, 0))
+}
+
+async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()> {
+    let func = funcs::auth::ImportBotAuthorization {
+        flags: 0,
+        api_id: std::env::var("API_ID")?.parse()?,
+        api_hash: std::env::var("API_HASH")?,
+        bot_auth_token: std::env::var("BOT_TOKEN")?,
+    };
+
+    let (func_tx, func_rx) = oneshot::channel();
+
+    let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::new(func))) else {
+        unreachable!()
+    };
+
+    let obj = func_rx.await?.await?;
+
+    let tl::Object::api_auth_Authorization(auth) = obj else {
+        unimplemented!()
+    };
+
+    let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
+        unimplemented!()
+    };
+
+    Ok(())
 }
 
 async fn async_main() -> anyhow::Result<()> {
@@ -209,9 +238,12 @@ async fn async_main() -> anyhow::Result<()> {
     });
 
     let task2 = tokio::spawn(async move {
-        let func = tl::api::funcs::InvokeWithLayer {
+        // FIXME.
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let func = funcs::InvokeWithLayer {
             layer: 214,
-            query: tl::api::funcs::InitConnection {
+            query: funcs::InitConnection {
                 api_id: std::env::var("API_ID")?.parse()?,
                 device_model: "device_model".to_string(),
                 system_version: "system_version".to_string(),
@@ -221,34 +253,24 @@ async fn async_main() -> anyhow::Result<()> {
                 lang_code: "en".to_string(),
                 proxy: None,
                 params: None,
-                query: tl::api::funcs::auth::ImportBotAuthorization {
-                    flags: 0,
-                    api_id: std::env::var("API_ID")?.parse()?,
-                    api_hash: std::env::var("API_HASH")?,
-                    bot_auth_token: std::env::var("BOT_TOKEN")?,
-                },
+                query: funcs::updates::GetState {},
             },
         };
 
-        let (import_bot_authorization_tx, import_bot_authorization_rx) = oneshot::channel();
+        let (func_tx, func_rx) = oneshot::channel();
 
-        let Ok(()) = tx.send((
-            import_bot_authorization_tx,
-            func.serialized_len(),
-            Arc::new(func),
-        )) else {
+        let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::new(func))) else {
             unreachable!()
         };
 
-        let obj = import_bot_authorization_rx.await?.await?;
+        let obj = func_rx.await?.await?;
 
-        let tl::Object::api_auth_Authorization(auth) = obj else {
-            unimplemented!()
-        };
-
-        let tl::api::enums::auth::Authorization::Authorization(auth) = auth else {
-            unimplemented!()
-        };
+        match obj {
+            tl::Object::mtproto_RpcError(_) => {
+                import_bot_auth(&tx).await?;
+            }
+            _ => {}
+        }
 
         Ok::<(), anyhow::Error>(())
     });
@@ -283,6 +305,15 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                                 todo!()
                             };
 
+                            let input_peer = tl::api::types::InputPeerUser {
+                                user_id: id,
+                                access_hash: user.access_hash.unwrap_or(0),
+                            };
+
+                            let message = format!("echo: {}", msg.message);
+
+                            let random_id = getrandom::u64().unwrap().cast_signed();
+
                             let func = tl::api::funcs::messages::SendMessage {
                                 no_webpage: false,
                                 silent: false,
@@ -292,14 +323,10 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                                 update_stickersets_order: false,
                                 invert_media: false,
                                 allow_paid_floodskip: false,
-                                peer: tl::api::types::InputPeerUser {
-                                    user_id: id,
-                                    access_hash: user.access_hash.unwrap(),
-                                }
-                                .into(),
+                                peer: input_peer.into(),
                                 reply_to: None,
-                                message: format!("pong: {}", msg.message),
-                                random_id: getrandom::u64().unwrap().cast_signed(),
+                                message,
+                                random_id,
                                 reply_markup: None,
                                 entities: None,
                                 schedule_date: None,

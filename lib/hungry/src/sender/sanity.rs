@@ -1,16 +1,37 @@
+use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::mem;
+use std::time::Instant;
 
-use tracing::{debug, warn};
-
-use crate::sender::{Container, Request, SenderError};
+use crate::sender::{Container, Request, Result, SenderError};
 use crate::transport::Transport;
 use crate::unpack::MsgContainerIter;
 use crate::{mtproto, tl};
 
+use tracing::{debug, info, warn};
+
 use tl::de::Deserialize;
-use tl::mtproto::{enums, types};
+use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
+
+struct Now {
+    unix_time: i32,
+    instant: Instant,
+}
+
+impl Now {
+    #[inline]
+    fn now(unix_time: i32) -> Self {
+        let instant = Instant::now();
+
+        Self { unix_time, instant }
+    }
+
+    #[inline]
+    fn unix_time(&self) -> i32 {
+        self.unix_time + i32::try_from(self.instant.elapsed().as_secs()).unwrap()
+    }
+}
 
 pub(super) struct Sanity<T: Transport> {
     pub(super) container: Option<Container<T>>,
@@ -21,12 +42,44 @@ pub(super) struct Sanity<T: Transport> {
     pub(super) server_msg_ids: mtproto::ServerMsgIds,
     pub(super) server_seq_nos: mtproto::SeqNos,
 
+    now: Option<Now>,
+
+    salts_req_id: Option<mtproto::MsgId>,
+    future_salts: Vec<types::FutureSalt>,
+    current_salt: types::FutureSalt,
+
     pub(super) requests: VecDeque<Request>,
 
     pub(super) msgs_ack: Vec<mtproto::MsgId>,
 }
 
 impl<T: Transport> Sanity<T> {
+    #[inline]
+    pub(super) fn new(server_msg_ids_capacity: usize, server_salt: mtproto::Salt) -> Self {
+        Self {
+            container: None,
+
+            client_msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
+            client_seq_nos: mtproto::SeqNos::new(),
+
+            server_msg_ids: mtproto::ServerMsgIds::new(server_msg_ids_capacity),
+            server_seq_nos: mtproto::SeqNos::new(),
+
+            salts_req_id: None,
+            future_salts: Vec::new(),
+            current_salt: types::FutureSalt {
+                valid_since: 0,
+                valid_until: 0,
+                salt: server_salt,
+            },
+
+            now: None,
+
+            requests: VecDeque::new(),
+            msgs_ack: Vec::with_capacity(8192),
+        }
+    }
+
     #[inline]
     pub(super) fn take_container(&mut self) -> Option<Container<T>> {
         mem::take(&mut self.container)
@@ -61,6 +114,33 @@ impl<T: Transport> Sanity<T> {
         self.msgs_ack.clear();
     }
 
+    pub(super) fn push_get_future_salts(&mut self) {
+        if self.salts_req_id.is_some() {
+            return;
+        }
+
+        // FIXME.
+        let num = 1;
+
+        debug!(num, "pushing `get_future_salts#b921bd04`");
+
+        let func = funcs::GetFutureSalts { num };
+
+        let len = func.serialized_len();
+        let msg = self.get_msg::<false>();
+
+        let container = if let Some(ref mut container) = self.container {
+            container
+        } else {
+            let container = self.new_container(len);
+            self.container.insert(container)
+        };
+
+        container.push::<true, _>(&msg, len, |buf| buf.ser(&func));
+
+        self.salts_req_id = Some(msg.msg_id);
+    }
+
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     pub(super) fn new_container(&mut self, len: usize) -> Container<T> {
         warn!("TODO: new_container(len={len})");
@@ -87,7 +167,7 @@ impl<T: Transport> Sanity<T> {
         buf_msg: mtproto::BufMsg<'_>,
         _unix_time: std::time::SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Result<(), SenderError> {
+    ) -> Result {
         use SenderError::*;
 
         let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
@@ -121,19 +201,18 @@ impl<T: Transport> Sanity<T> {
                 dbg!(msgs_ack);
             }
             types::NewSessionCreated::CONSTRUCTOR_ID => {
-                let new_session_created: types::NewSessionCreated = buf.de()?;
-
-                dbg!(new_session_created);
+                self.handle_new_session_created(buf.de()?)?;
             }
             types::FutureSalts::CONSTRUCTOR_ID => {
-                let future_salts: types::FutureSalts = buf.de()?;
-
-                dbg!(future_salts);
+                self.handle_future_salts(buf.de()?)?;
             }
             types::Pong::CONSTRUCTOR_ID => {
                 let pong: types::Pong = buf.de()?;
 
                 dbg!(pong);
+            }
+            types::BadServerSalt::CONSTRUCTOR_ID => {
+                self.handle_bad_server_salt(buf.de()?)?;
             }
 
             tl::api::types::Updates::CONSTRUCTOR_ID => {
@@ -141,6 +220,7 @@ impl<T: Transport> Sanity<T> {
             }
 
             _ => {
+                println!("{typ:#010x}");
                 todo!()
             }
         }
@@ -149,11 +229,7 @@ impl<T: Transport> Sanity<T> {
     }
 
     #[expect(clippy::needless_pass_by_ref_mut, clippy::unused_self)]
-    fn ungzip<'a>(
-        &mut self,
-        out: &'a mut Vec<u8>,
-        buf_msg: &mut mtproto::BufMsg<'a>,
-    ) -> Result<(), SenderError> {
+    fn ungzip<'a>(&mut self, out: &'a mut Vec<u8>, buf_msg: &mut mtproto::BufMsg<'a>) -> Result {
         let bytes = tl::Bytes::deserialize(&mut buf_msg.buf).expect("TODO");
         let buf = bytes.0.as_slice();
 
@@ -178,7 +254,7 @@ impl<T: Transport> Sanity<T> {
         buf_msg: mtproto::BufMsg<'_>,
         unix_time: std::time::SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Result<(), SenderError> {
+    ) -> Result {
         use SenderError::*;
 
         let mut buf_msg = buf_msg;
@@ -244,5 +320,83 @@ impl<T: Transport> Sanity<T> {
         if let Err(_res) = request.tx.send(res_object) {
             todo!()
         }
+    }
+
+    fn handle_new_session_created(&mut self, x: types::NewSessionCreated) -> Result {
+        info!("received `new_session_created#9ec20908`");
+
+        self.current_salt = types::FutureSalt {
+            valid_since: 0,
+            valid_until: 0,
+            salt: x.server_salt,
+        };
+
+        Ok(())
+    }
+
+    fn handle_bad_server_salt(&mut self, x: types::BadServerSalt) -> Result {
+        info!("received `bad_server_salt#edab447b`");
+
+        if let Some(salts_req_id) = self.salts_req_id.take() {
+            if salts_req_id != x.bad_msg_id {
+                self.salts_req_id = None;
+                self.push_get_future_salts();
+            }
+        }
+
+        self.current_salt = types::FutureSalt {
+            valid_since: 0,
+            valid_until: 0,
+            salt: x.new_server_salt,
+        };
+
+        Ok(())
+    }
+
+    fn handle_future_salts(&mut self, x: types::FutureSalts) -> Result {
+        info!(len = x.salts.0.len(), "received `future_salts#ae500895`");
+
+        if let Some(salts_req_id) = self.salts_req_id.take() {
+            if salts_req_id != x.req_msg_id {
+                warn!("invalid `req_msg_id`");
+            }
+        } else {
+            warn!("unexpected future salts");
+        }
+
+        self.now = Some(Now::now(x.now));
+
+        self.future_salts = x.salts.0;
+        self.future_salts.sort_by_key(|x| Reverse(x.valid_since));
+
+        self.update_current_salt();
+
+        Ok(())
+    }
+
+    fn update_current_salt(&mut self) {
+        let Some(ref now) = self.now else {
+            return;
+        };
+
+        let unix_time = now.unix_time();
+
+        while self.current_salt.valid_until < unix_time {
+            let Some(current_salt) = self.future_salts.pop() else {
+                break;
+            };
+
+            self.current_salt = current_salt;
+        }
+
+        if self.future_salts.is_empty() {
+            self.push_get_future_salts()
+        }
+    }
+
+    pub(super) fn get_salt(&mut self) -> mtproto::Salt {
+        self.update_current_salt();
+
+        self.current_salt.salt
     }
 }

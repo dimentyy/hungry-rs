@@ -2,7 +2,6 @@ mod container;
 mod error;
 mod sanity;
 
-use std::collections::VecDeque;
 use std::task::{Context, Poll, ready};
 
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -30,15 +29,14 @@ pub enum Messages<'a> {
     MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
 }
 
+type Result<T = ()> = std::result::Result<T, SenderError>;
+
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
 
     auth_key: mtproto::AuthKey,
     session_id: mtproto::Session,
-
-    // FIXME
-    salt: mtproto::Salt,
 
     sanity: Sanity<T>,
 }
@@ -53,18 +51,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         salt: mtproto::Salt,
     ) -> Self {
-        let sanity = Sanity {
-            container: None,
+        let mut sanity = Sanity::new(1024, salt);
 
-            client_msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
-            client_seq_nos: mtproto::SeqNos::new(),
-
-            server_msg_ids: mtproto::ServerMsgIds::new(1024),
-            server_seq_nos: mtproto::SeqNos::new(),
-
-            requests: VecDeque::new(),
-            msgs_ack: Vec::with_capacity(8192),
-        };
+        sanity.push_get_future_salts();
 
         Self {
             reader,
@@ -72,8 +61,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
             auth_key,
             session_id,
-
-            salt,
 
             sanity,
         }
@@ -86,12 +73,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
-        warn!("TODO: push_completed_writer_buffer(..)");
+        // warn!("TODO: push_completed_writer_buffer(..)");
     }
 
     #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
-        warn!("TODO: push_immediate_writer_buffer(..)");
+        // warn!("TODO: push_immediate_writer_buffer(..)");
     }
 
     #[expect(
@@ -133,7 +120,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         let (transport, encrypted, buffer) = container.finalize();
 
         let internal = mtproto::InternalHeader {
-            salt: self.salt,
+            salt: self.sanity.get_salt(),
             session_id: self.session_id,
         };
 
@@ -149,7 +136,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[inline]
-    fn poll_reader(&mut self, cx: &mut Context<'_>) -> Poll<Result<Packet, SenderError>> {
+    fn poll_reader(&mut self, cx: &mut Context<'_>) -> Poll<Result<Packet>> {
         while let Poll::Ready(result) = self.reader.poll(cx) {
             let unpack = match result {
                 ReaderResult::Reserve(length) => {
@@ -180,7 +167,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Poll::Pending
     }
 
-    fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
+    fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result> {
         while !self.writer.is_empty() {
             let buffer = ready!(self.writer.poll(cx)).map_err(SenderError::Writer)?;
 
@@ -191,7 +178,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[inline]
-    fn poll_writer(&mut self, cx: &mut Context<'_>) -> Result<(), SenderError> {
+    fn poll_writer(&mut self, cx: &mut Context<'_>) -> Result {
         if self.poll_writer_once(cx)?.is_pending() {
             return Ok(());
         }
@@ -211,10 +198,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    pub fn poll(
-        &mut self,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<Vec<tl::api::enums::Updates>, SenderError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Vec<tl::api::enums::Updates>>> {
         trace!("polled");
 
         // Poll the `Reader` first to push ACKs before write.
@@ -229,10 +213,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Poll::Pending
     }
 
-    fn handle_packet(
-        &mut self,
-        packet: Packet,
-    ) -> Result<Vec<tl::api::enums::Updates>, SenderError> {
+    fn handle_packet(&mut self, packet: Packet) -> Result<Vec<tl::api::enums::Updates>> {
         use SenderError::*;
 
         let unix_time = std::time::SystemTime::now();
