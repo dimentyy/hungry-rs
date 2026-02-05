@@ -9,7 +9,7 @@ mod unpack;
 
 pub use auth_key::{AuthKey, AuthKeyAuxHash, AuthKeyId, MsgKey};
 pub use message::{ExternalHeader, InternalHeader, UnencryptedMessage};
-pub use msg::{BufMsg, BufMsgError, Message, Msg, NegativeBytesError, RpcResult};
+pub use msg::{BufMsg, BufMsgError, Msg, NegativeBytesError};
 pub use msg_id::{ClientMsgIds, MsgId, MsgIdError, ServerMsgIds, msg_id};
 pub use pack::{EncryptedEnvelope, pack_plain};
 pub use padding::{ENCRYPTED_DATA_PADDING, PaddingError, check_random_padding};

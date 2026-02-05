@@ -22,47 +22,6 @@ impl fmt::Display for NegativeBytesError {
 
 impl std::error::Error for NegativeBytesError {}
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct RpcResult {
-    pub req_msg_id: mtproto::MsgId,
-    pub res_object: tl::Object,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Message {
-    Object { msg: Msg, obj: tl::Object },
-    RpcResult { msg: Msg, res: RpcResult },
-}
-
-impl Message {
-    pub fn deserialize(mut buf_msg: BufMsg<'_>) -> Result<Self, tl::de::Error> {
-        if buf_msg.typ != tl::RPC_RESULT {
-            let obj = tl::Object::deserialize(buf_msg.typ, &mut buf_msg.buf)?;
-
-            return Ok(Message::Object {
-                msg: buf_msg.msg,
-                obj,
-            });
-        }
-
-        let req_msg_id = buf_msg.buf.de_infallible()?;
-
-        let typ = buf_msg.buf.de_infallible()?;
-
-        let object = tl::Object::deserialize(typ, &mut buf_msg.buf)?;
-
-        let res = RpcResult {
-            req_msg_id,
-            res_object: object,
-        };
-
-        Ok(Message::RpcResult {
-            msg: buf_msg.msg,
-            res,
-        })
-    }
-}
-
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Msg {
