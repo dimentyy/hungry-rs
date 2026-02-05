@@ -1,4 +1,5 @@
 use std::future::poll_fn;
+use std::sync::Arc;
 use std::task::Poll;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -32,7 +33,7 @@ type Plain = hungry::plain::Plain<Transport, R, W>;
 type Item = (
     oneshot::Sender<oneshot::Receiver<tl::Object>>,
     usize,
-    Box<dyn FnOnce(&mut tl::ser::Buf) + Send>,
+    Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
 );
 
 async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
@@ -186,7 +187,7 @@ async fn async_main() -> anyhow::Result<()> {
                 while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
                     let (tx, len, f) = ready;
 
-                    tx.send(sender.invoke(len, f)).unwrap();
+                    tx.send(sender.invoke(len, |buf| buf.ser(&*f))).unwrap();
                 }
 
                 while let Poll::Ready(ready) = sender.poll(cx) {
@@ -197,7 +198,8 @@ async fn async_main() -> anyhow::Result<()> {
 
                 Poll::<anyhow::Result<()>>::Pending
             })
-            .await {
+            .await
+            {
                 eprintln!("{err}");
                 dbg!(err);
             }
@@ -228,13 +230,12 @@ async fn async_main() -> anyhow::Result<()> {
             },
         };
 
-        let (import_bot_authorization_tx, import_bot_authorization_rx) =
-            tokio::sync::oneshot::channel();
+        let (import_bot_authorization_tx, import_bot_authorization_rx) = oneshot::channel();
 
         let Ok(()) = tx.send((
             import_bot_authorization_tx,
             func.serialized_len(),
-            Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
+            Arc::new(func),
         )) else {
             unreachable!()
         };
@@ -309,14 +310,11 @@ fn handle(updates: tl::api::enums::Updates, tx: &mut mpsc::UnboundedSender<Item>
                                 suggested_post: None,
                             };
 
-                            let (send_message_tx, send_message_rx) =
-                                tokio::sync::oneshot::channel();
+                            let (send_message_tx, send_message_rx) = oneshot::channel();
 
-                            let Ok(()) = tx.send((
-                                send_message_tx,
-                                func.serialized_len(),
-                                Box::new(move |buf: &mut tl::ser::Buf| buf.ser(&func)),
-                            )) else {
+                            let Ok(()) =
+                                tx.send((send_message_tx, func.serialized_len(), Arc::new(func)))
+                            else {
                                 unreachable!()
                             };
 
