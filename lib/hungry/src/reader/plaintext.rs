@@ -31,6 +31,7 @@ impl fmt::Display for PlaintextMessageError {
 }
 
 impl std::error::Error for PlaintextMessageError {
+    #[expect(clippy::match_same_arms)]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use PlaintextMessageError::*;
 

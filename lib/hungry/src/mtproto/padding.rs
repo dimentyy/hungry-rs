@@ -26,6 +26,10 @@ impl fmt::Display for PaddingError {
 
 impl std::error::Error for PaddingError {}
 
+/// # Errros
+///
+/// * [`PaddingError`] occurs if padding does not
+///   lie in the [`ENCRYPTED_DATA_PADDING`] range.
 #[inline]
 pub fn check_random_padding(buf: &[u8]) -> Result<(), PaddingError> {
     if !ENCRYPTED_DATA_PADDING.contains(&buf.len()) {

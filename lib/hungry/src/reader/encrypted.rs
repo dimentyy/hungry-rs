@@ -35,6 +35,7 @@ impl fmt::Display for EncryptedMessageError {
 }
 
 impl std::error::Error for EncryptedMessageError {
+    #[expect(clippy::match_same_arms)]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use EncryptedMessageError::*;
 

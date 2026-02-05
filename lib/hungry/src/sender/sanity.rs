@@ -21,7 +21,7 @@ struct Now {
 
 impl Now {
     #[inline]
-    fn now(unix_time: i32) -> Self {
+    fn new(unix_time: i32) -> Self {
         let instant = Instant::now();
 
         Self { unix_time, instant }
@@ -322,6 +322,7 @@ impl<T: Transport> Sanity<T> {
         }
     }
 
+    #[expect(clippy::needless_pass_by_value)]
     fn handle_new_session_created(&mut self, x: types::NewSessionCreated) -> Result {
         info!("received `new_session_created#9ec20908`");
 
@@ -334,14 +335,15 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
+    #[expect(clippy::needless_pass_by_value)]
     fn handle_bad_server_salt(&mut self, x: types::BadServerSalt) -> Result {
         info!("received `bad_server_salt#edab447b`");
 
-        if let Some(salts_req_id) = self.salts_req_id.take() {
-            if salts_req_id != x.bad_msg_id {
-                self.salts_req_id = None;
-                self.push_get_future_salts();
-            }
+        if let Some(salts_req_id) = self.salts_req_id.take()
+            && salts_req_id == x.bad_msg_id
+        {
+            self.salts_req_id = None;
+            self.push_get_future_salts();
         }
 
         self.current_salt = types::FutureSalt {
@@ -364,7 +366,7 @@ impl<T: Transport> Sanity<T> {
             warn!("unexpected future salts");
         }
 
-        self.now = Some(Now::now(x.now));
+        self.now = Some(Now::new(x.now));
 
         self.future_salts = x.salts.0;
         self.future_salts.sort_by_key(|x| Reverse(x.valid_since));
@@ -390,7 +392,7 @@ impl<T: Transport> Sanity<T> {
         }
 
         if self.future_salts.is_empty() {
-            self.push_get_future_salts()
+            self.push_get_future_salts();
         }
     }
 

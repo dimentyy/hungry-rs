@@ -1,6 +1,6 @@
 use crate::Cfg;
 use crate::code::{push_enum_variant, push_escaped, push_function_generics, push_ident};
-use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag, Typ};
+use crate::meta::{Arg, ArgTyp, Combinator, Data, Enum, Flag};
 
 fn write_structure_arg_len(_cfg: &Cfg, _data: &Data, s: &mut String, x: &Arg) {
     match &x.typ {
@@ -127,7 +127,7 @@ pub(super) fn push_struct_ser(cfg: &Cfg, _data: &Data, s: &mut String, x: &Combi
             return;
         }
         0 => {
-            s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        Self::CONSTRUCTOR_ID.serialize_unchecked(buf)\n    }\n}\n");
+            s.push_str(" {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n            Self::CONSTRUCTOR_ID.serialize_unchecked(buf)\n        }\n    }\n}\n");
             return;
         }
         1 => " {\n    #[inline]\n    unsafe fn serialize_unchecked(&self, mut buf: std::ptr::NonNull<u8>) -> std::ptr::NonNull<u8> {\n        unsafe {\n",
