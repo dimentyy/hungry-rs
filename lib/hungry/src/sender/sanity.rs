@@ -17,6 +17,7 @@ use crate::{mtproto, tl};
 
 use tracing::{debug, info, warn};
 
+use crate::mtproto::is_content_related;
 use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
@@ -107,7 +108,7 @@ impl<T: Transport> Sanity<T> {
 
     // FIXME: create buffer container.
     pub(super) fn new_container(&mut self, len: usize) -> Container<T> {
-        Container::new(unbite::DynBuf::new(len + 4096))
+        Container::new(unbite::DynBuf::new(len + 64 * 1024))
     }
 
     pub(super) fn push_msgs_ack(&mut self) {
@@ -173,9 +174,16 @@ impl<T: Transport> Sanity<T> {
 
         let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
 
-        let content_related = self.server_seq_nos.check(msg.seq_no, typ)?;
+        if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
+            match err {
+                mtproto::SeqNoError::Invalid => {
+                    warn!("invalid `seq_no`");
+                }
+                err => return Err(SeqNo(err)),
+            }
+        };
 
-        if content_related {
+        if is_content_related(msg.seq_no) {
             self.msgs_ack_msg_ids.push(msg.msg_id);
         }
 
@@ -283,8 +291,13 @@ impl<T: Transport> Sanity<T> {
                     self.handle_single(buf_msg, unix_time, updates)?;
                 }
 
-                let false = self.server_seq_nos.check(msg.seq_no, typ)? else {
-                    unreachable!();
+                if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
+                    match err {
+                        mtproto::SeqNoError::Invalid => {
+                            warn!("invalid `seq_no`");
+                        }
+                        err => return Err(SeqNo(err)),
+                    }
                 };
             }
             _ => self.handle_single(buf_msg, unix_time, updates)?,
@@ -326,7 +339,7 @@ impl<T: Transport> Sanity<T> {
     fn msgs_ack(&mut self, x: types::MsgsAck) -> Result {
         let types::MsgsAck { msg_ids } = x;
 
-        info!(len = msg_ids.len(), "received `msgs_ack#62d6b459`");
+        debug!(len = msg_ids.len(), "received `msgs_ack#62d6b459`");
 
         Ok(())
     }

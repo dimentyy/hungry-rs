@@ -16,6 +16,7 @@ pub enum EncryptedMessageError {
     TooSmall { len: usize },
     Plaintext,
     AuthKeyId(AuthKeyIdError),
+    InvalidLen { len: usize },
     MsgKeyCheck(MsgKeyCheckError),
 }
 
@@ -29,6 +30,7 @@ impl fmt::Display for EncryptedMessageError {
             TooSmall { len } => write!(f, "too small: {len} bytes"),
             Plaintext => f.write_str("plaintext message"),
             AuthKeyId(err) => err.fmt(f),
+            InvalidLen { len } => write!(f, "invalid len: {len} bytes"),
             MsgKeyCheck(err) => err.fmt(f),
         }
     }
@@ -43,6 +45,7 @@ impl std::error::Error for EncryptedMessageError {
             TooSmall { .. } => None,
             Plaintext => None,
             AuthKeyId(err) => Some(err),
+            InvalidLen { .. } => None,
             MsgKeyCheck(err) => Some(err),
         }
     }
@@ -83,6 +86,12 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         }
 
         let external = ExternalHeader::unpack(auth_key_id, *external);
+
+        let len = buf.len();
+
+        if !len.is_multiple_of(16) {
+            return Err(InvalidLen { len });
+        }
 
         external.decrypt(auth_key, buf).map_err(MsgKeyCheck)?;
 

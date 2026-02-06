@@ -12,16 +12,18 @@ use crate::{ConstSerializedLen, SerializedLen};
 pub use buf::Buf;
 pub use error::{EndOfBufferError, Error, UnexpectedConstructorError};
 
-pub trait Deserialize: SerializedLen + Sized {
+pub trait Deserialize: SerializedLen {
     /// # Safety
     ///
     /// * The [`serialized_len`] of the instance _should_ be checked.
     ///
     /// [`serialized_len`]: SerializedLen::serialized_len
-    fn deserialize(buf: &mut Buf) -> Result<Self, Error>;
+    fn deserialize(buf: &mut Buf) -> Result<Self, Error>
+    where
+        Self: Sized;
 }
 
-pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
+pub trait DeserializeUnchecked: ConstSerializedLen {
     /// # Safety
     ///
     /// * The `buf` must be valid for at least [`SERIALIZED_LEN`] bytes.
@@ -32,16 +34,20 @@ pub trait DeserializeUnchecked: ConstSerializedLen + Sized {
     ///
     /// [`SERIALIZED_LEN`]: ConstSerializedLen::SERIALIZED_LEN
     /// [`CONSTRUCTOR_ID`]: crate::Identifiable::CONSTRUCTOR_ID
-    unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError>;
+    unsafe fn deserialize_unchecked(buf: NonNull<u8>) -> Result<Self, UnexpectedConstructorError>
+    where
+        Self: Sized;
 }
 
-pub trait DeserializeInfallible: ConstSerializedLen + Sized {
+pub trait DeserializeInfallible: ConstSerializedLen {
     /// # Safety
     ///
     /// * The `buf` must be valid for at least [`SERIALIZED_LEN`] bytes.
     ///
     /// [`SERIALIZED_LEN`]: ConstSerializedLen::SERIALIZED_LEN
-    unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self;
+    unsafe fn deserialize_infallible(buf: NonNull<u8>) -> Self
+    where
+        Self: Sized;
 }
 
 impl<T: DeserializeUnchecked> Deserialize for T {

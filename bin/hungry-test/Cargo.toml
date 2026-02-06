@@ -8,5 +8,8 @@ hungry = { path = "../../lib/hungry" }
 tokio = { version = "1.49.0", features = ["rt", "net", "signal", "io-util", "time", "fs"] }
 getrandom = "0.4.0-rc.0"
 anyhow = "1.0.100"
+tracing = { version = "0.1.44" }
 tracing-subscriber = "0.3.22"
 tracing-appender = "0.2.4"
+
+sysinfo = "0.38.0"

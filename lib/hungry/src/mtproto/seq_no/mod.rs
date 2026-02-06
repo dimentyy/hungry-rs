@@ -46,6 +46,12 @@ pub const fn must_be_content_related(typ: u32) -> Option<bool> {
     }
 }
 
+#[inline]
+#[must_use]
+pub const fn is_content_related(seq_no: SeqNo) -> bool {
+    seq_no & 1 == 1
+}
+
 #[must_use]
 #[derive(Debug, Default)]
 pub struct SeqNos {
@@ -81,10 +87,10 @@ impl SeqNos {
         clippy::equatable_if_let,
         reason = "`std::cmp::PartialEq` is not yet stable as a const trait"
     )]
-    pub const fn check(&mut self, seq_no: SeqNo, typ: u32) -> Result<bool, SeqNoError> {
+    pub const fn check(&mut self, seq_no: SeqNo, typ: u32) -> Result<(), SeqNoError> {
         use SeqNoError::*;
 
-        let content_related = seq_no & 1 == 1;
+        let content_related = is_content_related(seq_no);
 
         let expected = if content_related {
             if let Some(false) = must_be_content_related(typ) {
@@ -104,6 +110,6 @@ impl SeqNos {
             return Err(Invalid);
         }
 
-        Ok(content_related)
+        Ok(())
     }
 }

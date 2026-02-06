@@ -78,6 +78,7 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
 
     type Envelope = T::Envelope;
 
+    #[inline]
     fn envelope(buffer: &mut unbite::DynBuf) -> Self::Envelope {
         T::envelope(buffer)
     }

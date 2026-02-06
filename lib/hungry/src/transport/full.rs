@@ -62,6 +62,7 @@ impl Transport for Full {
 
     const INIT_SIZE: usize = 0;
 
+    #[inline]
     fn init(self, _writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
         (FullRead { seq: 0 }, FullWrite { seq: 0 })
     }

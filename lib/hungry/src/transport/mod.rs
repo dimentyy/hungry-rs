@@ -18,17 +18,20 @@ pub use quick_ack::QuickAck;
 #[cfg(feature = "obfuscated-transport")]
 pub use obfuscated::Obfuscated;
 
+#[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub struct Packet {
     pub data: Range<usize>,
 }
 
+#[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub enum Unpack {
     Packet(Packet),
     QuickAck(QuickAck),
 }
 
+#[must_use]
 #[derive(Debug, Eq, PartialEq)]
 pub enum UnpackResult {
     Unpacked {

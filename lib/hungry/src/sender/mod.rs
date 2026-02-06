@@ -195,14 +195,18 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Ok(())
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<Vec<tl::api::enums::Updates>>> {
+    pub fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+        updates: &mut Vec<tl::api::enums::Updates>,
+    ) -> Poll<Result> {
         trace!("polled");
 
         // Poll the `Reader` first to push ACKs before write.
         if let Poll::Ready(packet) = self.poll_reader(cx)? {
-            let updates = self.handle_packet(packet)?;
+            self.handle_packet(packet, updates)?;
 
-            return Poll::Ready(Ok(updates));
+            return Poll::Ready(Ok(()));
         }
 
         self.poll_writer(cx)?;
@@ -210,7 +214,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Poll::Pending
     }
 
-    fn handle_packet(&mut self, packet: Packet) -> Result<Vec<tl::api::enums::Updates>> {
+    fn handle_packet(
+        &mut self,
+        packet: Packet,
+        updates: &mut Vec<tl::api::enums::Updates>,
+    ) -> Result {
         use SenderError::*;
 
         let unix_time = std::time::SystemTime::now();
@@ -228,12 +236,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         mtproto::check_random_padding(buf.as_slice()).map_err(Padding)?;
 
-        let mut updates = Vec::new();
+        self.sanity.handle_buf_msg(buf_msg, unix_time, updates)?;
 
-        self.sanity
-            .handle_buf_msg(buf_msg, unix_time, &mut updates)?;
-
-        Ok(updates)
+        Ok(())
     }
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(

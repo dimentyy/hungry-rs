@@ -5,12 +5,12 @@ use std::task::Poll;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
+use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 
-use hungry::{crypto_bigint, tl, tracing, unbite};
+use hungry::{crypto_bigint, tl, unbite};
 
 use crypto_bigint::{Odd, U2048};
-use tracing::{error, info};
 
 use tl::SerializedLen;
 use tl::api::{enums, funcs, types};
@@ -43,8 +43,8 @@ async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
 
     let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
 
-    let r_buffer = unbite::DynBuf::new(16 * 1024);
-    let w_buffer = unbite::DynBuf::new(16 * 1024);
+    let r_buffer = unbite::DynBuf::new(64 * 1024);
+    let w_buffer = unbite::DynBuf::new(64 * 1024);
 
     let (r, w) = hungry::init(transport, r, r_buffer, w, w_buffer);
 
@@ -186,7 +186,7 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stdout());
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stderr());
 
     let subscriber = tracing_subscriber::Registry::default()
         .with(tracing_subscriber::fmt::layer().with_writer(non_blocking));
@@ -212,9 +212,13 @@ async fn async_main() -> anyhow::Result<()> {
     let sender_task = tokio::spawn(async move {
         let mut ctrl_c = pin!(tokio::signal::ctrl_c());
 
+        let mut updates = Vec::new();
+
         while let Err(err) = poll_fn::<Result<(), hungry::sender::SenderError>, _>(|cx| {
             if let Poll::Ready(ready) = ctrl_c.as_mut().poll(cx) {
                 ready.unwrap();
+
+                info!("caught `ctrl-c` notification");
 
                 return Poll::Ready(Ok(()));
             }
@@ -225,8 +229,10 @@ async fn async_main() -> anyhow::Result<()> {
                 tx.send(sender.invoke(len, |buf| buf.ser(&*f))).unwrap();
             }
 
-            while let Poll::Ready(ready) = sender.poll(cx) {
-                for update in ready? {
+            while let Poll::Ready(ready) = sender.poll(cx, &mut updates) {
+                ready?;
+
+                for update in updates.drain(..) {
                     handle(update, &sender_tx);
                 }
             }
@@ -283,6 +289,33 @@ async fn async_main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn send_message(peer: enums::InputPeer, message: String) -> funcs::messages::SendMessage {
+    let random_id = getrandom::u64().unwrap().cast_signed();
+
+    funcs::messages::SendMessage {
+        no_webpage: false,
+        silent: false,
+        background: false,
+        clear_draft: false,
+        noforwards: false,
+        update_stickersets_order: false,
+        invert_media: false,
+        allow_paid_floodskip: false,
+        peer,
+        reply_to: None,
+        message,
+        random_id,
+        reply_markup: None,
+        entities: None,
+        schedule_date: None,
+        send_as: None,
+        quick_reply_shortcut: None,
+        effect: None,
+        allow_paid_stars: None,
+        suggested_post: None,
+    }
+}
+
 fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
     match updates {
         enums::Updates::Updates(updates) => {
@@ -312,32 +345,30 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
                                 access_hash: user.access_hash.unwrap_or(0),
                             };
 
-                            let message = format!("echo: {}", message.message);
+                            let message = if message.message == "/stats" {
+                                let mut sys = sysinfo::System::new();
+                                let pid = sysinfo::Pid::from(std::process::id() as usize);
+                                let pids = sysinfo::ProcessesToUpdate::Some(&[pid]);
 
-                            let random_id = getrandom::u64().unwrap().cast_signed();
+                                sys.refresh_processes_specifics(
+                                    pids,
+                                    false,
+                                    sysinfo::ProcessRefreshKind::nothing()
+                                        .with_cpu()
+                                        .with_memory(),
+                                );
 
-                            let func = Arc::new(funcs::messages::SendMessage {
-                                no_webpage: false,
-                                silent: false,
-                                background: false,
-                                clear_draft: false,
-                                noforwards: false,
-                                update_stickersets_order: false,
-                                invert_media: false,
-                                allow_paid_floodskip: false,
-                                peer: input_peer.into(),
-                                reply_to: None,
-                                message,
-                                random_id,
-                                reply_markup: None,
-                                entities: None,
-                                schedule_date: None,
-                                send_as: None,
-                                quick_reply_shortcut: None,
-                                effect: None,
-                                allow_paid_stars: None,
-                                suggested_post: None,
-                            });
+                                let proc = sys.process(pid).unwrap();
+
+                                let cpu = proc.accumulated_cpu_time();
+                                let mem = proc.memory() as f64 / (1024. * 1024.);
+
+                                format!("STATS:\n\n * CPU: {cpu}ms\n * MEM: {mem:.1}mb")
+                            } else {
+                                format!("echo: {}", message.message)
+                            };
+
+                            let func = Arc::new(send_message(input_peer.into(), message));
 
                             let (func_tx, func_rx) = oneshot::channel();
 

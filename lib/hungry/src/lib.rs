@@ -31,7 +31,6 @@ pub mod writer;
 pub(crate) use private::Sealed;
 
 pub use crypto_bigint;
-pub use tracing;
 
 pub use unbite;
 
