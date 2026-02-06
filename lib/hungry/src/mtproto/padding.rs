@@ -26,7 +26,7 @@ impl fmt::Display for PaddingError {
 
 impl std::error::Error for PaddingError {}
 
-/// # Errros
+/// # Errors
 ///
 /// * [`PaddingError`] occurs if padding does not
 ///   lie in the [`ENCRYPTED_DATA_PADDING`] range.

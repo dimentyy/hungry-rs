@@ -151,7 +151,7 @@ async fn get_auth_key(
         return Ok((auth_key, server_salt));
     }
 
-    info!("Using the `AuthKey` from `{filename}`");
+    info!("using the `AuthKey` from `{filename}`");
 
     let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
 

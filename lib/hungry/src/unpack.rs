@@ -9,8 +9,8 @@ impl<'a> MsgContainerIter<'a> {
     /// # Errors
     ///
     /// * [`tl::de::EndOfBufferError`] occurs if the 4-byte `len` read failed.
-    pub fn new(mut buf: tl::de::Buf<'a>) -> Result<Self, tl::de::EndOfBufferError> {
-        let len = u32::from_le_bytes(*buf.take_exactly()?);
+    pub fn deserialize(mut buf: tl::de::Buf<'a>) -> Result<Self, tl::de::EndOfBufferError> {
+        let len = buf.de_infallible::<u32>()?;
 
         Ok(Self { buf, len })
     }
@@ -23,7 +23,7 @@ impl<'a> Iterator for MsgContainerIter<'a> {
         self.len = self.len.checked_sub(1)?;
 
         let buf_msg = match mtproto::BufMsg::deserialize(&mut self.buf) {
-            Ok(buf_msg) => buf_msg,
+            Ok(x) => x,
             Err(err) => return Some(Err(err)),
         };
 

@@ -8,7 +8,7 @@
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::mem;
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use crate::sender::{Container, Request, Result, SenderError};
 use crate::transport::Transport;
@@ -17,7 +17,6 @@ use crate::{mtproto, tl};
 
 use tracing::{debug, info, warn};
 
-use crate::mtproto::is_content_related;
 use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
@@ -43,14 +42,15 @@ impl Now {
     }
 }
 
+// FIXME: this struct manages too many things right now.
 pub(super) struct Sanity<T: Transport> {
     pub(super) container: Option<Container<T>>,
 
     client_msg_ids: mtproto::ClientMsgIds,
-    client_seq_nos: mtproto::SeqNos,
+    client_seq_nos: mtproto::ClientSeqNos,
 
     server_msg_ids: mtproto::ServerMsgIds,
-    server_seq_nos: mtproto::SeqNos,
+    server_seq_nos: mtproto::ServerSeqNos,
 
     now: Option<Now>,
 
@@ -73,11 +73,11 @@ impl<T: Transport> Sanity<T> {
         Self {
             container: None,
 
-            client_msg_ids: mtproto::ClientMsgIds::new(std::time::SystemTime::now()),
-            client_seq_nos: mtproto::SeqNos::new(),
+            client_msg_ids: mtproto::ClientMsgIds::new(SystemTime::now()),
+            client_seq_nos: mtproto::ClientSeqNos::new(),
 
             server_msg_ids: mtproto::ServerMsgIds::new(server_msg_ids_capacity),
-            server_seq_nos: mtproto::SeqNos::new(),
+            server_seq_nos: mtproto::ServerSeqNos::new(),
 
             get_future_salts_msg: None,
             future_salts: Vec::new(),
@@ -111,29 +111,6 @@ impl<T: Transport> Sanity<T> {
         Container::new(unbite::DynBuf::new(len + 64 * 1024))
     }
 
-    pub(super) fn push_msgs_ack(&mut self) {
-        if self.msgs_ack_msg_ids.is_empty() {
-            return;
-        }
-
-        let msg_ids = mem::take(&mut self.msgs_ack_msg_ids);
-
-        debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
-
-        let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
-
-        let len = func.serialized_len();
-        let msg = self.get_msg::<false>();
-
-        self.get_container(len)
-            .push::<true, _>(&msg, len, |buf| buf.ser(&func));
-
-        let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
-
-        self.msgs_ack_msg_ids = msg_ids;
-        self.msgs_ack_msg_ids.clear();
-    }
-
     pub(super) fn push_get_future_salts(&mut self) {
         // FIXME.
         let num = 1;
@@ -143,7 +120,7 @@ impl<T: Transport> Sanity<T> {
         let func = funcs::GetFutureSalts { num };
 
         let len = func.serialized_len();
-        let msg = self.get_msg::<false>();
+        let msg = self.get_msg::<false>(SystemTime::now());
 
         self.get_container(len)
             .push::<true, _>(&msg, len, |buf| buf.ser(&func));
@@ -152,8 +129,11 @@ impl<T: Transport> Sanity<T> {
     }
 
     #[inline]
-    pub(super) fn get_msg<const CONTENT_RELATED: bool>(&mut self) -> mtproto::Msg {
-        let msg_id = self.client_msg_ids.get(std::time::SystemTime::now());
+    pub(super) fn get_msg<const CONTENT_RELATED: bool>(
+        &mut self,
+        unix_time: SystemTime,
+    ) -> mtproto::Msg {
+        let msg_id = self.client_msg_ids.get(unix_time);
 
         let seq_no = if CONTENT_RELATED {
             self.client_seq_nos.get_content_related()
@@ -181,11 +161,9 @@ impl<T: Transport> Sanity<T> {
                 }
                 err => return Err(SeqNo(err)),
             }
-        };
-
-        if is_content_related(msg.seq_no) {
-            self.msgs_ack_msg_ids.push(msg.msg_id);
         }
+
+        self.ack(msg);
 
         match typ {
             tl::GZIP_PACKED => return Err(DoubleGzipPacked),
@@ -267,8 +245,8 @@ impl<T: Transport> Sanity<T> {
             tl::MSG_CONTAINER => {
                 let mtproto::BufMsg { msg, buf, typ } = buf_msg;
 
-                let msg_container =
-                    MsgContainerIter::new(buf).map_err(|err| Deserialization(err.into()))?;
+                let msg_container = MsgContainerIter::deserialize(buf)
+                    .map_err(|err| Deserialization(err.into()))?;
 
                 // Collect first to validate `bytes` field of `message` type.
                 let mut container = Vec::with_capacity(msg_container.len());
@@ -298,7 +276,7 @@ impl<T: Transport> Sanity<T> {
                         }
                         err => return Err(SeqNo(err)),
                     }
-                };
+                }
             }
             _ => self.handle_single(buf_msg, unix_time, updates)?,
         }
@@ -426,5 +404,46 @@ impl<T: Transport> Sanity<T> {
     const fn reset_salts(&mut self, server_salt: mtproto::Salt) {
         self.server_salt_until = BAD_SALT_UNTIL;
         self.server_salt = server_salt;
+    }
+
+    pub(super) fn push_msgs_ack(&mut self) {
+        if self.msgs_ack_msg_ids.is_empty() {
+            return;
+        }
+
+        let msg_ids = mem::take(&mut self.msgs_ack_msg_ids);
+
+        debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
+
+        let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
+
+        let len = func.serialized_len();
+        let msg = self.get_msg::<false>(SystemTime::now());
+
+        self.get_container(len)
+            .push::<true, _>(&msg, len, |buf| buf.ser(&func));
+
+        let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
+
+        self.msgs_ack_msg_ids = msg_ids;
+        self.msgs_ack_msg_ids.clear();
+    }
+
+    fn ack(&mut self, msg: mtproto::Msg) {
+        if !mtproto::is_content_related(msg.seq_no) {
+            return;
+        }
+
+        let len = self.msgs_ack_msg_ids.len();
+
+        self.msgs_ack_msg_ids.push(msg.msg_id);
+
+        if len < mtproto::MAX_IDS_PER_SERVICE_MSG {
+            return;
+        }
+
+        self.push_msgs_ack();
+
+        // TODO: handle `BadMsgNotification` to resend the message.
     }
 }

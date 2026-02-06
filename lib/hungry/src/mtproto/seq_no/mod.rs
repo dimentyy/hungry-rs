@@ -1,12 +1,14 @@
+mod client;
 mod error;
-
-use std::fmt;
+mod server;
 
 use crate::tl;
 
 use tl::Identifiable;
 
+pub use client::ClientSeqNos;
 pub use error::SeqNoError;
+pub use server::ServerSeqNos;
 
 /// # Message Sequence Number (msg_seqno)
 ///
@@ -46,70 +48,8 @@ pub const fn must_be_content_related(typ: u32) -> Option<bool> {
     }
 }
 
-#[inline]
 #[must_use]
+#[inline(always)]
 pub const fn is_content_related(seq_no: SeqNo) -> bool {
     seq_no & 1 == 1
-}
-
-#[must_use]
-#[derive(Debug, Default)]
-pub struct SeqNos {
-    current: SeqNo,
-}
-
-impl fmt::Display for SeqNos {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "seq nos [current={}]", self.current)
-    }
-}
-
-impl SeqNos {
-    #[inline]
-    pub const fn new() -> Self {
-        Self { current: 0 }
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn non_content_related(&self) -> SeqNo {
-        self.current * 2
-    }
-
-    #[inline]
-    #[must_use]
-    pub const fn get_content_related(&mut self) -> SeqNo {
-        self.current += 1;
-        (self.current * 2) - 1
-    }
-
-    #[expect(
-        clippy::equatable_if_let,
-        reason = "`std::cmp::PartialEq` is not yet stable as a const trait"
-    )]
-    pub const fn check(&mut self, seq_no: SeqNo, typ: u32) -> Result<(), SeqNoError> {
-        use SeqNoError::*;
-
-        let content_related = is_content_related(seq_no);
-
-        let expected = if content_related {
-            if let Some(false) = must_be_content_related(typ) {
-                return Err(Odd);
-            }
-
-            self.get_content_related()
-        } else {
-            if let Some(true) = must_be_content_related(typ) {
-                return Err(Even);
-            }
-
-            self.non_content_related()
-        };
-
-        if seq_no != expected {
-            return Err(Invalid);
-        }
-
-        Ok(())
-    }
 }

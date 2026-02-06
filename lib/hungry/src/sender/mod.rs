@@ -3,7 +3,7 @@ mod error;
 mod sanity;
 
 use std::task::{Context, Poll, ready};
-
+use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::oneshot;
 use tracing::{debug, trace, warn};
@@ -112,7 +112,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     fn queue_container_write(&mut self, container: Container<T>) {
-        debug!(len = container.len(), "queuing container");
+        trace!(len = container.len(), "queuing container");
 
         let (transport, encrypted, buffer) = container.finalize();
 
@@ -121,7 +121,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             session_id: self.session_id,
         };
 
-        let msg = self.sanity.get_msg::<false>();
+        let msg = self.sanity.get_msg::<false>(SystemTime::now());
 
         let buffer = self
             .writer
@@ -155,8 +155,6 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
                     return Poll::Pending;
                 }
             };
-
-            debug!(data = ?packet.data, "packet");
 
             return Poll::Ready(Ok(packet));
         }
@@ -204,6 +202,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         // Poll the `Reader` first to push ACKs before write.
         if let Poll::Ready(packet) = self.poll_reader(cx)? {
+            trace!(data = ?packet.data, "packet");
+
             self.handle_packet(packet, updates)?;
 
             return Poll::Ready(Ok(()));
@@ -248,7 +248,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     ) -> oneshot::Receiver<tl::Object> {
         debug!(len, "invoking");
 
-        let msg = self.sanity.get_msg::<true>();
+        let msg = self.sanity.get_msg::<true>(SystemTime::now());
 
         self.get_container(len).push::<false, F>(&msg, len, f);
 

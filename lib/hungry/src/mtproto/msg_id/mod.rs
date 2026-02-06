@@ -1,10 +1,15 @@
 mod client;
+mod error;
 mod server;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub use client::ClientMsgIds;
-pub use server::{MsgIdError, ServerMsgIds};
+pub use error::MsgIdError;
+pub use server::ServerMsgIds;
+
+pub const REJECT_MSG_ID_AFTER: i32 = 300;
+pub const REJECT_MSG_ID_UNTIL: i32 = 30;
 
 /// # Message Identifier (msg_id)
 ///
@@ -31,20 +36,16 @@ pub use server::{MsgIdError, ServerMsgIds};
 /// <https://core.telegram.org/mtproto/description#message-identifier-msg-id>
 pub type MsgId = i64;
 
-/// Calculates a new [`MsgId`] from given `unix_time`.
-///
 /// # Panics
 ///
-/// * If the [`SystemTime`] is before [`UNIX_EPOCH`].
-#[inline]
+/// * If the [`SystemTime`] exceeds signed 32-bit Unix timestamp range.
 #[must_use]
-pub fn msg_id(unix_time: SystemTime) -> MsgId {
-    let unix_time = unix_time
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock time to be after the Unix epoch");
+pub fn new_msg_id(system_time: SystemTime) -> MsgId {
+    let unix_time = system_time.duration_since(UNIX_EPOCH).unwrap();
 
-    let secs = unix_time.as_secs().cast_signed();
-    let subsec_nanos = i64::from(unix_time.subsec_nanos());
+    let secs = i32::try_from(unix_time.as_secs()).unwrap();
+    let subsec_nanos = unix_time.subsec_nanos();
 
-    secs << 32 | subsec_nanos << 2
+    // Client message identifiers are divisible by 4.
+    i64::from(secs) << 32 | i64::from(subsec_nanos) << 2
 }

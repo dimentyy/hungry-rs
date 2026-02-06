@@ -2,42 +2,32 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::mtproto::MsgId;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum MsgIdError {
-    Even,
-    Negative,
-    LowerThanAll,
-    EqualToAny,
-    InTheFuture,
-    InThePast,
-}
-
-impl fmt::Display for MsgIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use MsgIdError::*;
-
-        f.write_str("`msg_id` error: ")?;
-
-        f.write_str(match self {
-            Even => "even parity",
-            Negative => "negative",
-            LowerThanAll => "lower than all",
-            EqualToAny => "equal to any",
-            InTheFuture => "calculated `unix_time` is in the future",
-            InThePast => "calculated `unix_time` is in the past",
-        })
-    }
-}
-
-impl std::error::Error for MsgIdError {}
+use crate::mtproto::{MsgId, MsgIdError, REJECT_MSG_ID_AFTER, REJECT_MSG_ID_UNTIL};
 
 #[must_use]
 pub struct ServerMsgIds {
     vec: VecDeque<MsgId>,
     max: MsgId,
     min: MsgId,
+}
+
+impl fmt::Debug for ServerMsgIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ServerMsgIds")
+            .field("max", &format_args!("{:#018x}", self.max))
+            .field("min", &format_args!("{:#018x}", self.min))
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Display for ServerMsgIds {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "server msg ids [max={:#018x}, min={:#018x}, ..]",
+            self.max, self.min
+        )
+    }
 }
 
 impl ServerMsgIds {
@@ -50,11 +40,42 @@ impl ServerMsgIds {
         }
     }
 
+    #[inline]
+    #[must_use]
+    pub const fn max(&self) -> MsgId {
+        self.max
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn min(&self) -> MsgId {
+        self.min
+    }
+
+    #[inline]
+    #[must_use]
+    pub const fn vec(&self) -> &VecDeque<MsgId> {
+        &self.vec
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.vec.capacity()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.vec.clear();
+        self.max = i64::MIN;
+        self.min = i64::MIN;
+    }
+
     #[inline(always)]
     fn gt_max_branch(&mut self, msg_id: MsgId, sys_secs: i32) {
         self.max = msg_id;
 
-        // Not possible to push.
+        // Impossible to push.
         if self.vec.capacity() == 0 {
             self.min = msg_id;
 
@@ -68,7 +89,6 @@ impl ServerMsgIds {
         self.vec.push_back(msg_id);
     }
 
-    #[inline(always)]
     fn drain_front(&mut self, sys_secs: i32) {
         // Do not reserve extra, pop the front immediately.
         if self.vec.len() == self.vec.capacity() {
@@ -82,18 +102,16 @@ impl ServerMsgIds {
         }
     }
 
-    /// Validates provided [`MsgId`] against provided the `unix_time`.
-    ///
     /// # Panics
     ///
-    /// * If the [`SystemTime`] is before [`UNIX_EPOCH`].
+    /// * If the [`SystemTime`] exceeds signed 32-bit Unix timestamp range.
     ///
     /// # Errors
     ///
-    /// See [Security Guidelines] page for information.
+    /// See the [Security Guidelines] page for information.
     ///
     /// [Security Guidelines]: https://core.telegram.org/mtproto/security_guidelines#checking-msg-id
-    pub fn check(&mut self, msg_id: MsgId, unix_time: SystemTime) -> Result<(), MsgIdError> {
+    pub fn check(&mut self, msg_id: MsgId, system_time: SystemTime) -> Result<(), MsgIdError> {
         use MsgIdError::*;
 
         assert!(self.vec.capacity() > 0);
@@ -106,12 +124,12 @@ impl ServerMsgIds {
             return Err(Negative);
         }
 
-        let sys_secs: i32 = unix_time
+        let sys_secs: i32 = system_time
             .duration_since(UNIX_EPOCH)
-            .expect("system clock time to be after the Unix epoch")
+            .unwrap()
             .as_secs()
             .try_into()
-            .expect("number of secs since the Unix epoch to not overflow");
+            .unwrap();
 
         check_unix_time(msg_id, sys_secs)?;
 
@@ -166,11 +184,11 @@ const fn check_unix_time(msg_id: MsgId, sys_secs: i32) -> Result<(), MsgIdError>
 
     let msg_secs = (msg_id >> 32) as i32;
 
-    if sys_secs - 300 > msg_secs {
+    if msg_secs < sys_secs - REJECT_MSG_ID_AFTER {
         return Err(InThePast);
     }
 
-    if msg_secs > sys_secs + 30 {
+    if sys_secs + REJECT_MSG_ID_UNTIL < msg_secs {
         return Err(InTheFuture);
     }
 
