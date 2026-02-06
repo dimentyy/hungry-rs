@@ -234,7 +234,7 @@ impl<T: Transport> Sanity<T> {
 
         let mut out = Vec::new();
 
-        self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
+        self.server_msg_ids.check(buf_msg.msg.msg_id, unix_time)?;
 
         if buf_msg.typ == tl::GZIP_PACKED {
             self.ungzip(&mut out, &mut buf_msg)?;
@@ -254,7 +254,7 @@ impl<T: Transport> Sanity<T> {
                 for buf_msg in msg_container {
                     let buf_msg = buf_msg?;
 
-                    self.server_msg_ids.check(buf_msg.msg_id, unix_time)?;
+                    self.server_msg_ids.check(buf_msg.msg.msg_id, unix_time)?;
 
                     container.push(buf_msg);
                 }

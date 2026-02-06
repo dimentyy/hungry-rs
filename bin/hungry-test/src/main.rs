@@ -363,7 +363,7 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
                                 let cpu = proc.accumulated_cpu_time();
                                 let mem = proc.memory() as f64 / (1024. * 1024.);
 
-                                format!("STATS:\n\n * CPU: {cpu}ms\n * MEM: {mem:.1}mb")
+                                format!("# STATS:\n\n * CPU time: {cpu}ms\n * Memory: {mem:.1}MiB")
                             } else {
                                 format!("echo: {}", message.message)
                             };

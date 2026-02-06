@@ -1,5 +1,4 @@
 use std::fmt;
-use std::ops::{Deref, DerefMut};
 
 use crate::mtproto::{Msg, NegativeBytesError};
 use crate::{common, tl};
@@ -57,22 +56,6 @@ pub struct BufMsg<'a> {
     pub msg: Msg,
     pub typ: u32,
     pub buf: Buf<'a>,
-}
-
-impl Deref for BufMsg<'_> {
-    type Target = Msg;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.msg
-    }
-}
-
-impl DerefMut for BufMsg<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.msg
-    }
 }
 
 impl<'a> BufMsg<'a> {
