@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use std::mem;
 use std::time::{Instant, SystemTime};
 
-use crate::sender::{Container, Request, Result, SenderError};
+use crate::sender::{Container, Request, SenderError};
 use crate::transport::Transport;
 use crate::unpack::MsgContainerIter;
 use crate::{mtproto, tl};
@@ -131,9 +131,9 @@ impl<T: Transport> Sanity<T> {
     #[inline]
     pub(super) fn get_msg<const CONTENT_RELATED: bool>(
         &mut self,
-        unix_time: SystemTime,
+        system_time: SystemTime,
     ) -> mtproto::Msg {
-        let msg_id = self.client_msg_ids.get(unix_time);
+        let msg_id = self.client_msg_ids.get(system_time);
 
         let seq_no = if CONTENT_RELATED {
             self.client_seq_nos.get_content_related()
@@ -147,9 +147,9 @@ impl<T: Transport> Sanity<T> {
     fn handle_single(
         &mut self,
         buf_msg: mtproto::BufMsg<'_>,
-        _unix_time: std::time::SystemTime,
+        _system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Result {
+    ) -> Result<(), SenderError> {
         use SenderError::*;
 
         let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
@@ -202,7 +202,11 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
-    fn ungzip<'a>(&mut self, out: &'a mut Vec<u8>, buf_msg: &mut mtproto::BufMsg<'a>) -> Result {
+    fn ungzip<'a>(
+        &mut self,
+        out: &'a mut Vec<u8>,
+        buf_msg: &mut mtproto::BufMsg<'a>,
+    ) -> Result<(), SenderError> {
         let bytes = tl::Bytes::deserialize(&mut buf_msg.buf).expect("TODO");
         let buf = bytes.0.as_slice();
 
@@ -225,16 +229,16 @@ impl<T: Transport> Sanity<T> {
     pub(super) fn handle_buf_msg(
         &'_ mut self,
         buf_msg: mtproto::BufMsg<'_>,
-        unix_time: std::time::SystemTime,
+        system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Result {
+    ) -> Result<(), SenderError> {
         use SenderError::*;
 
         let mut buf_msg = buf_msg;
 
         let mut out = Vec::new();
 
-        self.server_msg_ids.check(buf_msg.msg.msg_id, unix_time)?;
+        self.server_msg_ids.check(buf_msg.msg.msg_id, system_time)?;
 
         if buf_msg.typ == tl::GZIP_PACKED {
             self.ungzip(&mut out, &mut buf_msg)?;
@@ -254,7 +258,7 @@ impl<T: Transport> Sanity<T> {
                 for buf_msg in msg_container {
                     let buf_msg = buf_msg?;
 
-                    self.server_msg_ids.check(buf_msg.msg.msg_id, unix_time)?;
+                    self.server_msg_ids.check(buf_msg.msg.msg_id, system_time)?;
 
                     container.push(buf_msg);
                 }
@@ -266,7 +270,7 @@ impl<T: Transport> Sanity<T> {
                         self.ungzip(&mut out, &mut buf_msg)?;
                     }
 
-                    self.handle_single(buf_msg, unix_time, updates)?;
+                    self.handle_single(buf_msg, system_time, updates)?;
                 }
 
                 if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
@@ -278,7 +282,7 @@ impl<T: Transport> Sanity<T> {
                     }
                 }
             }
-            _ => self.handle_single(buf_msg, unix_time, updates)?,
+            _ => self.handle_single(buf_msg, system_time, updates)?,
         }
 
         Ok(())
@@ -300,7 +304,7 @@ impl<T: Transport> Sanity<T> {
         }
     }
 
-    fn new_session_created(&mut self, x: types::NewSessionCreated) -> Result {
+    fn new_session_created(&mut self, x: types::NewSessionCreated) -> Result<(), SenderError> {
         info!("received `new_session_created#9ec20908`");
 
         let types::NewSessionCreated {
@@ -314,7 +318,7 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
-    fn msgs_ack(&mut self, x: types::MsgsAck) -> Result {
+    fn msgs_ack(&mut self, x: types::MsgsAck) -> Result<(), SenderError> {
         let types::MsgsAck { msg_ids } = x;
 
         debug!(len = msg_ids.len(), "received `msgs_ack#62d6b459`");
@@ -322,7 +326,7 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
-    fn pong(&mut self, x: types::Pong) -> Result {
+    fn pong(&mut self, x: types::Pong) -> Result<(), SenderError> {
         let types::Pong { msg_id, ping_id } = x;
 
         info!(msg_id, ping_id, "received `pong#347773c5`");
@@ -330,7 +334,7 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
-    fn bad_server_salt(&mut self, x: types::BadServerSalt) -> Result {
+    fn bad_server_salt(&mut self, x: types::BadServerSalt) -> Result<(), SenderError> {
         let types::BadServerSalt {
             bad_msg_id: _,
             bad_msg_seqno,
@@ -352,7 +356,7 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
-    fn handle_future_salts(&mut self, x: types::FutureSalts) -> Result {
+    fn handle_future_salts(&mut self, x: types::FutureSalts) -> Result<(), SenderError> {
         info!(len = x.salts.0.len(), "received `future_salts#ae500895`");
 
         if let Some(msg) = self.get_future_salts_msg.take() {

@@ -360,10 +360,14 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
 
                                 let proc = sys.process(pid).unwrap();
 
-                                let cpu = proc.accumulated_cpu_time() as f64 / 1000.;
+                                let run_time = proc.run_time();
+                                let cpu_time = proc.accumulated_cpu_time() as f64 / 1000.;
+                                let cpu_usage = cpu_time / run_time as f64 * 100.;
                                 let mem = proc.memory() as f64 / (1024. * 1024.);
 
-                                format!("# STATS:\n\n * CPU time: {cpu:.1}s\n * Memory: {mem:.1}MiB")
+                                format!(
+                                    "# STATS:\n\n * Run time: {run_time}s\n * CPU: {cpu_time:.1}s ({cpu_usage:.2}%)\n * Memory: {mem:.1}MiB"
+                                )
                             } else {
                                 format!("echo: {}", message.message)
                             };

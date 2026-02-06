@@ -29,8 +29,6 @@ pub enum Messages<'a> {
     MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
 }
 
-type Result<T = ()> = std::result::Result<T, SenderError>;
-
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
@@ -90,7 +88,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         warn!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }
 
-    fn get_container(&mut self, len: usize) -> &mut Container<T> {
+    fn get_container(&mut self, len: usize, system_time: SystemTime) -> &mut Container<T> {
         self.sanity.push_msgs_ack();
 
         if self
@@ -103,7 +101,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         }
 
         if let Some(container) = self.sanity.take_container() {
-            self.queue_container_write(container);
+            self.queue_container_write(container, system_time);
         }
 
         let new = self.sanity.new_container(len);
@@ -111,7 +109,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         self.sanity.container.insert(new)
     }
 
-    fn queue_container_write(&mut self, container: Container<T>) {
+    fn queue_container_write(&mut self, container: Container<T>, system_time: SystemTime) {
         trace!(len = container.len(), "queuing container");
 
         let (transport, encrypted, buffer) = container.finalize();
@@ -121,7 +119,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             session_id: self.session_id,
         };
 
-        let msg = self.sanity.get_msg::<false>(SystemTime::now());
+        let msg = self.sanity.get_msg::<false>(system_time);
 
         let buffer = self
             .writer
@@ -133,7 +131,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[inline]
-    fn poll_reader(&mut self, cx: &mut Context<'_>) -> Poll<Result<Packet>> {
+    fn poll_reader(&mut self, cx: &mut Context<'_>) -> Poll<Result<Packet, SenderError>> {
         while let Poll::Ready(result) = self.reader.poll(cx) {
             let unpack = match result {
                 ReaderResult::Reserve(length) => {
@@ -162,7 +160,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         Poll::Pending
     }
 
-    fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result> {
+    fn poll_writer_once(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), SenderError>> {
         while !self.writer.is_empty() {
             let buffer = ready!(self.writer.poll(cx)).map_err(SenderError::Writer)?;
 
@@ -173,7 +171,11 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     }
 
     #[inline]
-    fn poll_writer(&mut self, cx: &mut Context<'_>) -> Result {
+    fn poll_writer(
+        &mut self,
+        cx: &mut Context<'_>,
+        system_time: SystemTime,
+    ) -> Result<(), SenderError> {
         if self.poll_writer_once(cx)?.is_pending() {
             return Ok(());
         }
@@ -184,7 +186,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             return Ok(());
         };
 
-        self.queue_container_write(container);
+        self.queue_container_write(container, system_time);
 
         // We intentionally discard the `Poll<()>` as we do
         // not need the confirmation about writer readiness.
@@ -197,19 +199,21 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         &mut self,
         cx: &mut Context<'_>,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Poll<Result> {
+    ) -> Poll<Result<(), SenderError>> {
         trace!("polled");
+
+        let system_time = SystemTime::now();
 
         // Poll the `Reader` first to push ACKs before write.
         if let Poll::Ready(packet) = self.poll_reader(cx)? {
             trace!(data = ?packet.data, "packet");
 
-            self.handle_packet(packet, updates)?;
+            self.handle_packet(packet, updates, system_time)?;
 
             return Poll::Ready(Ok(()));
         }
 
-        self.poll_writer(cx)?;
+        self.poll_writer(cx, system_time)?;
 
         Poll::Pending
     }
@@ -218,10 +222,9 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         &mut self,
         packet: Packet,
         updates: &mut Vec<tl::api::enums::Updates>,
-    ) -> Result {
+        system_time: SystemTime,
+    ) -> Result<(), SenderError> {
         use SenderError::*;
-
-        let unix_time = std::time::SystemTime::now();
 
         let (internal, mut buf) = self
             .reader
@@ -236,7 +239,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         mtproto::check_random_padding(buf.as_slice()).map_err(Padding)?;
 
-        self.sanity.handle_buf_msg(buf_msg, unix_time, updates)?;
+        self.sanity.handle_buf_msg(buf_msg, system_time, updates)?;
 
         Ok(())
     }
@@ -248,9 +251,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
     ) -> oneshot::Receiver<tl::Object> {
         debug!(len, "invoking");
 
-        let msg = self.sanity.get_msg::<true>(SystemTime::now());
+        let system_time = SystemTime::now();
 
-        self.get_container(len).push::<false, F>(&msg, len, f);
+        let msg = self.sanity.get_msg::<true>(system_time);
+
+        self.get_container(len, system_time)
+            .push::<false, F>(&msg, len, f);
 
         let (tx, rx) = oneshot::channel();
 
