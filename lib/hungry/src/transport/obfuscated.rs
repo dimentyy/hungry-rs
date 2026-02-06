@@ -1,7 +1,7 @@
 use cipher::{KeyIvInit, StreamCipher};
 
 use crate::transport::{
-    IdentifiableTransport, Transport, TransportRead, TransportWrite, UnpackResult,
+    IdentifiableTransport, Intermediate, Transport, TransportRead, TransportWrite, UnpackResult,
 };
 
 type Cipher = ctr::Ctr128BE<aes::Aes256>;
@@ -10,8 +10,11 @@ type Cipher = ctr::Ctr128BE<aes::Aes256>;
 ///
 /// ---
 ///
-/// https://core.telegram.org/mtproto/mtproto-transports#transport-obfuscation
-pub struct Obfuscated<T: IdentifiableTransport>(pub T);
+/// <https://core.telegram.org/mtproto/mtproto-transports#transport-obfuscation>
+pub struct Obfuscated<T: IdentifiableTransport> {
+    inner: T,
+    random: [u8; 64],
+}
 
 pub struct ObfuscatedRead<T: Transport> {
     tail: usize,
@@ -24,6 +27,32 @@ pub struct ObfuscatedWrite<T: Transport> {
     cipher: Cipher,
 }
 
+impl<T: IdentifiableTransport> Obfuscated<T> {
+    pub fn try_new(inner: T, random: [u8; 64]) -> Result<Self, ()> {
+        if random[0] == 0xef {
+            return Err(());
+        }
+
+        if [
+            Intermediate::TRANSPORT_IDENTIFIER,
+            [0xdd, 0xdd, 0xdd, 0xdd],
+            *b"POST",
+            *b"GET ",
+            *b"HEAD",
+        ]
+        .contains(random[0..4].try_into().unwrap())
+        {
+            return Err(());
+        }
+
+        if random[4..8] == 0i32.to_le_bytes() {
+            return Err(());
+        }
+
+        Ok(Self { inner, random })
+    }
+}
+
 impl<T: IdentifiableTransport> crate::Sealed for Obfuscated<T> {}
 
 impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
@@ -33,23 +62,12 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
     const INIT_SIZE: usize = T::INIT_SIZE + 64;
 
     fn init(self, writer_buffer: &mut unbite::DynBuf) -> (Self::Read, Self::Write) {
-        let mut random = [0; 64];
-
-        loop {
-            getrandom::fill(&mut random).unwrap();
-
-            // FIXME
-            if !matches!(random[0..4], [0, 0, 0, 0] | [0xdd, 0xdd, 0xdd, 0xdd]) {
-                break;
-            }
-        }
-
-        writer_buffer.extend_from_array(&random);
+        writer_buffer.extend_from_array(&self.random);
 
         let mut random_rev = [0; 48];
 
         for i in 0..48 {
-            random_rev[i] = random[56 - i - 1];
+            random_rev[i] = self.random[56 - i - 1];
         }
 
         let iv = random_rev[0..16].try_into().unwrap();
@@ -59,7 +77,7 @@ impl<T: IdentifiableTransport> Transport for Obfuscated<T> {
 
         let len = writer_buffer.len();
 
-        let (r, w) = self.0.init(writer_buffer);
+        let (r, w) = self.inner.init(writer_buffer);
 
         w_cipher.apply_keystream(&mut writer_buffer.as_mut_slice()[len..]);
 
@@ -88,7 +106,7 @@ impl<T: IdentifiableTransport> TransportRead for ObfuscatedRead<T> {
     type Transport = Obfuscated<T>;
 
     fn unpack(&mut self, buffer: &mut [u8]) -> UnpackResult {
-        assert!(buffer.len() > self.tail);
+        assert!(buffer.len() >= self.tail);
 
         self.cipher.apply_keystream(&mut buffer[self.tail..]);
 
