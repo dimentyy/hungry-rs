@@ -155,7 +155,7 @@ async fn get_auth_key(
 
     let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
 
-    Ok((auth_key, 0))
+    Ok((auth_key, getrandom::u64()?.cast_signed()))
 }
 
 async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()> {
@@ -186,13 +186,6 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
 }
 
 async fn async_main() -> anyhow::Result<()> {
-    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stderr());
-
-    let subscriber = tracing_subscriber::Registry::default()
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking));
-
-    tracing::subscriber::set_global_default(subscriber)?;
-
     let (mut plain, mut buffer) = connect().await?;
 
     let (auth_key, server_salt) = get_auth_key(&mut plain, &mut buffer).await?;
@@ -387,7 +380,7 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
                             });
                         }
                         message => {
-                            let _ = dbg!(message);
+                            info!(?message);
                         }
                     },
                     update => {
@@ -404,8 +397,19 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
 }
 
 fn main() -> anyhow::Result<()> {
+    let (non_blocking, _guard) = tracing_appender::non_blocking(std::io::stderr());
+
+    let subscriber = tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking));
+
+    tracing::subscriber::set_global_default(subscriber)?;
+
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?
-        .block_on(async_main())
+        .block_on(async_main())?;
+
+    info!("bye");
+
+    Ok(())
 }

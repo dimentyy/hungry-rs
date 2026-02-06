@@ -113,7 +113,7 @@ impl<T: Transport> Sanity<T> {
 
     pub(super) fn push_get_future_salts(&mut self) {
         // FIXME.
-        let num = 1;
+        let num = 64;
 
         debug!(num, "pushing `get_future_salts#b921bd04`");
 
