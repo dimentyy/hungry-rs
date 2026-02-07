@@ -1,5 +1,6 @@
-mod msgs_ack;
+mod ack;
 mod now;
+mod rpc;
 
 use std::cmp::Reverse;
 use std::collections::VecDeque;
@@ -7,14 +8,15 @@ use std::mem;
 use std::time::SystemTime;
 
 use crate::mtproto::{
-    BufMsg, ClientMsgIds, ClientSeqNos, Msg, MsgId, Salt, SeqNoError, ServerMsgIds, ServerSeqNos,
+    BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
+    ServerMsgIds, ServerSeqNos,
 };
 use crate::sender::{Container, SenderError};
 use crate::tl;
 use crate::transport::Transport;
-use crate::unpack::{MsgContainerIter, UngzipError, ungzip};
+use crate::unpack::{MsgContainerIter, ungzip};
 
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use tl::de::Deserialize;
 use tl::mtproto::{funcs, types};
@@ -37,7 +39,7 @@ pub trait Handle {
     );
 }
 
-struct Request<H: Handle> {
+pub(super) struct Request<H: Handle> {
     msg: Msg,
     extra: H::RpcExtra,
 }
@@ -89,7 +91,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
             requests: VecDeque::new(),
 
-            msgs_ack_msg_ids: Vec::with_capacity(8192),
+            msgs_ack_msg_ids: Vec::with_capacity(MAX_IDS_PER_SERVICE_MSG),
         }
     }
 
@@ -217,49 +219,6 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Ok(())
     }
 
-    pub(super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcExtra) {
-        let request = Request { msg, extra };
-
-        self.requests.push_back(request);
-    }
-
-    fn rpc_result(&mut self, buf: tl::de::Buf<'_>, handle: &mut H) -> Result<(), SenderError> {
-        let mut buf = buf;
-
-        let req_msg_id = buf.de()?;
-
-        let mut typ = buf.de()?;
-
-        let Some(index) = self
-            .requests
-            .iter()
-            .position(|x| x.msg.msg_id == req_msg_id)
-        else {
-            error!(
-                req_msg_id,
-                "received `rpc_result#f35c6d01` with unknown `req_msg_id`"
-            );
-
-            return Ok(());
-        };
-
-        let req = self.requests.swap_remove_front(index).unwrap();
-
-        let mut out = None;
-
-        if typ == tl::GZIP_PACKED {
-            typ = self.ungzip_packed_bytes(&mut out, &mut buf)?;
-        }
-
-        handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
-
-        if let Some(out) = out {
-            self.return_temporary_buffer(out);
-        }
-
-        Ok(())
-    }
-
     fn ungzip_packed_bytes<'a>(
         &mut self,
         out: &'a mut Option<unbite::DynBuf>,
@@ -271,10 +230,6 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         let bytes = bytes.0.as_slice();
 
         let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap()) as usize;
-
-        if gzip_isize != bytes.len() {
-            return Err(Ungzip(UngzipError::StatusBufError));
-        }
 
         let buffer = out.insert(self.get_temporary_buffer(gzip_isize));
 
