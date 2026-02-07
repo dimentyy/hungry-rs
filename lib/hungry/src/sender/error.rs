@@ -3,6 +3,7 @@ use std::fmt;
 use crate::mtproto::{BufMsgError, MsgIdError, PaddingError, SeqNoError, SessionIdError};
 use crate::reader::{EncryptedMessageError, ReaderError};
 use crate::tl;
+use crate::unpack::UngzipError;
 use crate::writer::WriterError;
 
 #[derive(Debug)]
@@ -19,7 +20,7 @@ pub enum SenderError {
     Msg(BufMsgError),
     Padding(PaddingError),
     Deserialization(tl::de::Error),
-    Inflate(zlib_rs::InflateError),
+    Ungzip(UngzipError),
 
     DoubleGzipPacked,
     DoubleMsgContainer,
@@ -72,7 +73,7 @@ impl fmt::Display for SenderError {
             Msg(err) => err.fmt(f),
             Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
-            Inflate(err) => f.write_str(err.as_str()),
+            Ungzip(err) => todo!(),
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),
@@ -97,7 +98,7 @@ impl std::error::Error for SenderError {
             Msg(err) => err,
             Padding(err) => err,
             Deserialization(err) => err,
-            Inflate(_) => todo!(),
+            Ungzip(_) => todo!(),
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),

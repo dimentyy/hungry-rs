@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #![expect(
     clippy::needless_pass_by_ref_mut,
     clippy::unused_self,

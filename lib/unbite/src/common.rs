@@ -72,7 +72,10 @@ macro_rules! common_impl {
             ///
             /// * If provided slice does not start at the spare capacity.
             #[inline]
-            pub fn init_with<F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(&mut $self, f: F) {
+            pub fn init_with<F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
+                &mut $self,
+                f: F
+            ) {
                 let slice = f($self.spare_capacity_mut());
 
                 let ptr = slice.as_ptr();
@@ -86,6 +89,31 @@ macro_rules! common_impl {
 
             /// # Safety
             ///
+            /// * Returned slice must be valid: it must not exceed the capacity.
+            ///
+            /// # Panics
+            ///
+            /// * If provided slice does not start at the spare capacity.
+            #[inline]
+            pub fn try_init_with<E, F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> Result<&[u8], E>>(
+                &mut $self,
+                f: F
+            ) -> Result<(), E> {
+                let slice = f($self.spare_capacity_mut())?;
+
+                let ptr = slice.as_ptr();
+                let len = slice.len();
+
+                assert_eq!(ptr, $self.spare_capacity_ptr());
+
+                // SAFETY: slice is valid and belongs to the buffer.
+                unsafe { $self.advance_unchecked(len) };
+
+                Ok(())
+            }
+
+            /// # Safety
+            ///
             /// * The [`ReadBuf`] must not contain uninitialized data.
             ///
             /// # Panics
@@ -95,7 +123,10 @@ macro_rules! common_impl {
             /// [`ReadBuf`]: tokio::io::ReadBuf
             #[inline]
             #[cfg(feature = "read-buf")]
-            pub fn read_with<T, F: FnOnce(&mut tokio::io::ReadBuf) -> T>(&mut $self, f: F) -> T {
+            pub fn read_with<T, F: FnOnce(&mut tokio::io::ReadBuf) -> T>(
+                &mut $self,
+                f: F
+            ) -> T {
                 let mut read_buf = tokio::io::ReadBuf::uninit($self.spare_capacity_mut());
 
                 let value = f(&mut read_buf);
