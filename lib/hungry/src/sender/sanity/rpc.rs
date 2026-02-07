@@ -1,9 +1,14 @@
 use tracing::error;
 
 use crate::mtproto::Msg;
-use crate::sender::{Handle, Request, Sanity, SenderError};
+use crate::sender::{Handle, Sanity, SenderError};
 use crate::tl;
 use crate::transport::Transport;
+
+pub(super) struct Request<H: Handle> {
+    msg: Msg,
+    extra: H::RpcExtra,
+}
 
 impl<T: Transport, H: Handle> Sanity<T, H> {
     pub(in super::super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcExtra) {

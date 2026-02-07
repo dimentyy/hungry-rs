@@ -25,7 +25,7 @@ use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
 
 use container::Container;
-use sanity::{Sanity, Request};
+use sanity::Sanity;
 
 pub use error::SenderError;
 pub use sanity::Handle;

@@ -23,6 +23,7 @@ use tl::mtproto::{funcs, types};
 use tl::{Identifiable, SerializedLen};
 
 use now::Now;
+use rpc::Request;
 
 const BAD_SALT_UNTIL: i32 = i32::MIN;
 const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
@@ -37,11 +38,6 @@ pub trait Handle {
         typ: u32,
         buf: &mut tl::de::Buf<'_>,
     );
-}
-
-pub(super) struct Request<H: Handle> {
-    msg: Msg,
-    extra: H::RpcExtra,
 }
 
 // FIXME: this struct manages too many things right now.
