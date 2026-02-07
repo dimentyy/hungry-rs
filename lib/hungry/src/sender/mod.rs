@@ -246,7 +246,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         &mut self,
         len: usize,
         f: F,
-        extra: H::Extra,
+        extra: H::RpcExtra,
     ) -> Msg {
         debug!(len, "invoking");
 

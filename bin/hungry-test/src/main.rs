@@ -41,9 +41,9 @@ type Item = (
 struct Handle {}
 
 impl hungry::sender::Handle for Handle {
-    type Extra = oneshot::Sender<tl::Object>;
+    type RpcExtra = oneshot::Sender<tl::Object>;
 
-    fn handle(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::Extra, obj: tl::Object) {
+    fn rpc_result(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::RpcExtra, obj: tl::Object) {
         extra.send(obj).unwrap();
     }
 }

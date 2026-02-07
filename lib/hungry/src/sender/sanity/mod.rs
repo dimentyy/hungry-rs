@@ -1,7 +1,9 @@
+mod now;
+
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::mem;
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 use crate::mtproto::{
     BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
@@ -18,37 +20,20 @@ use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
 
+use now::Now;
+
 const BAD_SALT_UNTIL: i32 = i32::MIN;
 const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
 
 pub trait Handle {
-    type Extra;
+    type RpcExtra;
 
-    fn handle(&mut self, msg_id: MsgId, extra: Self::Extra, obj: tl::Object);
-}
-
-struct Now {
-    unix_time: i32,
-    instant: Instant,
-}
-
-impl Now {
-    #[inline]
-    fn new(unix_time: i32) -> Self {
-        let instant = Instant::now();
-
-        Self { unix_time, instant }
-    }
-
-    #[inline]
-    fn unix_time(&self) -> i32 {
-        self.unix_time + i32::try_from(self.instant.elapsed().as_secs()).unwrap()
-    }
+    fn rpc_result(&mut self, msg_id: MsgId, extra: Self::RpcExtra, obj: tl::Object);
 }
 
 pub(super) struct Request<H: Handle> {
     pub(super) msg: Msg,
-    pub(super) extra: H::Extra,
+    pub(super) extra: H::RpcExtra,
 }
 
 // FIXME: this struct manages too many things right now.
@@ -244,7 +229,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         let req = self.requests.remove(index).unwrap();
 
-        handle.handle(req_msg_id, req.extra, obj);
+        handle.rpc_result(req_msg_id, req.extra, obj);
 
         Ok(())
     }
@@ -390,19 +375,25 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     }
 
     fn handle_future_salts(&mut self, x: types::FutureSalts) -> Result<(), SenderError> {
-        info!(len = x.salts.0.len(), "received `future_salts#ae500895`");
+        let types::FutureSalts {
+            req_msg_id,
+            now,
+            salts,
+        } = x;
+
+        info!(len = salts.0.len(), "received `future_salts#ae500895`");
 
         if let Some(msg) = self.get_future_salts_msg.take() {
-            if msg.msg_id != x.req_msg_id {
+            if msg.msg_id != req_msg_id {
                 warn!("invalid `req_msg_id`");
             }
         } else {
             warn!("unexpected future salts");
         }
 
-        self.now = Some(Now::new(x.now));
+        self.now = Some(Now::new(now));
 
-        self.future_salts = x.salts.0;
+        self.future_salts = salts.0;
         self.future_salts.sort_by_key(|x| Reverse(x.valid_since));
 
         self.update_current_salt();
