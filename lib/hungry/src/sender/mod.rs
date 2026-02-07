@@ -24,7 +24,7 @@ use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
 
 use container::Container;
-use sanity::{Request, Sanity};
+use sanity::Sanity;
 
 pub use error::SenderError;
 pub use sanity::Handle;
@@ -236,17 +236,16 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
 
         check_random_padding(buf.as_slice()).map_err(Padding)?;
 
-        self.sanity
-            .handle_buf_msg(buf_msg, system_time, updates, handle)?;
+        self.sanity.handle(buf_msg, system_time, updates, handle)?;
 
         Ok(())
     }
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
+        extra: H::RpcExtra,
         len: usize,
         f: F,
-        extra: H::RpcExtra,
     ) -> Msg {
         debug!(len, "invoking");
 
@@ -257,9 +256,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         self.get_container(len, system_time)
             .push::<false, F>(&msg, len, f);
 
-        let request = Request { msg, extra };
-
-        self.sanity.requests.push_back(request);
+        self.sanity.rpc_request(msg, extra);
 
         msg
     }

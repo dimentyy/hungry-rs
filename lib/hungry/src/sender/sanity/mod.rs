@@ -31,9 +31,9 @@ pub trait Handle {
     fn rpc_result(&mut self, msg_id: MsgId, extra: Self::RpcExtra, obj: tl::Object);
 }
 
-pub(super) struct Request<H: Handle> {
-    pub(super) msg: Msg,
-    pub(super) extra: H::RpcExtra,
+struct Request<H: Handle> {
+    msg: Msg,
+    extra: H::RpcExtra,
 }
 
 // FIXME: this struct manages too many things right now.
@@ -55,7 +55,7 @@ pub(super) struct Sanity<T: Transport, H: Handle> {
     server_salt_until: i32,
     server_salt: Salt,
 
-    pub(super) requests: VecDeque<Request<H>>,
+    requests: VecDeque<Request<H>>,
 
     msgs_ack_msg_ids: Vec<MsgId>,
 }
@@ -198,6 +198,12 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Ok(())
     }
 
+    pub(super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcExtra) {
+        let request = Request { msg, extra };
+
+        self.requests.push_back(request);
+    }
+
     fn rpc_result(&mut self, buf: tl::de::Buf, handle: &mut H) -> Result<(), SenderError> {
         use SenderError::*;
 
@@ -259,7 +265,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Ok(buf.de()?)
     }
 
-    pub(super) fn handle_buf_msg(
+    pub(super) fn handle(
         &'_ mut self,
         buf_msg: BufMsg<'_>,
         system_time: SystemTime,

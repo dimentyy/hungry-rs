@@ -231,7 +231,7 @@ async fn async_main() -> anyhow::Result<()> {
             while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
                 let (tx, len, f) = ready;
 
-                let _msg = sender.invoke(len, |buf| buf.ser(&*f), tx);
+                let _msg = sender.invoke(tx, len, |buf| buf.ser(&*f));
             }
 
             while let Poll::Ready(ready) = sender.poll(cx, &mut updates, &mut handle) {
