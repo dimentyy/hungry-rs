@@ -2,8 +2,8 @@ mod now;
 
 use std::cmp::Reverse;
 use std::collections::VecDeque;
+use std::mem;
 use std::time::SystemTime;
-use std::{mem, slice};
 
 use crate::mtproto::{
     BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
@@ -28,7 +28,13 @@ const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
 pub trait Handle {
     type RpcExtra;
 
-    fn rpc_result(&mut self, msg_id: MsgId, extra: Self::RpcExtra, obj: tl::Object);
+    fn rpc_result(
+        &mut self,
+        msg_id: MsgId,
+        extra: Self::RpcExtra,
+        typ: u32,
+        buf: &mut tl::de::Buf<'_>,
+    );
 }
 
 struct Request<H: Handle> {
@@ -57,8 +63,6 @@ pub(super) struct Sanity<T: Transport, H: Handle> {
 
     requests: VecDeque<Request<H>>,
 
-    fixme_temporary: Vec<u8>,
-
     msgs_ack_msg_ids: Vec<MsgId>,
 }
 
@@ -85,17 +89,8 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
             requests: VecDeque::new(),
 
-            fixme_temporary: Vec::with_capacity(10_000),
-
             msgs_ack_msg_ids: Vec::with_capacity(8192),
         }
-    }
-
-    fn get_temporary_buffer(&mut self, len: usize) -> &mut [mem::MaybeUninit<u8>] {
-        if self.fixme_temporary.len() < len {
-            self.fixme_temporary = Vec::with_capacity(len);
-        }
-        self.fixme_temporary.spare_capacity_mut()
     }
 
     #[inline]
@@ -116,6 +111,16 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     // FIXME: create buffer container.
     pub(super) fn new_container(&mut self, len: usize) -> Container<T> {
         Container::new(unbite::DynBuf::new(len + 64 * 1024))
+    }
+
+    fn get_temporary_buffer(&mut self, capacity: usize) -> unbite::DynBuf {
+        // TODO.
+        unbite::DynBuf::new(capacity)
+    }
+
+    fn return_temporary_buffer(&mut self, buffer: unbite::DynBuf) {
+        // TODO.
+        drop(buffer);
     }
 
     pub(super) fn push_get_future_salts(&mut self) {
@@ -218,7 +223,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         self.requests.push_back(request);
     }
 
-    fn rpc_result(&mut self, buf: tl::de::Buf, handle: &mut H) -> Result<(), SenderError> {
+    fn rpc_result(&mut self, buf: tl::de::Buf<'_>, handle: &mut H) -> Result<(), SenderError> {
         use SenderError::*;
 
         let mut buf = buf;
@@ -231,12 +236,6 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             .de_infallible()
             .map_err(|err| Deserialization(err.into()))?;
 
-        if typ == tl::GZIP_PACKED {
-            typ = self.inflate_gzip_packed_bytes(&mut buf)?;
-        }
-
-        let obj = tl::Object::deserialize(typ, &mut buf)?;
-
         let Some(index) = self
             .requests
             .iter()
@@ -247,15 +246,31 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         let req = self.requests.remove(index).unwrap();
 
-        handle.rpc_result(req_msg_id, req.extra, obj);
+        let mut buffer = None;
+
+        if typ == tl::GZIP_PACKED {
+            buf = tl::de::Buf::new(
+                buffer
+                    .insert(self.inflate_gzip_packed_bytes(&mut buf)?)
+                    .as_slice(),
+            );
+
+            typ = buf.de()?;
+        }
+
+        handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
+
+        if let Some(buffer) = buffer {
+            self.return_temporary_buffer(buffer);
+        }
 
         Ok(())
     }
 
     fn inflate_gzip_packed_bytes(
-        &'_ mut self,
-        buf: &'_ mut tl::de::Buf<'_>,
-    ) -> Result<u32, SenderError> {
+        &mut self,
+        buf: &mut tl::de::Buf<'_>,
+    ) -> Result<unbite::DynBuf, SenderError> {
         use SenderError::*;
 
         let bytes = tl::Bytes::deserialize(buf).expect("TODO");
@@ -263,16 +278,18 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
 
-        let out = self.get_temporary_buffer(gzip_isize as usize);
+        let mut out = self.get_temporary_buffer(gzip_isize as usize);
 
         let mut inflate = zlib_rs::Inflate::new(true, 31);
 
+        // TODO: actually choose what to use.
         let flush = zlib_rs::InflateFlush::default();
 
-        // SAFETY: new slice length is the same as in the `out` one.
-        let output = unsafe { slice::from_raw_parts_mut(out.as_mut_ptr().cast(), out.len()) };
+        unsafe { out.set_len(out.capacity()) };
 
-        let status = inflate.decompress(bytes, output, flush).map_err(Inflate)?;
+        let status = inflate
+            .decompress(bytes, out.as_mut_slice(), flush)
+            .map_err(Inflate)?;
 
         match status {
             zlib_rs::Status::Ok => todo!(),
@@ -282,27 +299,34 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         let total_out = inflate.total_out() as usize;
 
-        // SAFETY: uncompressed data is written up to `total_out` bytes.
-        let out = unsafe { slice::from_raw_parts(out.as_ptr().cast(), total_out) };
+        out.truncate(total_out);
 
-        *buf = tl::de::Buf::new(out);
-
-        Ok(buf.de()?)
+        Ok(out)
     }
 
     pub(super) fn handle(
-        &'_ mut self,
-        mut buf_msg: BufMsg<'_>,
+        &mut self,
+        buf_msg: BufMsg<'_>,
         system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
         handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
+        let mut buf_msg = buf_msg;
+
         self.server_msg_ids.check(buf_msg.msg.msg_id, system_time)?;
 
+        let mut buffer = None;
+
         if buf_msg.typ == tl::GZIP_PACKED {
-            buf_msg.typ = self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?;
+            buf_msg.buf = tl::de::Buf::new(
+                buffer
+                    .insert(self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?)
+                    .as_slice(),
+            );
+
+            buf_msg.typ = buf_msg.buf.de()?;
         }
 
         match buf_msg.typ {
@@ -325,11 +349,23 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                 }
 
                 for mut buf_msg in container {
+                    let mut buffer2 = None;
+
                     if buf_msg.typ == tl::GZIP_PACKED {
-                        buf_msg.typ = self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?;
+                        buf_msg.buf = tl::de::Buf::new(
+                            buffer2
+                                .insert(self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?)
+                                .as_slice(),
+                        );
+
+                        buf_msg.typ = buf_msg.buf.de()?;
                     }
 
                     self.handle_single(buf_msg, system_time, updates, handle)?;
+
+                    if let Some(buffer2) = buffer2 {
+                        self.return_temporary_buffer(buffer2);
+                    }
                 }
 
                 if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
@@ -342,6 +378,10 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                 }
             }
             _ => self.handle_single(buf_msg, system_time, updates, handle)?,
+        }
+
+        if let Some(buffer) = buffer {
+            self.return_temporary_buffer(buffer);
         }
 
         Ok(())

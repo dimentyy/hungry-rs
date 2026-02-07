@@ -43,7 +43,14 @@ struct Handle {}
 impl hungry::sender::Handle for Handle {
     type RpcExtra = oneshot::Sender<tl::Object>;
 
-    fn rpc_result(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::RpcExtra, obj: tl::Object) {
+    fn rpc_result(
+        &mut self,
+        msg_id: hungry::mtproto::MsgId,
+        extra: Self::RpcExtra,
+        typ: u32,
+        buf: &mut tl::de::Buf<'_>,
+    ) {
+        let obj = tl::Object::deserialize(typ, buf).unwrap();
         extra.send(obj).unwrap();
     }
 }

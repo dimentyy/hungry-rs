@@ -30,7 +30,9 @@ pub use error::SenderError;
 pub use sanity::Handle;
 
 #[derive(Debug)]
-pub enum RpcError {}
+pub enum RpcError {
+    BadMsgNotification,
+}
 
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> {
     reader: Reader<R, T>,
@@ -204,7 +206,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         if let Poll::Ready(packet) = self.poll_reader(cx)? {
             trace!(data = ?packet.data, "packet");
 
-            self.handle_packet(packet, updates, system_time, handle)?;
+            self.handle_packet(packet, system_time, updates, handle)?;
 
             return Poll::Ready(Ok(()));
         }
@@ -217,8 +219,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
     fn handle_packet(
         &mut self,
         packet: Packet,
-        updates: &mut Vec<tl::api::enums::Updates>,
         system_time: SystemTime,
+        updates: &mut Vec<tl::api::enums::Updates>,
         handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
