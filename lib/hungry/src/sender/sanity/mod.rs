@@ -2,8 +2,8 @@ mod now;
 
 use std::cmp::Reverse;
 use std::collections::VecDeque;
-use std::mem;
 use std::time::SystemTime;
+use std::{mem, slice};
 
 use crate::mtproto::{
     BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
@@ -57,6 +57,8 @@ pub(super) struct Sanity<T: Transport, H: Handle> {
 
     requests: VecDeque<Request<H>>,
 
+    fixme_temporary: Vec<u8>,
+
     msgs_ack_msg_ids: Vec<MsgId>,
 }
 
@@ -73,15 +75,27 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             server_seq_nos: ServerSeqNos::new(),
 
             get_future_salts_msg: None,
+
             future_salts: Vec::new(),
+
             server_salt_until: BAD_SALT_UNTIL,
             server_salt,
 
             now: None,
 
             requests: VecDeque::new(),
+
+            fixme_temporary: Vec::with_capacity(10_000),
+
             msgs_ack_msg_ids: Vec::with_capacity(8192),
         }
+    }
+
+    fn get_temporary_buffer(&mut self, len: usize) -> &mut [mem::MaybeUninit<u8>] {
+        if self.fixme_temporary.len() < len {
+            self.fixme_temporary = Vec::with_capacity(len);
+        }
+        self.fixme_temporary.spare_capacity_mut()
     }
 
     #[inline]
@@ -217,10 +231,8 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             .de_infallible()
             .map_err(|err| Deserialization(err.into()))?;
 
-        let mut out = Vec::new();
-
         if typ == tl::GZIP_PACKED {
-            typ = self.ungzip(&mut out, &mut buf)?;
+            typ = self.inflate_gzip_packed_bytes(&mut buf)?;
         }
 
         let obj = tl::Object::deserialize(typ, &mut buf)?;
@@ -240,48 +252,57 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Ok(())
     }
 
-    fn ungzip<'a>(
-        &mut self,
-        out: &'a mut Vec<u8>,
-        buf: &mut tl::de::Buf<'a>,
+    fn inflate_gzip_packed_bytes(
+        &'_ mut self,
+        buf: &'_ mut tl::de::Buf<'_>,
     ) -> Result<u32, SenderError> {
+        use SenderError::*;
+
         let bytes = tl::Bytes::deserialize(buf).expect("TODO");
-        let gzipped_buf = bytes.0.as_slice();
+        let bytes = bytes.0.as_slice();
 
-        let gzip_isize =
-            u32::from_le_bytes(gzipped_buf[gzipped_buf.len() - 4..].try_into().unwrap());
+        let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
 
-        *out = vec![0; gzip_isize as usize];
+        let out = self.get_temporary_buffer(gzip_isize as usize);
 
-        let config = zlib_rs::InflateConfig { window_bits: 31 };
+        let mut inflate = zlib_rs::Inflate::new(true, 31);
 
-        let (output, zlib_rs::ReturnCode::Ok) = zlib_rs::decompress_slice(out, gzipped_buf, config)
-        else {
-            todo!()
-        };
+        let flush = zlib_rs::InflateFlush::default();
 
-        *buf = tl::de::Buf::new(output);
+        // SAFETY: new slice length is the same as in the `out` one.
+        let output = unsafe { slice::from_raw_parts_mut(out.as_mut_ptr().cast(), out.len()) };
+
+        let status = inflate.decompress(bytes, output, flush).map_err(Inflate)?;
+
+        match status {
+            zlib_rs::Status::Ok => todo!(),
+            zlib_rs::Status::BufError => todo!(),
+            zlib_rs::Status::StreamEnd => {}
+        }
+
+        let total_out = inflate.total_out() as usize;
+
+        // SAFETY: uncompressed data is written up to `total_out` bytes.
+        let out = unsafe { slice::from_raw_parts(out.as_ptr().cast(), total_out) };
+
+        *buf = tl::de::Buf::new(out);
 
         Ok(buf.de()?)
     }
 
     pub(super) fn handle(
         &'_ mut self,
-        buf_msg: BufMsg<'_>,
+        mut buf_msg: BufMsg<'_>,
         system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
         handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
-        let mut buf_msg = buf_msg;
-
-        let mut out = Vec::new();
-
         self.server_msg_ids.check(buf_msg.msg.msg_id, system_time)?;
 
         if buf_msg.typ == tl::GZIP_PACKED {
-            buf_msg.typ = self.ungzip(&mut out, &mut buf_msg.buf)?;
+            buf_msg.typ = self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?;
         }
 
         match buf_msg.typ {
@@ -303,11 +324,9 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                     container.push(buf_msg);
                 }
 
-                let mut out = Vec::new();
-
                 for mut buf_msg in container {
                     if buf_msg.typ == tl::GZIP_PACKED {
-                        buf_msg.typ = self.ungzip(&mut out, &mut buf_msg.buf)?;
+                        buf_msg.typ = self.inflate_gzip_packed_bytes(&mut buf_msg.buf)?;
                     }
 
                     self.handle_single(buf_msg, system_time, updates, handle)?;

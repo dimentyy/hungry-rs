@@ -19,6 +19,7 @@ pub enum SenderError {
     Msg(BufMsgError),
     Padding(PaddingError),
     Deserialization(tl::de::Error),
+    Inflate(zlib_rs::InflateError),
 
     DoubleGzipPacked,
     DoubleMsgContainer,
@@ -71,6 +72,7 @@ impl fmt::Display for SenderError {
             Msg(err) => err.fmt(f),
             Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
+            Inflate(err) => f.write_str(err.as_str()),
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),
@@ -95,6 +97,7 @@ impl std::error::Error for SenderError {
             Msg(err) => err,
             Padding(err) => err,
             Deserialization(err) => err,
+            Inflate(_) => todo!(),
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),
