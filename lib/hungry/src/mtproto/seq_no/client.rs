@@ -8,6 +8,13 @@ pub struct ClientSeqNos {
     current: SeqNo,
 }
 
+impl Default for ClientSeqNos {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl fmt::Display for ClientSeqNos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "client seq nos [current={}]", self.current)

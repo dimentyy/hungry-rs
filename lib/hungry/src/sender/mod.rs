@@ -1,3 +1,11 @@
+#![expect(
+    clippy::needless_pass_by_ref_mut,
+    clippy::unused_self,
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_wraps,
+    reason = "TODO"
+)]
+
 mod container;
 mod error;
 mod sanity;
@@ -59,26 +67,18 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         }
     }
 
-    #[expect(clippy::needless_pass_by_ref_mut)]
     fn reserve(&mut self, length: usize) {
         unimplemented!("TODO: reserve(length={length})");
     }
 
-    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
         // warn!("TODO: push_completed_writer_buffer(..)");
     }
 
-    #[expect(clippy::unused_self, clippy::needless_pass_by_ref_mut)]
     fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
         // warn!("TODO: push_immediate_writer_buffer(..)");
     }
 
-    #[expect(
-        clippy::unused_self,
-        clippy::needless_pass_by_ref_mut,
-        clippy::needless_pass_by_value
-    )]
     fn quick_ack(&mut self, quick_ack: QuickAck) {
         warn!("TODO: quick_ack(quick_ack={quick_ack:?})");
     }

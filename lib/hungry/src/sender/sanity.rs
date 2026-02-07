@@ -1,10 +1,3 @@
-#![expect(
-    clippy::unnecessary_wraps,
-    clippy::needless_pass_by_value,
-    clippy::needless_pass_by_ref_mut,
-    clippy::unused_self
-)]
-
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 use std::mem;
@@ -21,7 +14,6 @@ use crate::unpack::MsgContainerIter;
 
 use tracing::{debug, info, warn};
 
-use crate::sender::SenderError::Deserialization;
 use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
@@ -163,9 +155,20 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         updates: &mut Vec<tl::api::enums::Updates>,
         handle: &mut H,
     ) -> Result<(), SenderError> {
+        use tl::api::types::{
+            UpdateShort, UpdateShortChatMessage, UpdateShortMessage, UpdateShortSentMessage,
+            Updates, UpdatesCombined, UpdatesTooLong,
+        };
+
         use SenderError::*;
 
         let BufMsg { msg, mut buf, typ } = buf_msg;
+
+        macro_rules! updates {
+            ($typ:ty) => {
+                updates.push(buf.de::<$typ>()?.into())
+            };
+        }
 
         if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
             match err {
@@ -179,6 +182,8 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         self.ack(msg);
 
         match typ {
+            // Even though TDLib implementation is recursive,
+            // server should not send these containers nested.
             tl::GZIP_PACKED => return Err(DoubleGzipPacked),
             tl::MSG_CONTAINER => return Err(DoubleMsgContainer),
 
@@ -190,9 +195,14 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             types::Pong::CONSTRUCTOR_ID => self.pong(buf.de()?)?,
             types::BadServerSalt::CONSTRUCTOR_ID => self.bad_server_salt(buf.de()?)?,
 
-            tl::api::types::Updates::CONSTRUCTOR_ID => {
-                updates.push(buf.de::<tl::api::types::Updates>()?.into());
-            }
+            UpdatesTooLong::CONSTRUCTOR_ID => updates.push(UpdatesTooLong {}.into()),
+
+            UpdateShortMessage::CONSTRUCTOR_ID => updates!(UpdateShortMessage),
+            UpdateShortChatMessage::CONSTRUCTOR_ID => updates!(UpdateShortChatMessage),
+            UpdateShort::CONSTRUCTOR_ID => updates!(UpdateShort),
+            UpdatesCombined::CONSTRUCTOR_ID => updates!(UpdatesCombined),
+            Updates::CONSTRUCTOR_ID => updates!(Updates),
+            UpdateShortSentMessage::CONSTRUCTOR_ID => updates!(UpdateShortSentMessage),
 
             _ => {
                 println!("{typ:#010x}");
@@ -204,6 +214,8 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     }
 
     fn rpc_result(&mut self, buf: tl::de::Buf, handle: &mut H) -> Result<(), SenderError> {
+        use SenderError::*;
+
         let mut buf = buf;
 
         let req_msg_id = buf
