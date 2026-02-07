@@ -71,7 +71,6 @@ macro_rules! common_impl {
             /// # Panics
             ///
             /// * If provided slice does not start at the spare capacity.
-            #[inline]
             pub fn init_with<F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> &[u8]>(
                 &mut $self,
                 f: F
@@ -94,7 +93,6 @@ macro_rules! common_impl {
             /// # Panics
             ///
             /// * If provided slice does not start at the spare capacity.
-            #[inline]
             pub fn try_init_with<E, F: FnOnce(&mut [std::mem::MaybeUninit<u8>]) -> Result<&[u8], E>>(
                 &mut $self,
                 f: F
@@ -121,7 +119,6 @@ macro_rules! common_impl {
             /// * If provided [`ReadBuf`] does not start at the spare capacity.
             ///
             /// [`ReadBuf`]: tokio::io::ReadBuf
-            #[inline]
             #[cfg(feature = "read-buf")]
             pub fn read_with<T, F: FnOnce(&mut tokio::io::ReadBuf) -> T>(
                 &mut $self,

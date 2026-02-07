@@ -1,3 +1,4 @@
+mod msgs_ack;
 mod now;
 
 use std::cmp::Reverse;
@@ -6,18 +7,17 @@ use std::mem;
 use std::time::SystemTime;
 
 use crate::mtproto::{
-    BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
-    ServerMsgIds, ServerSeqNos, is_content_related,
+    BufMsg, ClientMsgIds, ClientSeqNos, Msg, MsgId, Salt, SeqNoError, ServerMsgIds, ServerSeqNos,
 };
 use crate::sender::{Container, SenderError};
 use crate::tl;
 use crate::transport::Transport;
-use crate::unpack::{MsgContainerIter, ungzip};
+use crate::unpack::{MsgContainerIter, UngzipError, ungzip};
 
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use tl::de::Deserialize;
-use tl::mtproto::{enums, funcs, types};
+use tl::mtproto::{funcs, types};
 use tl::{Identifiable, SerializedLen};
 
 use now::Now;
@@ -224,27 +224,26 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     }
 
     fn rpc_result(&mut self, buf: tl::de::Buf<'_>, handle: &mut H) -> Result<(), SenderError> {
-        use SenderError::*;
-
         let mut buf = buf;
 
-        let req_msg_id = buf
-            .de_infallible()
-            .map_err(|err| Deserialization(err.into()))?;
+        let req_msg_id = buf.de()?;
 
-        let mut typ = buf
-            .de_infallible()
-            .map_err(|err| Deserialization(err.into()))?;
+        let mut typ = buf.de()?;
 
         let Some(index) = self
             .requests
             .iter()
             .position(|x| x.msg.msg_id == req_msg_id)
         else {
-            todo!()
+            error!(
+                req_msg_id,
+                "received `rpc_result#f35c6d01` with unknown `req_msg_id`"
+            );
+
+            return Ok(());
         };
 
-        let req = self.requests.remove(index).unwrap();
+        let req = self.requests.swap_remove_front(index).unwrap();
 
         let mut out = None;
 
@@ -271,9 +270,13 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         let bytes = tl::Bytes::deserialize(buf).expect("TODO");
         let bytes = bytes.0.as_slice();
 
-        let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap());
+        let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap()) as usize;
 
-        let buffer = out.insert(self.get_temporary_buffer(gzip_isize as usize));
+        if gzip_isize != bytes.len() {
+            return Err(Ungzip(UngzipError::StatusBufError));
+        }
+
+        let buffer = out.insert(self.get_temporary_buffer(gzip_isize));
 
         buffer
             .try_init_with(|output| Ok(&*ungzip(bytes, output)?))
@@ -369,14 +372,6 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Ok(())
     }
 
-    fn msgs_ack(&mut self, x: types::MsgsAck) -> Result<(), SenderError> {
-        let types::MsgsAck { msg_ids } = x;
-
-        debug!(len = msg_ids.len(), "received `msgs_ack#62d6b459`");
-
-        Ok(())
-    }
-
     fn pong(&mut self, x: types::Pong) -> Result<(), SenderError> {
         let types::Pong { msg_id, ping_id } = x;
 
@@ -465,46 +460,5 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     const fn reset_salts(&mut self, server_salt: Salt) {
         self.server_salt_until = BAD_SALT_UNTIL;
         self.server_salt = server_salt;
-    }
-
-    pub(super) fn push_msgs_ack(&mut self) {
-        if self.msgs_ack_msg_ids.is_empty() {
-            return;
-        }
-
-        let msg_ids = mem::take(&mut self.msgs_ack_msg_ids);
-
-        debug!(len = msg_ids.len(), "pushing `msgs_ack#62d6b459`");
-
-        let func: enums::MsgsAck = types::MsgsAck { msg_ids }.into();
-
-        let len = func.serialized_len();
-        let msg = self.get_msg::<false>(SystemTime::now());
-
-        self.get_container(len)
-            .push::<true, _>(&msg, len, |buf| buf.ser(&func));
-
-        let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
-
-        self.msgs_ack_msg_ids = msg_ids;
-        self.msgs_ack_msg_ids.clear();
-    }
-
-    fn ack(&mut self, msg: Msg) {
-        if !is_content_related(msg.seq_no) {
-            return;
-        }
-
-        let len = self.msgs_ack_msg_ids.len();
-
-        self.msgs_ack_msg_ids.push(msg.msg_id);
-
-        if len < MAX_IDS_PER_SERVICE_MSG {
-            return;
-        }
-
-        self.push_msgs_ack();
-
-        // TODO: handle `BadMsgNotification` to resend the message.
     }
 }
