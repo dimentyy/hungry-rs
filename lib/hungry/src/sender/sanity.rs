@@ -10,18 +10,30 @@ use std::collections::VecDeque;
 use std::mem;
 use std::time::{Instant, SystemTime};
 
-use crate::sender::{Container, Request, SenderError};
+use crate::mtproto::{
+    BufMsg, ClientMsgIds, ClientSeqNos, MAX_IDS_PER_SERVICE_MSG, Msg, MsgId, Salt, SeqNoError,
+    ServerMsgIds, ServerSeqNos, is_content_related,
+};
+use crate::sender::{Container, SenderError};
+use crate::tl;
 use crate::transport::Transport;
 use crate::unpack::MsgContainerIter;
-use crate::{mtproto, tl};
 
 use tracing::{debug, info, warn};
 
+use crate::sender::SenderError::Deserialization;
 use tl::de::Deserialize;
 use tl::mtproto::{enums, funcs, types};
 use tl::{Identifiable, SerializedLen};
 
 const BAD_SALT_UNTIL: i32 = i32::MIN;
+const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
+
+pub trait Handle {
+    type Extra;
+
+    fn handle(&mut self, msg_id: MsgId, extra: Self::Extra, obj: tl::Object);
+}
 
 struct Now {
     unix_time: i32,
@@ -42,42 +54,46 @@ impl Now {
     }
 }
 
+pub(super) struct Request<H: Handle> {
+    pub(super) msg: Msg,
+    pub(super) extra: H::Extra,
+}
+
 // FIXME: this struct manages too many things right now.
-pub(super) struct Sanity<T: Transport> {
+pub(super) struct Sanity<T: Transport, H: Handle> {
     pub(super) container: Option<Container<T>>,
 
-    client_msg_ids: mtproto::ClientMsgIds,
-    client_seq_nos: mtproto::ClientSeqNos,
+    client_msg_ids: ClientMsgIds,
+    client_seq_nos: ClientSeqNos,
 
-    server_msg_ids: mtproto::ServerMsgIds,
-    server_seq_nos: mtproto::ServerSeqNos,
+    server_msg_ids: ServerMsgIds,
+    server_seq_nos: ServerSeqNos,
 
     now: Option<Now>,
 
-    get_future_salts_msg: Option<mtproto::Msg>,
+    get_future_salts_msg: Option<Msg>,
 
     future_salts: Vec<types::FutureSalt>,
 
     server_salt_until: i32,
-    server_salt: mtproto::Salt,
+    server_salt: Salt,
 
-    // FIXME.
-    pub(super) requests: VecDeque<Request>,
+    pub(super) requests: VecDeque<Request<H>>,
 
-    msgs_ack_msg_ids: Vec<mtproto::MsgId>,
+    msgs_ack_msg_ids: Vec<MsgId>,
 }
 
-impl<T: Transport> Sanity<T> {
+impl<T: Transport, H: Handle> Sanity<T, H> {
     #[inline]
-    pub(super) fn new(server_msg_ids_capacity: usize, server_salt: mtproto::Salt) -> Self {
+    pub(super) fn new(server_msg_ids_capacity: usize, server_salt: Salt) -> Self {
         Self {
             container: None,
 
-            client_msg_ids: mtproto::ClientMsgIds::new(SystemTime::now()),
-            client_seq_nos: mtproto::ClientSeqNos::new(),
+            client_msg_ids: ClientMsgIds::new(SystemTime::now()),
+            client_seq_nos: ClientSeqNos::new(),
 
-            server_msg_ids: mtproto::ServerMsgIds::new(server_msg_ids_capacity),
-            server_seq_nos: mtproto::ServerSeqNos::new(),
+            server_msg_ids: ServerMsgIds::new(server_msg_ids_capacity),
+            server_seq_nos: ServerSeqNos::new(),
 
             get_future_salts_msg: None,
             future_salts: Vec::new(),
@@ -112,8 +128,7 @@ impl<T: Transport> Sanity<T> {
     }
 
     pub(super) fn push_get_future_salts(&mut self) {
-        // FIXME.
-        let num = 64;
+        let num = MAX_GET_FUTURE_SALTS_NUM;
 
         debug!(num, "pushing `get_future_salts#b921bd04`");
 
@@ -129,10 +144,7 @@ impl<T: Transport> Sanity<T> {
     }
 
     #[inline]
-    pub(super) fn get_msg<const CONTENT_RELATED: bool>(
-        &mut self,
-        system_time: SystemTime,
-    ) -> mtproto::Msg {
+    pub(super) fn get_msg<const CONTENT_RELATED: bool>(&mut self, system_time: SystemTime) -> Msg {
         let msg_id = self.client_msg_ids.get(system_time);
 
         let seq_no = if CONTENT_RELATED {
@@ -141,22 +153,23 @@ impl<T: Transport> Sanity<T> {
             self.client_seq_nos.non_content_related()
         };
 
-        mtproto::Msg { msg_id, seq_no }
+        Msg { msg_id, seq_no }
     }
 
     fn handle_single(
         &mut self,
-        buf_msg: mtproto::BufMsg<'_>,
+        buf_msg: BufMsg<'_>,
         _system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
+        handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
-        let mtproto::BufMsg { msg, mut buf, typ } = buf_msg;
+        let BufMsg { msg, mut buf, typ } = buf_msg;
 
         if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
             match err {
-                mtproto::SeqNoError::Invalid => {
+                SeqNoError::Invalid => {
                     warn!("invalid `seq_no`");
                 }
                 err => return Err(SeqNo(err)),
@@ -169,19 +182,7 @@ impl<T: Transport> Sanity<T> {
             tl::GZIP_PACKED => return Err(DoubleGzipPacked),
             tl::MSG_CONTAINER => return Err(DoubleMsgContainer),
 
-            tl::RPC_RESULT => {
-                let req_msg_id = buf
-                    .de_infallible()
-                    .map_err(|err| Deserialization(err.into()))?;
-
-                let typ = buf
-                    .de_infallible()
-                    .map_err(|err| Deserialization(err.into()))?;
-
-                let object = tl::Object::deserialize(typ, &mut buf)?;
-
-                self.send_rpc_result(req_msg_id, object);
-            }
+            tl::RPC_RESULT => self.rpc_result(buf, handle)?,
 
             types::MsgsAck::CONSTRUCTOR_ID => self.msgs_ack(buf.de()?)?,
             types::NewSessionCreated::CONSTRUCTOR_ID => self.new_session_created(buf.de()?)?,
@@ -202,35 +203,71 @@ impl<T: Transport> Sanity<T> {
         Ok(())
     }
 
+    fn rpc_result(&mut self, buf: tl::de::Buf, handle: &mut H) -> Result<(), SenderError> {
+        let mut buf = buf;
+
+        let req_msg_id = buf
+            .de_infallible()
+            .map_err(|err| Deserialization(err.into()))?;
+
+        let mut typ = buf
+            .de_infallible()
+            .map_err(|err| Deserialization(err.into()))?;
+
+        let mut out = Vec::new();
+
+        if typ == tl::GZIP_PACKED {
+            typ = self.ungzip(&mut out, &mut buf)?;
+        }
+
+        let obj = tl::Object::deserialize(typ, &mut buf)?;
+
+        let Some(index) = self
+            .requests
+            .iter()
+            .position(|x| x.msg.msg_id == req_msg_id)
+        else {
+            todo!()
+        };
+
+        let req = self.requests.remove(index).unwrap();
+
+        handle.handle(req_msg_id, req.extra, obj);
+
+        Ok(())
+    }
+
     fn ungzip<'a>(
         &mut self,
         out: &'a mut Vec<u8>,
-        buf_msg: &mut mtproto::BufMsg<'a>,
-    ) -> Result<(), SenderError> {
-        let bytes = tl::Bytes::deserialize(&mut buf_msg.buf).expect("TODO");
-        let buf = bytes.0.as_slice();
+        buf: &mut tl::de::Buf<'a>,
+    ) -> Result<u32, SenderError> {
+        let bytes = tl::Bytes::deserialize(buf).expect("TODO");
+        let gzipped_buf = bytes.0.as_slice();
 
-        let gzip_isize = u32::from_le_bytes(buf[buf.len() - 4..].try_into().unwrap());
+        let gzip_isize =
+            u32::from_le_bytes(gzipped_buf[gzipped_buf.len() - 4..].try_into().unwrap());
 
         *out = vec![0; gzip_isize as usize];
 
         let config = zlib_rs::InflateConfig { window_bits: 31 };
 
-        let (output, zlib_rs::ReturnCode::Ok) = zlib_rs::decompress_slice(out, buf, config) else {
+        let (output, zlib_rs::ReturnCode::Ok) = zlib_rs::decompress_slice(out, gzipped_buf, config)
+        else {
             todo!()
         };
 
-        buf_msg.buf = tl::de::Buf::new(output);
-        buf_msg.typ = buf_msg.buf.de_infallible().expect("TODO");
+        *buf = tl::de::Buf::new(output);
 
-        Ok(())
+        Ok(buf.de()?)
     }
 
     pub(super) fn handle_buf_msg(
         &'_ mut self,
-        buf_msg: mtproto::BufMsg<'_>,
+        buf_msg: BufMsg<'_>,
         system_time: SystemTime,
         updates: &mut Vec<tl::api::enums::Updates>,
+        handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
@@ -241,13 +278,13 @@ impl<T: Transport> Sanity<T> {
         self.server_msg_ids.check(buf_msg.msg.msg_id, system_time)?;
 
         if buf_msg.typ == tl::GZIP_PACKED {
-            self.ungzip(&mut out, &mut buf_msg)?;
+            buf_msg.typ = self.ungzip(&mut out, &mut buf_msg.buf)?;
         }
 
         match buf_msg.typ {
             tl::GZIP_PACKED => return Err(DoubleGzipPacked),
             tl::MSG_CONTAINER => {
-                let mtproto::BufMsg { msg, buf, typ } = buf_msg;
+                let BufMsg { msg, buf, typ } = buf_msg;
 
                 let msg_container = MsgContainerIter::deserialize(buf)
                     .map_err(|err| Deserialization(err.into()))?;
@@ -267,41 +304,25 @@ impl<T: Transport> Sanity<T> {
 
                 for mut buf_msg in container {
                     if buf_msg.typ == tl::GZIP_PACKED {
-                        self.ungzip(&mut out, &mut buf_msg)?;
+                        buf_msg.typ = self.ungzip(&mut out, &mut buf_msg.buf)?;
                     }
 
-                    self.handle_single(buf_msg, system_time, updates)?;
+                    self.handle_single(buf_msg, system_time, updates, handle)?;
                 }
 
                 if let Err(err) = self.server_seq_nos.check(msg.seq_no, typ) {
                     match err {
-                        mtproto::SeqNoError::Invalid => {
+                        SeqNoError::Invalid => {
                             warn!("invalid `seq_no`");
                         }
                         err => return Err(SeqNo(err)),
                     }
                 }
             }
-            _ => self.handle_single(buf_msg, system_time, updates)?,
+            _ => self.handle_single(buf_msg, system_time, updates, handle)?,
         }
 
         Ok(())
-    }
-
-    fn send_rpc_result(&mut self, req_msg_id: i64, res_object: tl::Object) {
-        let Some(index) = self
-            .requests
-            .iter()
-            .position(|x| x.msg.msg_id == req_msg_id)
-        else {
-            todo!()
-        };
-
-        let request = self.requests.remove(index).unwrap();
-
-        if let Err(_res) = request.tx.send(res_object) {
-            todo!()
-        }
     }
 
     fn new_session_created(&mut self, x: types::NewSessionCreated) -> Result<(), SenderError> {
@@ -398,14 +419,14 @@ impl<T: Transport> Sanity<T> {
         }
     }
 
-    pub(super) fn get_salt(&mut self) -> mtproto::Salt {
+    pub(super) fn get_salt(&mut self) -> Salt {
         self.update_current_salt();
 
         self.server_salt
     }
 
     #[inline]
-    const fn reset_salts(&mut self, server_salt: mtproto::Salt) {
+    const fn reset_salts(&mut self, server_salt: Salt) {
         self.server_salt_until = BAD_SALT_UNTIL;
         self.server_salt = server_salt;
     }
@@ -433,8 +454,8 @@ impl<T: Transport> Sanity<T> {
         self.msgs_ack_msg_ids.clear();
     }
 
-    fn ack(&mut self, msg: mtproto::Msg) {
-        if !mtproto::is_content_related(msg.seq_no) {
+    fn ack(&mut self, msg: Msg) {
+        if !is_content_related(msg.seq_no) {
             return;
         }
 
@@ -442,7 +463,7 @@ impl<T: Transport> Sanity<T> {
 
         self.msgs_ack_msg_ids.push(msg.msg_id);
 
-        if len < mtproto::MAX_IDS_PER_SERVICE_MSG {
+        if len < MAX_IDS_PER_SERVICE_MSG {
             return;
         }
 

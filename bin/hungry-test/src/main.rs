@@ -33,10 +33,20 @@ type Transport = hungry::transport::Full;
 type Plain = hungry::plain::Plain<Transport, R, W>;
 
 type Item = (
-    oneshot::Sender<oneshot::Receiver<tl::Object>>,
+    oneshot::Sender<tl::Object>,
     usize,
     Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
 );
+
+struct Handle {}
+
+impl hungry::sender::Handle for Handle {
+    type Extra = oneshot::Sender<tl::Object>;
+
+    fn handle(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::Extra, obj: tl::Object) {
+        extra.send(obj).unwrap();
+    }
+}
 
 async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
     let transport = Transport::default();
@@ -172,7 +182,7 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
         unreachable!()
     };
 
-    let obj = func_rx.await?.await?;
+    let obj = func_rx.await?;
 
     let tl::Object::api_auth_Authorization(auth) = obj else {
         unimplemented!()
@@ -207,6 +217,8 @@ async fn async_main() -> anyhow::Result<()> {
 
         let mut updates = Vec::new();
 
+        let mut handle = Handle {};
+
         while let Err(err) = poll_fn::<Result<(), hungry::sender::SenderError>, _>(|cx| {
             if let Poll::Ready(ready) = ctrl_c.as_mut().poll(cx) {
                 ready.unwrap();
@@ -219,14 +231,14 @@ async fn async_main() -> anyhow::Result<()> {
             while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
                 let (tx, len, f) = ready;
 
-                tx.send(sender.invoke(len, |buf| buf.ser(&*f))).unwrap();
+                let _msg = sender.invoke(len, |buf| buf.ser(&*f), tx);
             }
 
-            while let Poll::Ready(ready) = sender.poll(cx, &mut updates) {
+            while let Poll::Ready(ready) = sender.poll(cx, &mut updates, &mut handle) {
                 ready?;
 
                 for update in updates.drain(..) {
-                    handle(update, &sender_tx);
+                    handle_updates(update, &sender_tx);
                 }
             }
 
@@ -264,7 +276,7 @@ async fn async_main() -> anyhow::Result<()> {
             unreachable!()
         };
 
-        let obj = func_rx.await?.await?;
+        let obj = func_rx.await?;
 
         match obj {
             tl::Object::mtproto_RpcError(_) => {
@@ -309,7 +321,7 @@ fn send_message(peer: enums::InputPeer, message: String) -> funcs::messages::Sen
     }
 }
 
-fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
+fn handle_updates(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
     match updates {
         enums::Updates::Updates(updates) => {
             for update in &updates.updates {
@@ -374,7 +386,7 @@ fn handle(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
                             };
 
                             tokio::spawn(async move {
-                                let _obj = func_rx.await?.await?;
+                                let _obj = func_rx.await?;
 
                                 Ok::<(), anyhow::Error>(())
                             });

@@ -5,49 +5,44 @@ mod sanity;
 use std::task::{Context, Poll, ready};
 use std::time::SystemTime;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::oneshot;
 use tracing::{debug, trace, warn};
 
+use crate::mtproto::{
+    AuthKey, BufMsg, InternalHeader, Msg, Salt, SessionId, SessionIdError, check_random_padding,
+};
 use crate::reader::{Reader, ReaderResult};
+use crate::tl;
 use crate::transport::{Packet, QuickAck, Transport, Unpack};
 use crate::writer::QueuedWriter;
-use crate::{mtproto, tl};
 
 use container::Container;
-use sanity::Sanity;
+use sanity::{Request, Sanity};
 
 pub use error::SenderError;
+pub use sanity::Handle;
 
-struct Request {
-    msg: mtproto::Msg,
+#[derive(Debug)]
+pub enum RpcError {}
 
-    tx: oneshot::Sender<tl::Object>,
-}
-
-pub enum Messages<'a> {
-    Msg(mtproto::BufMsg<'a>),
-    MsgContainer(mtproto::Msg, Vec<mtproto::BufMsg<'a>>),
-}
-
-pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> {
+pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
 
-    auth_key: mtproto::AuthKey,
-    session_id: mtproto::Session,
+    auth_key: AuthKey,
+    session_id: SessionId,
 
-    sanity: Sanity<T>,
+    sanity: Sanity<T, H>,
 }
 
-impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> {
+impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sender<T, R, W, H> {
     pub fn new(
         reader: Reader<R, T>,
         writer: QueuedWriter<W, T>,
 
-        auth_key: mtproto::AuthKey,
-        session_id: mtproto::Session,
+        auth_key: AuthKey,
+        session_id: SessionId,
 
-        salt: mtproto::Salt,
+        salt: Salt,
     ) -> Self {
         let mut sanity = Sanity::new(1024, salt);
 
@@ -114,7 +109,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
 
         let (transport, encrypted, buffer) = container.finalize();
 
-        let internal = mtproto::InternalHeader {
+        let internal = InternalHeader {
             salt: self.sanity.get_salt(),
             session_id: self.session_id,
         };
@@ -199,6 +194,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         &mut self,
         cx: &mut Context<'_>,
         updates: &mut Vec<tl::api::enums::Updates>,
+        handle: &mut H,
     ) -> Poll<Result<(), SenderError>> {
         trace!("polled");
 
@@ -208,7 +204,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         if let Poll::Ready(packet) = self.poll_reader(cx)? {
             trace!(data = ?packet.data, "packet");
 
-            self.handle_packet(packet, updates, system_time)?;
+            self.handle_packet(packet, updates, system_time, handle)?;
 
             return Poll::Ready(Ok(()));
         }
@@ -223,6 +219,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         packet: Packet,
         updates: &mut Vec<tl::api::enums::Updates>,
         system_time: SystemTime,
+        handle: &mut H,
     ) -> Result<(), SenderError> {
         use SenderError::*;
 
@@ -232,14 +229,15 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
             .map_err(Message)?;
 
         if internal.session_id != self.session_id {
-            return Err(Session(mtproto::SessionIdError(internal.session_id)));
+            return Err(Session(SessionIdError(internal.session_id)));
         }
 
-        let buf_msg = mtproto::BufMsg::deserialize(&mut buf)?;
+        let buf_msg = BufMsg::deserialize(&mut buf)?;
 
-        mtproto::check_random_padding(buf.as_slice()).map_err(Padding)?;
+        check_random_padding(buf.as_slice()).map_err(Padding)?;
 
-        self.sanity.handle_buf_msg(buf_msg, system_time, updates)?;
+        self.sanity
+            .handle_buf_msg(buf_msg, system_time, updates, handle)?;
 
         Ok(())
     }
@@ -248,7 +246,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         &mut self,
         len: usize,
         f: F,
-    ) -> oneshot::Receiver<tl::Object> {
+        extra: H::Extra,
+    ) -> Msg {
         debug!(len, "invoking");
 
         let system_time = SystemTime::now();
@@ -258,12 +257,10 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> Sender<T, R, W> 
         self.get_container(len, system_time)
             .push::<false, F>(&msg, len, f);
 
-        let (tx, rx) = oneshot::channel();
-
-        let request = Request { msg, tx };
+        let request = Request { msg, extra };
 
         self.sanity.requests.push_back(request);
 
-        rx
+        msg
     }
 }

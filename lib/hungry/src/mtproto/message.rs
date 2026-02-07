@@ -110,7 +110,7 @@ impl ExternalHeader {
 #[derive(Debug)]
 pub struct InternalHeader {
     pub salt: mtproto::Salt,
-    pub session_id: mtproto::Session,
+    pub session_id: mtproto::SessionId,
 }
 
 impl fmt::Display for InternalHeader {

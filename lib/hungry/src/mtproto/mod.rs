@@ -41,7 +41,7 @@ pub type PlainHeader = unbite::Raw<{ UnencryptedMessage::LEN }>;
 /// ---
 ///
 /// <https://core.telegram.org/mtproto/description#session>
-pub type Session = i64;
+pub type SessionId = i64;
 
 /// # Server Salt
 ///

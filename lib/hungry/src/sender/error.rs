@@ -16,7 +16,7 @@ pub enum SenderError {
     MsgId(MsgIdError),
     SeqNo(SeqNoError),
 
-    BufMsg(BufMsgError),
+    Msg(BufMsgError),
     Padding(PaddingError),
     Deserialization(tl::de::Error),
 
@@ -48,7 +48,7 @@ impl From<SeqNoError> for SenderError {
 impl From<BufMsgError> for SenderError {
     #[inline]
     fn from(value: BufMsgError) -> Self {
-        Self::BufMsg(value)
+        Self::Msg(value)
     }
 }
 
@@ -68,7 +68,7 @@ impl fmt::Display for SenderError {
             MsgId(err) => err.fmt(f),
             SeqNo(err) => err.fmt(f),
 
-            BufMsg(err) => err.fmt(f),
+            Msg(err) => err.fmt(f),
             Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
 
@@ -92,7 +92,7 @@ impl std::error::Error for SenderError {
             MsgId(err) => err,
             SeqNo(err) => err,
 
-            BufMsg(err) => err,
+            Msg(err) => err,
             Padding(err) => err,
             Deserialization(err) => err,
 

@@ -12,7 +12,7 @@ use crate::mtproto;
 ///
 /// <https://core.telegram.org/mtproto/security_guidelines#checking-session-id>
 #[derive(Debug, Eq, PartialEq)]
-pub struct SessionIdError(pub mtproto::Session);
+pub struct SessionIdError(pub mtproto::SessionId);
 
 impl fmt::Display for SessionIdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
