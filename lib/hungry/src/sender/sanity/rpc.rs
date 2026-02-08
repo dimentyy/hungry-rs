@@ -5,13 +5,16 @@ use crate::sender::{Handle, Sanity, SenderError};
 use crate::tl;
 use crate::transport::Transport;
 
+use tl::Identifiable;
+use tl::mtproto::types;
+
 pub(super) struct Request<H: Handle> {
     msg: Msg,
-    extra: H::RpcExtra,
+    extra: H::RpcResultExtra,
 }
 
 impl<T: Transport, H: Handle> Sanity<T, H> {
-    pub(in super::super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcExtra) {
+    pub(in super::super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcResultExtra) {
         let request = Request { msg, extra };
 
         self.requests.push_back(request);
@@ -22,6 +25,8 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         buf: tl::de::Buf<'_>,
         handle: &mut H,
     ) -> Result<(), SenderError> {
+        use SenderError::*;
+
         let mut buf = buf;
 
         let req_msg_id = buf.de()?;
@@ -49,10 +54,22 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             typ = self.ungzip_packed_bytes(&mut out, &mut buf)?;
         }
 
-        handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
+        match typ {
+            tl::GZIP_PACKED => return Err(DoubleGzipPacked),
+            tl::MSG_CONTAINER => todo!(),
+
+            types::RpcError::CONSTRUCTOR_ID => {
+                let error = buf.de()?;
+
+                handle.rpc_result_error(req_msg_id, req.extra, error);
+            }
+            _ => {
+                handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
+            }
+        }
 
         if let Some(out) = out {
-            self.return_temporary_buffer(out.into_raw());
+            self.push_buffer(out.into_raw());
         }
 
         Ok(())

@@ -1,3 +1,4 @@
+use std::fmt;
 use std::future::poll_fn;
 use std::pin::pin;
 use std::sync::Arc;
@@ -33,25 +34,57 @@ type Transport = hungry::transport::Full;
 type Plain = hungry::plain::Plain<Transport, R, W>;
 
 type Item = (
-    oneshot::Sender<tl::Object>,
+    oneshot::Sender<Result<tl::Object, RpcError>>,
     usize,
     Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
 );
 
+#[derive(Debug)]
+pub enum RpcError {
+    RpcError(tl::mtproto::types::RpcError),
+}
+
+impl fmt::Display for RpcError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("rpc error: ")?;
+
+        match self {
+            RpcError::RpcError(tl::mtproto::types::RpcError {
+                error_code,
+                error_message,
+            }) => write!(
+                f,
+                "rpc_error#2144ca19 {{ error_code: {error_code}, error_message: {error_message} }}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RpcError {}
+
 struct Handle {}
 
 impl hungry::sender::Handle for Handle {
-    type RpcExtra = oneshot::Sender<tl::Object>;
+    type RpcResultExtra = oneshot::Sender<Result<tl::Object, RpcError>>;
 
     fn rpc_result(
         &mut self,
         msg_id: hungry::mtproto::MsgId,
-        extra: Self::RpcExtra,
+        extra: Self::RpcResultExtra,
         typ: u32,
         buf: &mut tl::de::Buf<'_>,
     ) {
         let obj = tl::Object::deserialize(typ, buf).unwrap();
-        extra.send(obj).unwrap();
+        extra.send(Ok(obj)).unwrap();
+    }
+
+    fn rpc_result_error(
+        &mut self,
+        msg_id: hungry::mtproto::MsgId,
+        extra: Self::RpcResultExtra,
+        error: tl::mtproto::types::RpcError,
+    ) {
+        extra.send(Err(RpcError::RpcError(error))).unwrap();
     }
 }
 
@@ -189,7 +222,7 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
         unreachable!()
     };
 
-    let obj = func_rx.await?;
+    let obj = func_rx.await??;
 
     let tl::Object::api_auth_Authorization(auth) = obj else {
         unimplemented!()
@@ -200,6 +233,19 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
     };
 
     Ok(())
+}
+
+pub fn spawn<
+    E: fmt::Debug + fmt::Display + Send + 'static,
+    F: Future<Output = Result<(), E>> + Send + 'static,
+>(
+    future: F,
+) {
+    tokio::spawn(async move {
+        if let Err(err) = future.await {
+            error!(%err, "task failed");
+        }
+    });
 }
 
 async fn async_main() -> anyhow::Result<()> {
@@ -283,7 +329,7 @@ async fn async_main() -> anyhow::Result<()> {
             unreachable!()
         };
 
-        let obj = func_rx.await?;
+        let obj = func_rx.await??;
 
         match obj {
             tl::Object::mtproto_RpcError(_) => {
@@ -392,10 +438,10 @@ fn handle_updates(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
                                 unreachable!()
                             };
 
-                            tokio::spawn(async move {
-                                let _obj = func_rx.await?;
+                            spawn(async move {
+                                let _obj = func_rx.await??;
 
-                                Ok::<(), anyhow::Error>(())
+                                anyhow::Ok(())
                             });
                         }
                         message => {

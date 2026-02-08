@@ -30,11 +30,6 @@ use sanity::Sanity;
 pub use error::SenderError;
 pub use sanity::Handle;
 
-#[derive(Debug)]
-pub enum RpcError {
-    BadMsgNotification,
-}
-
 pub struct Sender<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> {
     reader: Reader<R, T>,
     writer: QueuedWriter<W, T>,
@@ -74,12 +69,12 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         unimplemented!("TODO: reserve(length={length})");
     }
 
-    fn push_completed_writer_buffer(&mut self, _buffer: unbite::DynBuf) {
-        // warn!("TODO: push_completed_writer_buffer(..)");
+    fn push_completed_writer_buffer(&mut self, buffer: unbite::DynBuf) {
+        self.sanity.push_buffer(buffer.into_raw());
     }
 
-    fn push_immediate_writer_buffer(&mut self, _buffer: unbite::DynRaw) {
-        // warn!("TODO: push_immediate_writer_buffer(..)");
+    fn push_immediate_writer_buffer(&mut self, buffer: unbite::DynRaw) {
+        self.sanity.push_buffer(buffer);
     }
 
     fn quick_ack(&mut self, quick_ack: QuickAck) {
@@ -246,7 +241,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
-        extra: H::RpcExtra,
+        extra: H::RpcResultExtra,
         len: usize,
         f: F,
     ) -> Msg {
