@@ -35,7 +35,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         let msg = self.get_msg::<false>(SystemTime::now());
 
         self.get_container(len)
-            .push::<true, _>(&msg, len, |buf| buf.ser(&func));
+            .push::<true, _>(msg, len, |buf| buf.ser(&func));
 
         let enums::MsgsAck::MsgsAck(types::MsgsAck { msg_ids }) = func;
 

@@ -33,6 +33,8 @@ type Transport = hungry::transport::Full;
 
 type Plain = hungry::plain::Plain<Transport, R, W>;
 
+type Sender = hungry::sender::Sender<Transport, R, W, Handle>;
+
 type Item = (
     oneshot::Sender<Result<tl::Object, RpcError>>,
     usize,
@@ -42,6 +44,7 @@ type Item = (
 #[derive(Debug)]
 pub enum RpcError {
     RpcError(tl::mtproto::types::RpcError),
+    BadServerSalt(hungry::mtproto::MsgId),
 }
 
 impl fmt::Display for RpcError {
@@ -56,6 +59,10 @@ impl fmt::Display for RpcError {
                 f,
                 "rpc_error#2144ca19 {{ error_code: {error_code}, error_message: {error_message} }}"
             ),
+            RpcError::BadServerSalt(msg_id) => write!(
+                f,
+                "bad_server_salt#edab447b {{ bad_msg_id: {msg_id:#018x}, .. }}"
+            ),
         }
     }
 }
@@ -65,12 +72,12 @@ impl std::error::Error for RpcError {}
 struct Handle {}
 
 impl hungry::sender::Handle for Handle {
-    type RpcResultExtra = oneshot::Sender<Result<tl::Object, RpcError>>;
+    type Extra = oneshot::Sender<Result<tl::Object, RpcError>>;
 
     fn rpc_result(
         &mut self,
         msg_id: hungry::mtproto::MsgId,
-        extra: Self::RpcResultExtra,
+        extra: Self::Extra,
         typ: u32,
         buf: &mut tl::de::Buf<'_>,
     ) {
@@ -81,10 +88,14 @@ impl hungry::sender::Handle for Handle {
     fn rpc_result_error(
         &mut self,
         msg_id: hungry::mtproto::MsgId,
-        extra: Self::RpcResultExtra,
+        extra: Self::Extra,
         error: tl::mtproto::types::RpcError,
     ) {
         extra.send(Err(RpcError::RpcError(error))).unwrap();
+    }
+
+    fn bad_server_salt(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::Extra) {
+        extra.send(Err(RpcError::BadServerSalt(msg_id))).unwrap();
     }
 }
 
@@ -235,7 +246,7 @@ async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()>
     Ok(())
 }
 
-pub fn spawn<
+fn spawn<
     E: fmt::Debug + fmt::Display + Send + 'static,
     F: Future<Output = Result<(), E>> + Send + 'static,
 >(
@@ -246,6 +257,48 @@ pub fn spawn<
             error!(%err, "task failed");
         }
     });
+}
+
+async fn invoke<X: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync + 'static>(
+    tx: &mpsc::UnboundedSender<Item>,
+    func: Arc<X>,
+) -> anyhow::Result<tl::Object> {
+    let obj = loop {
+        let (func_tx, func_rx) = oneshot::channel();
+
+        let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::clone(&func) as _)) else {
+            unreachable!()
+        };
+
+        match func_rx.await? {
+            Ok(obj) => break obj,
+            Err(err) => {
+                error!(%err);
+
+                let secs = match err {
+                    RpcError::RpcError(error) => {
+                        if error.error_code == 420 {
+                            u64::from(
+                                error
+                                    .error_message
+                                    .split(|c: char| !c.is_ascii_digit())
+                                    .flat_map(|value| value.parse::<u32>())
+                                    .next()
+                                    .unwrap(),
+                            )
+                        } else {
+                            1
+                        }
+                    }
+                    RpcError::BadServerSalt(_) => 1,
+                };
+
+                tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
+            }
+        }
+    };
+
+    Ok(obj)
 }
 
 async fn async_main() -> anyhow::Result<()> {
@@ -259,7 +312,7 @@ async fn async_main() -> anyhow::Result<()> {
 
     let session = getrandom::u64()?.cast_signed();
 
-    let mut sender = hungry::sender::Sender::new(r, w, auth_key, session, server_salt);
+    let mut sender = Sender::new(r, w, auth_key, session, server_salt);
 
     let (tx, mut rx) = mpsc::unbounded_channel::<Item>();
 
@@ -304,9 +357,6 @@ async fn async_main() -> anyhow::Result<()> {
     });
 
     let auth_task = tokio::spawn(async move {
-        // FIXME: salt handling / retries.
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
         let func = Arc::new(funcs::InvokeWithLayer {
             layer: 214,
             query: funcs::InitConnection {
@@ -323,13 +373,7 @@ async fn async_main() -> anyhow::Result<()> {
             },
         });
 
-        let (func_tx, func_rx) = oneshot::channel();
-
-        let Ok(()) = tx.send((func_tx, func.serialized_len(), func)) else {
-            unreachable!()
-        };
-
-        let obj = func_rx.await??;
+        let obj = invoke(&tx, func).await?;
 
         match obj {
             tl::Object::mtproto_RpcError(_) => {
@@ -432,14 +476,10 @@ fn handle_updates(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
 
                             let func = Arc::new(send_message(input_peer.into(), message));
 
-                            let (func_tx, func_rx) = oneshot::channel();
-
-                            let Ok(()) = tx.send((func_tx, func.serialized_len(), func)) else {
-                                unreachable!()
-                            };
+                            let tx = tx.clone();
 
                             spawn(async move {
-                                let _obj = func_rx.await??;
+                                let _obj = invoke(&tx, func).await?;
 
                                 anyhow::Ok(())
                             });

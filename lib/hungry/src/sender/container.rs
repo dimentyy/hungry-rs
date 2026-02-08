@@ -39,16 +39,23 @@ impl<T: Transport> Container<T> {
     #[inline]
     pub(super) fn push<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
-        msg: &mtproto::Msg,
+        msg: mtproto::Msg,
         len: usize,
         f: F,
     ) {
         self.raw_inner.push::<RESERVED, F>(msg, len, f);
     }
 
-    pub(super) fn finalize(self) -> (T::Envelope, mtproto::EncryptedEnvelope, unbite::DynBuf) {
-        let buffer = self.raw_inner.finalize();
+    pub(super) fn finalize(
+        self,
+    ) -> (
+        T::Envelope,
+        mtproto::EncryptedEnvelope,
+        unbite::DynBuf,
+        Vec<mtproto::Msg>,
+    ) {
+        let (buffer, msgs) = self.raw_inner.finalize();
 
-        (self.transport, self.encrypted, buffer)
+        (self.transport, self.encrypted, buffer, msgs)
     }
 }

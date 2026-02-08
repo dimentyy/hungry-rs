@@ -9,13 +9,18 @@ use tl::Identifiable;
 use tl::mtproto::types;
 
 pub(super) struct Request<H: Handle> {
-    msg: Msg,
-    extra: H::RpcResultExtra,
+    pub(super) msg: Msg,
+    pub(super) container_msg: Option<Msg>,
+    pub(super) extra: H::Extra,
 }
 
 impl<T: Transport, H: Handle> Sanity<T, H> {
-    pub(in super::super) fn rpc_request(&mut self, msg: Msg, extra: H::RpcResultExtra) {
-        let request = Request { msg, extra };
+    pub(in super::super) fn rpc_request(&mut self, msg: Msg, extra: H::Extra) {
+        let request = Request {
+            msg,
+            container_msg: None,
+            extra,
+        };
 
         self.requests.push_back(request);
     }

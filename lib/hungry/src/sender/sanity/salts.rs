@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use tracing::{debug, info, warn};
 
-use crate::mtproto::Salt;
+use crate::mtproto::{MsgId, Salt, SeqNo, is_content_related};
 use crate::sender::sanity::{BAD_SALT_UNTIL, MAX_GET_FUTURE_SALTS_NUM, Now, Sanity};
 use crate::sender::{Handle, SenderError};
 use crate::tl;
@@ -24,22 +24,26 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         let msg = self.get_msg::<false>(SystemTime::now());
 
         self.get_container(len)
-            .push::<true, _>(&msg, len, |buf| buf.ser(&func));
+            .push::<true, _>(msg, len, |buf| buf.ser(&func));
 
         self.get_future_salts_msg = Some(msg);
     }
 
-    pub(super) fn bad_server_salt(&mut self, x: types::BadServerSalt) -> Result<(), SenderError> {
+    pub(super) fn bad_server_salt(
+        &mut self,
+        x: types::BadServerSalt,
+        handle: &mut H,
+    ) -> Result<(), SenderError> {
         let types::BadServerSalt {
-            bad_msg_id: _,
+            bad_msg_id,
             bad_msg_seqno,
             error_code,
             new_server_salt,
         } = x;
 
         warn!(
-            bad_msg_seqno,
-            error_code, "received `bad_server_salt#edab447b`"
+            bad_msg_id,
+            bad_msg_seqno, error_code, "received `bad_server_salt#edab447b`"
         );
 
         self.future_salts.clear();
@@ -48,7 +52,62 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         self.push_get_future_salts();
 
+        self.handle_bad_server_salt(bad_msg_id, bad_msg_seqno, handle);
+
         Ok(())
+    }
+
+    // FIXME: find a better way to efficiently pop requests.
+    fn handle_bad_server_salt(&mut self, msg_id: MsgId, seq_no: SeqNo, handle: &mut H) {
+        if is_content_related(seq_no) {
+            let index_msg_id = self.requests.iter().position(|x| x.msg.msg_id == msg_id);
+
+            let index_seq_no = self.requests.iter().position(|x| x.msg.seq_no == seq_no);
+
+            match (index_msg_id, index_seq_no) {
+                (None, None) => {}
+                (Some(_), None) => todo!(),
+                (None, Some(_)) => todo!(),
+                (Some(index_msg_id), Some(index_seq_no)) => {
+                    if index_msg_id != index_seq_no {
+                        todo!()
+                    }
+
+                    if let Some(req) = self.requests.swap_remove_front(index_msg_id) {
+                        handle.bad_server_salt(msg_id, req.extra);
+                    }
+                }
+            }
+        } else {
+            let index_msg_id = self.containers.iter().position(|(x, _)| x.msg_id == msg_id);
+
+            let index_seq_no = self.containers.iter().position(|(x, _)| x.seq_no == seq_no);
+
+            match (index_msg_id, index_seq_no) {
+                (None, None) => {}
+                (Some(_), None) => todo!(),
+                (None, Some(_)) => todo!(),
+                (Some(index_msg_id), Some(index_seq_no)) => {
+                    if index_msg_id != index_seq_no {
+                        todo!()
+                    }
+
+                    let (container_msg, msgs) =
+                        self.containers.swap_remove_front(index_msg_id).unwrap();
+
+                    for msg in msgs {
+                        if let Some(index) = self
+                            .requests
+                            .iter()
+                            .position(|x| x.msg.seq_no == msg.seq_no)
+                        {
+                            let request = self.requests.swap_remove_front(index).unwrap();
+                            handle.bad_server_salt(msg_id, request.extra);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     pub(super) fn handle_future_salts(&mut self, x: types::FutureSalts) -> Result<(), SenderError> {

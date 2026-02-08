@@ -105,7 +105,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
     fn queue_container_write(&mut self, container: Container<T>, system_time: SystemTime) {
         trace!(len = container.len(), "queuing container");
 
-        let (transport, encrypted, buffer) = container.finalize();
+        let (transport, encrypted, buffer, msgs) = container.finalize();
 
         let internal = InternalHeader {
             salt: self.sanity.get_salt(),
@@ -114,6 +114,8 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
 
         let msg = self.sanity.get_msg::<false>(system_time);
 
+        self.sanity.container_msgs(msg, msgs);
+        
         let buffer = self
             .writer
             .queue(transport, encrypted, buffer, &self.auth_key, internal, msg);
@@ -241,7 +243,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
 
     pub fn invoke<F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
-        extra: H::RpcResultExtra,
+        extra: H::Extra,
         len: usize,
         f: F,
     ) -> Msg {
@@ -252,7 +254,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         let msg = self.sanity.get_msg::<true>(system_time);
 
         self.get_container(len, system_time)
-            .push::<false, F>(&msg, len, f);
+            .push::<false, F>(msg, len, f);
 
         self.sanity.rpc_request(msg, extra);
 

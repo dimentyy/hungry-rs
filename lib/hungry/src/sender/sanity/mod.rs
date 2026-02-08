@@ -29,22 +29,19 @@ const BAD_SALT_UNTIL: i32 = i32::MIN;
 const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
 
 pub trait Handle {
-    type RpcResultExtra;
+    type Extra;
 
     fn rpc_result(
         &mut self,
         msg_id: MsgId,
-        extra: Self::RpcResultExtra,
+        extra: Self::Extra,
         typ: u32,
         buf: &mut tl::de::Buf<'_>,
     );
 
-    fn rpc_result_error(
-        &mut self,
-        msg_id: MsgId,
-        extra: Self::RpcResultExtra,
-        error: types::RpcError,
-    );
+    fn rpc_result_error(&mut self, msg_id: MsgId, extra: Self::Extra, error: types::RpcError);
+
+    fn bad_server_salt(&mut self, msg_id: MsgId, extra: Self::Extra);
 }
 
 // FIXME: this struct manages too many things right now.
@@ -66,6 +63,7 @@ pub(super) struct Sanity<T: Transport, H: Handle> {
     server_salt_until: i32,
     server_salt: Salt,
 
+    containers: VecDeque<(Msg, Vec<Msg>)>,
     requests: VecDeque<Request<H>>,
 
     msgs_ack_msg_ids: Vec<MsgId>,
@@ -92,6 +90,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
             now: None,
 
+            containers: VecDeque::new(),
             requests: VecDeque::new(),
 
             msgs_ack_msg_ids: Vec::with_capacity(MAX_IDS_PER_SERVICE_MSG),
@@ -141,6 +140,20 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Msg { msg_id, seq_no }
     }
 
+    pub(super) fn container_msgs(&mut self, container_msg: Msg, msgs: Vec<Msg>) {
+        for msg in msgs.iter() {
+            if let Some(request) = self
+                .requests
+                .iter_mut()
+                .find(|x| x.msg.seq_no == msg.seq_no)
+            {
+                request.container_msg = Some(container_msg);
+            }
+        }
+
+        self.containers.push_back((container_msg, msgs));
+    }
+
     fn handle_single(
         &mut self,
         buf_msg: BufMsg<'_>,
@@ -185,7 +198,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             types::MsgsAck::CONSTRUCTOR_ID => self.msgs_ack(buf.de()?)?,
 
             types::BadMsgNotification::CONSTRUCTOR_ID => self.bad_msg_notification(buf.de()?)?,
-            types::BadServerSalt::CONSTRUCTOR_ID => self.bad_server_salt(buf.de()?)?,
+            types::BadServerSalt::CONSTRUCTOR_ID => self.bad_server_salt(buf.de()?, handle)?,
 
             types::NewSessionCreated::CONSTRUCTOR_ID => self.new_session_created(buf.de()?)?,
             types::FutureSalts::CONSTRUCTOR_ID => self.handle_future_salts(buf.de()?)?,

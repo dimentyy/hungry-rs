@@ -5,6 +5,8 @@ pub struct MsgContainer {
     buffer: unbite::DynBuf,
     length: u32,
 
+    msgs: Vec<mtproto::Msg>,
+
     reserved_messages: u32,
     reserved_capacity: usize,
 }
@@ -32,6 +34,8 @@ impl MsgContainer {
             header,
             buffer,
             length: 0,
+
+            msgs: Vec::new(),
 
             reserved_messages: 0,
             reserved_capacity: 0,
@@ -75,7 +79,7 @@ impl MsgContainer {
     /// * If the internal buffer does not have enough capacity to store `x`.
     pub fn push<const RESERVED: bool, F: FnOnce(&mut tl::ser::Buf)>(
         &mut self,
-        msg: &mtproto::Msg,
+        msg: mtproto::Msg,
         len: usize,
         f: F,
     ) {
@@ -84,7 +88,7 @@ impl MsgContainer {
         self.buffer.init_with(|spare_capacity| {
             let mut buf = tl::ser::Buf::uninit(spare_capacity);
 
-            buf.ser(msg);
+            buf.ser(&msg);
             buf.extend_from_array(&i32::try_from(len).unwrap().to_le_bytes());
             f(&mut buf);
 
@@ -93,10 +97,12 @@ impl MsgContainer {
             buf.as_slice()
         });
 
+        self.msgs.push(msg);
+
         self.length += 1;
     }
 
-    pub fn finalize(mut self) -> unbite::DynBuf {
+    pub fn finalize(mut self) -> (unbite::DynBuf, Vec<mtproto::Msg>) {
         let mut header = self.header.into_buf();
 
         header.extend_from_array(&tl::MSG_CONTAINER.to_le_bytes());
@@ -104,6 +110,6 @@ impl MsgContainer {
 
         self.buffer.unsplit_buf_front(header);
 
-        self.buffer
+        (self.buffer, self.msgs)
     }
 }
