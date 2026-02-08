@@ -91,6 +91,24 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         }
     }
 
+    pub(super) fn reset(&mut self) -> impl Iterator<Item = H::Extra> {
+        self.client_msg_ids = ClientMsgIds::new(SystemTime::now());
+        self.client_seq_nos = ClientSeqNos::new();
+
+        self.server_msg_ids = ServerMsgIds::new(1024);
+        self.server_seq_nos = ServerSeqNos::new();
+
+        self.now = None;
+
+        self.get_future_salts_msg = None;
+
+        self.containers.clear();
+
+        self.msgs_ack_msg_ids.clear();
+
+        self.requests.drain(..).map(|x| x.extra)
+    }
+
     #[inline]
     pub(super) fn take_container(&mut self) -> Option<Container<T>> {
         mem::take(&mut self.container)
@@ -111,12 +129,12 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Container::new(unbite::DynBuf::new(len + 256 * 1024))
     }
 
-    fn take_buffer(&mut self, capacity: usize) -> unbite::DynRaw {
+    pub(super) fn take_buffer(&mut self, capacity: usize) -> unbite::DynRaw {
         // TODO.
         unbite::DynRaw::new(capacity)
     }
 
-    pub(crate) fn push_buffer(&mut self, buffer: unbite::DynRaw) {
+    pub(super) fn push_buffer(&mut self, buffer: unbite::DynRaw) {
         // TODO.
         drop(buffer);
     }

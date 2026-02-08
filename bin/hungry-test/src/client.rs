@@ -13,6 +13,7 @@ impl<X: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync> Function for X {
 pub enum RequestError {
     RpcError(tl::mtproto::types::RpcError),
     BadServerSalt,
+    Disconnect,
 }
 
 impl fmt::Display for RequestError {
@@ -30,6 +31,7 @@ impl fmt::Display for RequestError {
                 "rpc_error#2144ca19 {{ code: {code}, message: {message} }}"
             ),
             BadServerSalt => write!(f, "bad_server_salt#edab447b {{ .. }}"),
+            Disconnect => write!(f, "disconnected"),
         }
     }
 }
@@ -84,6 +86,7 @@ impl Client {
                 }
                 RequestError::RpcError(error) => return Err(RequestError::RpcError(error).into()),
                 RequestError::BadServerSalt => 2,
+                RequestError::Disconnect => 9,
             };
 
             tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;

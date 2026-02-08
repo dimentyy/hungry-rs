@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
-use std::io;
 use std::task::{Context, Poll};
+use std::{io, mem};
 
 use tokio::io::AsyncWrite;
 
@@ -36,6 +36,19 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
             driver,
             buffers,
         }
+    }
+
+    pub(crate) fn reset(
+        &mut self,
+        driver: W,
+        transport: T::Write,
+        buffers: &mut VecDeque<unbite::DynBuf>,
+    ) {
+        self.error = None;
+
+        self.driver = Writer::new(driver, transport);
+
+        mem::swap(&mut self.buffers, buffers);
     }
 
     #[inline]
@@ -124,6 +137,12 @@ impl<W: AsyncWrite + Unpin, T: Transport> QueuedWriter<W, T> {
         let Some(buffer) = self.buffers.front_mut() else {
             return Poll::Pending;
         };
+
+        if buffer.len() == 0 {
+            infallible! {
+                return Poll::Ready(Ok(self.buffers.pop_front().unwrap()));
+            }
+        }
 
         let mut pos = 0;
 

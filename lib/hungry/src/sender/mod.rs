@@ -11,8 +11,10 @@ mod container;
 mod error;
 mod sanity;
 
+use std::collections::VecDeque;
 use std::task::{Context, Poll, ready};
 use std::time::SystemTime;
+
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
@@ -63,6 +65,33 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
 
             sanity,
         }
+    }
+
+    pub fn reset(
+        &mut self,
+        transport: T,
+        reader: R,
+        writer: W,
+        session_id: SessionId
+    ) -> impl Iterator<Item = H::Extra> {
+        self.session_id = session_id;
+
+        let mut buffer = self.sanity.take_buffer(T::INIT_SIZE).into_buf();
+
+        let (r, w) = transport.init(&mut buffer);
+
+        let mut buffers = VecDeque::with_capacity(1);
+
+        buffers.push_back(buffer);
+
+        self.reader.reset(reader, r);
+        self.writer.reset(writer, w, &mut buffers);
+
+        for buffer in buffers {
+            self.sanity.push_buffer(buffer.into_raw());
+        }
+
+        self.sanity.reset()
     }
 
     fn reserve(&mut self, length: usize) {

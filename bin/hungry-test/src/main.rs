@@ -4,13 +4,13 @@ mod handle;
 mod key;
 mod updates;
 
-use std::fmt;
 use std::future::poll_fn;
-use std::pin::pin;
+use std::pin::{Pin, pin};
 use std::task::Poll;
+use std::{fmt, io};
 
 use tokio::sync::mpsc;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 
 use hungry::unbite;
@@ -49,9 +49,9 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Setup [`tracing`] logging with non-blocking [`std::io::stderr`] writer.
+/// Setup [`tracing`] logging with non-blocking [`io::stderr`] writer.
 fn set_tracing_subscriber() -> anyhow::Result<tracing_appender::non_blocking::WorkerGuard> {
-    let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stderr());
+    let (non_blocking, guard) = tracing_appender::non_blocking(io::stderr());
 
     let subscriber = tracing_subscriber::Registry::default()
         .with(tracing_subscriber::fmt::layer().with_writer(non_blocking));
@@ -73,31 +73,81 @@ async fn async_main() -> anyhow::Result<()> {
 
     let (r, w) = plain.into_inner();
 
+    // The `QueuedWriter` can hold multiple buffers writing them sequentially.
     let w = hungry::writer::QueuedWriter::new(w);
 
-    let session = getrandom::u64()?.cast_signed();
+    let mut sender = Sender::new(r, w, auth_key, session_id(), server_salt);
 
-    let sender = Sender::new(r, w, auth_key, session, server_salt);
-
-    let (tx, rx) = mpsc::unbounded_channel::<Request>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Request>();
 
     let client = Client { tx };
 
-    let auth_task = spawn(authorize(client.clone(), api_id, api_hash, bot_auth_token));
+    let mut ctrl_c = pin!(tokio::signal::ctrl_c());
 
-    let sender_task = spawn(main_loop(sender, client, rx));
+    loop {
+        spawn(authorize(
+            client.clone(),
+            api_id,
+            api_hash.clone(),
+            bot_auth_token.clone(),
+        ));
 
-    auth_task.await??;
+        let Err(err) = main_loop(&mut ctrl_c, &mut sender, &client, &mut rx).await else {
+            return Ok(());
+        };
 
-    sender_task.await??;
+        error!(%err, "attempting to reconnect");
 
-    Ok(())
+        let transport = new_transport();
+
+        let mut reconnection = pin!(async move {
+            'reconnection: loop {
+                match connect_drivers().await {
+                    Ok(x) => break 'reconnection x,
+                    Err(err) => {
+                        error!(%err);
+
+                        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+                    }
+                };
+            }
+        });
+
+        let (r, w) = tokio::select! {
+            x = &mut reconnection => x,
+            _ = &mut ctrl_c => return Ok(()),
+        };
+
+        info!("reconnection successful");
+
+        for tx in sender.reset(transport, r, w, session_id()) {
+            if tx.send(Err(RequestError::Disconnect)).is_err() {
+                warn!("request receiver is closed");
+            }
+        }
+    }
+}
+
+/// The `session_id` of the connection is random.
+/// <https://core.telegram.org/mtproto/description#session>
+fn session_id() -> hungry::mtproto::SessionId {
+    getrandom::u64().unwrap().cast_signed()
+}
+
+fn new_transport() -> Transport {
+    Transport::default()
+}
+
+async fn connect_drivers() -> anyhow::Result<(R, W)> {
+    let stream = tokio::net::TcpStream::connect(ADDR).await?;
+
+    Ok(stream.into_split())
 }
 
 async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
-    let transport = Transport::default();
+    let transport = new_transport();
 
-    let (r, w) = tokio::net::TcpStream::connect(ADDR).await?.into_split();
+    let (r, w) = connect_drivers().await?;
 
     // Preallocate the buffers.
     let r_buffer = unbite::DynBuf::new(256 * 1024);
@@ -118,12 +168,11 @@ async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
 }
 
 async fn main_loop(
-    mut sender: Sender,
-    client: Client,
-    mut rx: mpsc::UnboundedReceiver<Request>,
+    ctrl_c: &mut Pin<&mut impl Future<Output = io::Result<()>>>,
+    sender: &mut Sender,
+    client: &Client,
+    rx: &mut mpsc::UnboundedReceiver<Request>,
 ) -> anyhow::Result<()> {
-    let mut ctrl_c = pin!(tokio::signal::ctrl_c());
-
     let mut updates = Vec::new();
 
     let mut handle = Handle {};
@@ -134,8 +183,6 @@ async fn main_loop(
     poll_fn::<anyhow::Result<()>, _>(|cx| {
         if let Poll::Ready(ready) = ctrl_c.as_mut().poll(cx) {
             ready?;
-
-            info!("caught `ctrl-c` notification");
 
             return Poll::Ready(Ok(()));
         }

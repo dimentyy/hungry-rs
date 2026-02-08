@@ -43,6 +43,14 @@ impl<R: AsyncRead + Unpin, T: Transport> Reader<R, T> {
         }
     }
 
+    pub(crate) fn reset(&mut self, driver: R, transport: T::Read) {
+        self.driver = driver;
+        self.transport = transport;
+
+        self.buffer.clear();
+        self.offset = 0;
+    }
+
     /// # Panics
     ///
     /// * If the provided `other` capacity is less than the current length.
