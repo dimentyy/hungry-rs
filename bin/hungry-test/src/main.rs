@@ -1,30 +1,25 @@
+mod auth;
+mod client;
+mod key;
+mod updates;
+
 use std::fmt;
 use std::future::poll_fn;
 use std::pin::pin;
-use std::sync::Arc;
 use std::task::Poll;
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 
-use hungry::{crypto_bigint, tl, unbite};
+use hungry::{tl, unbite};
 
-use crypto_bigint::{Odd, U2048};
-
-use tl::SerializedLen;
-use tl::api::{enums, funcs, types};
+use crate::auth::auth;
+use crate::key::get_auth_key;
+use crate::updates::process_updates;
+pub use client::{Client, Request, RequestError};
 
 const ADDR: &str = "149.154.167.40:443";
-
-const N: &str = "253428894488404155649716895907134732068988477590847790525820265945460224638539\
-    4058588521595116849196570822264939918060381807420062046377613542488463216251240316379308392\
-    1641631564740959529419359595852941166848940585952337613333022396096584117954892216031229237\
-    3029437018775884567383353986024616752250817918203931537575049526362349513232378200365435810\
-    4782690612092797248736680529211579223142368426126233039432475078545094258975175539015664775\
-    1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
-    127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
 
 type R = tokio::net::tcp::OwnedReadHalf;
 type W = tokio::net::tcp::OwnedWriteHalf;
@@ -35,41 +30,10 @@ type Plain = hungry::plain::Plain<Transport, R, W>;
 
 type Sender = hungry::sender::Sender<Transport, R, W, Handle>;
 
-type Item = (
-    oneshot::Sender<Result<tl::Object, RpcError>>,
-    usize,
-    Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
-);
-
-#[derive(Debug)]
-pub enum RpcError {
-    RpcError(tl::mtproto::types::RpcError),
-    BadServerSalt,
-}
-
-impl fmt::Display for RpcError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("rpc error: ")?;
-
-        match self {
-            RpcError::RpcError(tl::mtproto::types::RpcError {
-                error_code,
-                error_message,
-            }) => write!(
-                f,
-                "rpc_error#2144ca19 {{ error_code: {error_code}, error_message: {error_message} }}"
-            ),
-            RpcError::BadServerSalt => write!(f, "bad_server_salt#edab447b"),
-        }
-    }
-}
-
-impl std::error::Error for RpcError {}
-
 struct Handle {}
 
 impl hungry::sender::Handle for Handle {
-    type Extra = oneshot::Sender<Result<tl::Object, RpcError>>;
+    type Extra = oneshot::Sender<Result<tl::Object, RequestError>>;
 
     fn rpc_result(&mut self, extra: Self::Extra, typ: u32, buf: &mut tl::de::Buf<'_>) {
         let obj = tl::Object::deserialize(typ, buf).unwrap();
@@ -77,11 +41,11 @@ impl hungry::sender::Handle for Handle {
     }
 
     fn rpc_result_error(&mut self, extra: Self::Extra, error: tl::mtproto::types::RpcError) {
-        extra.send(Err(RpcError::RpcError(error))).unwrap();
+        extra.send(Err(RequestError::RpcError(error))).unwrap();
     }
 
     fn bad_server_salt(&mut self, extra: Self::Extra) {
-        extra.send(Err(RpcError::BadServerSalt)).unwrap();
+        extra.send(Err(RequestError::BadServerSalt)).unwrap();
     }
 }
 
@@ -102,192 +66,19 @@ async fn connect() -> anyhow::Result<(Plain, unbite::DynBuf)> {
     Ok((plain, buffer))
 }
 
-async fn generate_auth_key(
-    plain: &mut Plain,
-    buffer: &mut unbite::DynBuf,
-) -> anyhow::Result<hungry::auth::DhGenOk> {
-    info!("generating new `AuthKey`");
-
-    let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
-    let e = Odd::new(U2048::from_word(65537)).unwrap();
-
-    let server_public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
-
-    let mut nonce = tl::Int128::default();
-
-    getrandom::fill(nonce.as_mut())?;
-
-    let req_pq_multi = hungry::auth::start(nonce);
-
-    let tl::mtproto::enums::ResPq::ResPq(res_pq) = plain.send(buffer, req_pq_multi.func()).await?;
-
-    let res_pq = req_pq_multi.res_pq(&res_pq)?;
-
-    let mut random_padding_bytes = [0; 192];
-    getrandom::fill(&mut random_padding_bytes)?;
-
-    let mut new_nonce = tl::Int256::default();
-    getrandom::fill(new_nonce.as_mut())?;
-
-    let mut req_dh_params =
-        res_pq.req_dh_params(random_padding_bytes, new_nonce, &server_public_key);
-
-    let mut temp_key = [0; 32];
-
-    let func = loop {
-        getrandom::fill(&mut temp_key)?;
-
-        if let Some(func) = req_dh_params.func(&temp_key) {
-            break func;
-        }
-    };
-
-    let tl::mtproto::enums::ServerDhParams::ServerDhParamsOk(server_dh_params) =
-        plain.send(buffer, func).await?
-    else {
-        anyhow::bail!("not ServerDhParamsOk")
-    };
-
-    let server_dh_params = req_dh_params.server_dh_params_ok(&server_dh_params)?;
-
-    let mut b = [0; 256];
-    getrandom::fill(&mut b)?;
-
-    let set_client_dh_params =
-        server_dh_params.set_client_dh_params(U2048::from_be_slice(&b), 0)?;
-
-    let tl::mtproto::enums::SetClientDhParamsAnswer::DhGenOk(dh_gen_ok) =
-        plain.send(buffer, set_client_dh_params.func()).await?
-    else {
-        anyhow::bail!("not DhGenOk")
-    };
-
-    Ok(set_client_dh_params.dh_gen_ok(&dh_gen_ok)?)
-}
-
-async fn get_auth_key(
-    plain: &mut Plain,
-    buffer: &mut unbite::DynBuf,
-) -> anyhow::Result<(hungry::mtproto::AuthKey, hungry::mtproto::Salt)> {
-    let filename = "test.session";
-
-    let path = std::path::Path::new(filename);
-
-    let mut file = tokio::fs::File::options()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open(path)
-        .await?;
-
-    let mut buf = Vec::new();
-
-    file.read_to_end(&mut buf).await?;
-
-    if buf.len() != 256 {
-        let hungry::auth::DhGenOk {
-            auth_key,
-            server_salt,
-        } = generate_auth_key(plain, buffer).await?;
-
-        info!("writing the `AuthKey` to `{filename}`");
-
-        file.set_len(0).await?;
-        file.write_all(auth_key.data()).await?;
-
-        return Ok((auth_key, server_salt));
-    }
-
-    info!("using the `AuthKey` from `{filename}`");
-
-    let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
-
-    Ok((auth_key, getrandom::u64()?.cast_signed()))
-}
-
-async fn import_bot_auth(tx: &mpsc::UnboundedSender<Item>) -> anyhow::Result<()> {
-    let func = funcs::auth::ImportBotAuthorization {
-        flags: 0,
-        api_id: std::env::var("API_ID")?.parse()?,
-        api_hash: std::env::var("API_HASH")?,
-        bot_auth_token: std::env::var("BOT_TOKEN")?,
-    };
-
-    let (func_tx, func_rx) = oneshot::channel();
-
-    let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::new(func))) else {
-        unreachable!()
-    };
-
-    let obj = func_rx.await??;
-
-    let tl::Object::api_auth_Authorization(auth) = obj else {
-        unimplemented!()
-    };
-
-    let enums::auth::Authorization::Authorization(_) = auth else {
-        unimplemented!()
-    };
-
-    Ok(())
-}
-
-fn spawn<
-    E: fmt::Debug + fmt::Display + Send + 'static,
+fn spawn<E, F>(future: F) -> tokio::task::JoinHandle<Result<(), E>>
+where
+    E: fmt::Display + Send + 'static,
     F: Future<Output = Result<(), E>> + Send + 'static,
->(
-    future: F,
-) {
-    tokio::spawn(async move {
-        if let Err(err) = future.await {
-            error!(%err, "task failed");
-        }
-    });
-}
-
-async fn invoke<X: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync + 'static>(
-    tx: &mpsc::UnboundedSender<Item>,
-    func: Arc<X>,
-) -> anyhow::Result<tl::Object> {
-    let obj = loop {
-        let (func_tx, func_rx) = oneshot::channel();
-
-        let Ok(()) = tx.send((func_tx, func.serialized_len(), Arc::clone(&func) as _)) else {
-            unreachable!()
-        };
-
-        match func_rx.await? {
-            Ok(obj) => break obj,
-            Err(err) => {
-                error!(%err);
-
-                let secs = match err {
-                    RpcError::RpcError(error) => {
-                        if error.error_code == 420 {
-                            u64::from(
-                                error
-                                    .error_message
-                                    .split(|c: char| !c.is_ascii_digit())
-                                    .flat_map(|value| value.parse::<u32>())
-                                    .next()
-                                    .unwrap(),
-                            ) + 1
-                        } else {
-                            1
-                        }
-                    }
-                    RpcError::BadServerSalt => 1,
-                };
-
-                tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
-            }
-        }
-    };
-
-    Ok(obj)
+{
+    tokio::spawn(async move { future.await.inspect_err(|err| error!(%err)) })
 }
 
 async fn async_main() -> anyhow::Result<()> {
+    let api_id = std::env::var("API_ID")?.parse()?;
+    let api_hash = std::env::var("API_HASH")?;
+    let bot_auth_token = std::env::var("BOT_AUTH_TOKEN")?;
+
     let (mut plain, mut buffer) = connect().await?;
 
     let (auth_key, server_salt) = get_auth_key(&mut plain, &mut buffer).await?;
@@ -300,11 +91,13 @@ async fn async_main() -> anyhow::Result<()> {
 
     let mut sender = Sender::new(r, w, auth_key, session, server_salt);
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<Item>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Request>();
 
-    let sender_tx = tx.clone();
+    let client = Client { tx };
 
-    let sender_task = tokio::spawn(async move {
+    let auth_task = spawn(auth(client.clone(), api_id, api_hash, bot_auth_token));
+
+    let sender_task = spawn(async move {
         let mut ctrl_c = pin!(tokio::signal::ctrl_c());
 
         let mut updates = Vec::new();
@@ -321,16 +114,16 @@ async fn async_main() -> anyhow::Result<()> {
             }
 
             while let Poll::Ready(Some(ready)) = rx.poll_recv(cx) {
-                let (tx, len, f) = ready;
+                let Request { tx, len, func } = ready;
 
-                let _msg = sender.invoke(tx, len, |buf| buf.ser(&*f));
+                let _msg = sender.invoke(tx, len, |buf| buf.ser(&*func));
             }
 
             while let Poll::Ready(ready) = sender.poll(cx, &mut updates, &mut handle) {
                 ready?;
 
                 for update in updates.drain(..) {
-                    handle_updates(update, &sender_tx);
+                    process_updates(&client, update);
                 }
             }
 
@@ -340,151 +133,14 @@ async fn async_main() -> anyhow::Result<()> {
         {
             error!(?err);
         }
-    });
 
-    let auth_task = tokio::spawn(async move {
-        let func = Arc::new(funcs::InvokeWithLayer {
-            layer: 214,
-            query: funcs::InitConnection {
-                api_id: std::env::var("API_ID")?.parse()?,
-                device_model: "device_model".to_string(),
-                system_version: "system_version".to_string(),
-                app_version: "0.0.1".to_string(),
-                system_lang_code: "en".to_string(),
-                lang_pack: "".to_string(),
-                lang_code: "en".to_string(),
-                proxy: None,
-                params: None,
-                query: funcs::updates::GetState {},
-            },
-        });
-
-        let obj = invoke(&tx, func).await?;
-
-        match obj {
-            tl::Object::mtproto_RpcError(_) => {
-                import_bot_auth(&tx).await?;
-            }
-            _ => {}
-        }
-
-        Ok::<(), anyhow::Error>(())
+        anyhow::Ok(())
     });
 
     auth_task.await??;
-    sender_task.await?;
+    sender_task.await??;
 
     Ok(())
-}
-
-fn send_message(peer: enums::InputPeer, message: String) -> funcs::messages::SendMessage {
-    let random_id = getrandom::u64().unwrap().cast_signed();
-
-    funcs::messages::SendMessage {
-        no_webpage: false,
-        silent: false,
-        background: false,
-        clear_draft: false,
-        noforwards: false,
-        update_stickersets_order: false,
-        invert_media: false,
-        allow_paid_floodskip: false,
-        peer,
-        reply_to: None,
-        message,
-        random_id,
-        reply_markup: None,
-        entities: None,
-        schedule_date: None,
-        send_as: None,
-        quick_reply_shortcut: None,
-        effect: None,
-        allow_paid_stars: None,
-        suggested_post: None,
-    }
-}
-
-fn handle_updates(updates: enums::Updates, tx: &mpsc::UnboundedSender<Item>) {
-    match updates {
-        enums::Updates::Updates(updates) => {
-            for update in &updates.updates {
-                match update {
-                    enums::Update::UpdateNewMessage(update) => match &update.message {
-                        enums::Message::Message(message) => {
-                            let id = match message.peer_id {
-                                enums::Peer::PeerUser(ref x) => x.user_id,
-                                _ => todo!(),
-                            };
-
-                            let enums::User::User(user) = updates
-                                .users
-                                .iter()
-                                .find(|x| match x {
-                                    enums::User::UserEmpty(_) => false,
-                                    enums::User::User(x) => x.id == id,
-                                })
-                                .unwrap()
-                            else {
-                                todo!()
-                            };
-
-                            let input_peer = types::InputPeerUser {
-                                user_id: id,
-                                access_hash: user.access_hash.unwrap_or(0),
-                            };
-
-                            let message = if message.message == "/stats" {
-                                let mut sys = sysinfo::System::new();
-                                let pid = sysinfo::Pid::from(std::process::id() as usize);
-                                let pids = sysinfo::ProcessesToUpdate::Some(&[pid]);
-
-                                sys.refresh_processes_specifics(
-                                    pids,
-                                    false,
-                                    sysinfo::ProcessRefreshKind::nothing()
-                                        .with_cpu()
-                                        .with_memory(),
-                                );
-
-                                let proc = sys.process(pid).unwrap();
-
-                                let run_time = proc.run_time();
-                                let cpu_time = proc.accumulated_cpu_time() as f64 / 1000.;
-                                let cpu_usage = cpu_time / run_time as f64 * 100.;
-                                let mem = proc.memory() as f64 / (1024. * 1024.);
-
-                                format!(
-                                    "# STATS:\n\n * Run time: {run_time}s\n * CPU: {cpu_time:.1}s ({cpu_usage:.2}%)\n * Memory: {mem:.1}MiB"
-                                )
-                            } else {
-                                format!("echo: {}", message.message)
-                            };
-
-                            let func = Arc::new(send_message(input_peer.into(), message));
-
-                            let tx = tx.clone();
-
-                            spawn(async move {
-                                let _obj = invoke(&tx, func).await?;
-
-                                anyhow::Ok(())
-                            });
-                        }
-                        message => {
-                            info!(?message);
-                        }
-                    },
-                    update => {
-                        info!(?update);
-                    }
-                }
-            }
-        }
-
-        updates => {
-            info!(?updates);
-        }
-    }
 }
 
 fn main() -> anyhow::Result<()> {
