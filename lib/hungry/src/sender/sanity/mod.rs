@@ -108,7 +108,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
     // FIXME: create buffer container.
     pub(super) fn new_container(&mut self, len: usize) -> Container<T> {
-        Container::new(unbite::DynBuf::new(len + 64 * 1024))
+        Container::new(unbite::DynBuf::new(len + 256 * 1024))
     }
 
     fn take_buffer(&mut self, capacity: usize) -> unbite::DynRaw {

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
-use anyhow::bail;
+use tracing::info;
 
 use hungry::tl;
 
 use tl::api::{enums, funcs, types};
 
-use crate::Client;
+use crate::{Client, RequestError};
 
 async fn import_bot_authorization(
     client: Client,
@@ -27,18 +27,22 @@ async fn import_bot_authorization(
         authorization,
     )) = obj
     else {
-        bail!("invalid type");
+        anyhow::bail!("invalid type");
     };
+
+    info!(?authorization, "authorized");
 
     Ok(authorization)
 }
 
-pub async fn auth(
+pub async fn authorize(
     client: Client,
     api_id: i32,
     api_hash: String,
     bot_auth_token: String,
 ) -> anyhow::Result<()> {
+    // The `InvokeWithLayer` and `InitConnection` functions
+    // are crucial to call before continuing with anything else.
     let func = Arc::new(funcs::InvokeWithLayer {
         layer: 214,
         query: funcs::InitConnection {
@@ -55,15 +59,23 @@ pub async fn auth(
         },
     });
 
-    let obj = client.invoke(func).await?;
-
-    match obj {
-        // Not logged it.
-        tl::Object::mtproto_RpcError(_) => {
-            import_bot_authorization(client, api_id, api_hash, bot_auth_token).await?;
+    match client.invoke(func).await {
+        // Authorized, not need to call `auth::ImportBotAuthorization` function.
+        Ok(_) => {
+            info!("already authorized");
+            return Ok(());
         }
-        _ => {}
+        Err(err) => match err.downcast::<RequestError>() {
+            // Unauthorized.
+            Ok(RequestError::RpcError(error)) if error.error_code == 401 => {}
+
+            // Other errors.
+            Ok(err) => return Err(err.into()),
+            Err(err) => return Err(err),
+        },
     }
 
-    Ok::<(), anyhow::Error>(())
+    import_bot_authorization(client, api_id, api_hash, bot_auth_token).await?;
+
+    Ok(())
 }

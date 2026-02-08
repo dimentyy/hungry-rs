@@ -115,7 +115,7 @@ impl<T: Transport, R: AsyncRead + Unpin, W: AsyncWrite + Unpin, H: Handle> Sende
         let msg = self.sanity.get_msg::<false>(system_time);
 
         self.sanity.container_msgs(msg, msgs);
-        
+
         let buffer = self
             .writer
             .queue(transport, encrypted, buffer, &self.auth_key, internal, msg);

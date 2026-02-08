@@ -6,6 +6,9 @@ use tracing::error;
 
 use hungry::tl;
 
+pub trait Function: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync {}
+impl<X: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync> Function for X {}
+
 #[derive(Debug)]
 pub enum RequestError {
     RpcError(tl::mtproto::types::RpcError),
@@ -20,11 +23,11 @@ impl fmt::Display for RequestError {
 
         match self {
             RpcError(tl::mtproto::types::RpcError {
-                error_code,
-                error_message,
+                error_code: code,
+                error_message: message,
             }) => write!(
                 f,
-                "rpc_error#2144ca19 {{ error_code: {error_code}, error_message: {error_message} }}"
+                "rpc_error#2144ca19 {{ code: {code}, message: {message} }}"
             ),
             BadServerSalt => write!(f, "bad_server_salt#edab447b {{ .. }}"),
         }
@@ -36,7 +39,7 @@ impl std::error::Error for RequestError {}
 pub struct Request {
     pub tx: oneshot::Sender<Result<tl::Object, RequestError>>,
     pub len: usize,
-    pub func: Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
+    pub func: Arc<dyn Function>,
 }
 
 #[derive(Clone)]
@@ -45,47 +48,45 @@ pub struct Client {
 }
 
 impl Client {
-    pub async fn invoke(
-        &self,
-        func: Arc<dyn tl::ser::SerializeUnchecked + Send + Sync>,
-    ) -> anyhow::Result<tl::Object> {
-        let obj = loop {
+    pub async fn invoke(&self, func: Arc<dyn Function>) -> anyhow::Result<tl::Object> {
+        let len = func.serialized_len();
+
+        loop {
             let (tx, rx) = oneshot::channel();
 
+            // The `Sender` does not store requests, just `Msg` and `Extra`.
+            // They are only serialized. When sent, a buffer is cleared.
+            // Since RPC queries are not expected to fail often, this is
+            // an efficient way to avoid copying buffer intermediately.
             self.tx.send(Request {
                 tx,
-                len: func.serialized_len(),
-                func: Arc::clone(&func) as _,
+                len,
+                func: Arc::clone(&func),
             })?;
 
-            match rx.await? {
-                Ok(obj) => break obj,
-                Err(err) => {
-                    error!(%err);
+            let err = match rx.await? {
+                Ok(obj) => return Ok(obj),
+                Err(err) => err,
+            };
 
-                    let secs = match err {
-                        RequestError::RpcError(error) => {
-                            if error.error_code == 420 {
-                                u64::from(
-                                    error
-                                        .error_message
-                                        .split(|c: char| !c.is_ascii_digit())
-                                        .flat_map(|value| value.parse::<u32>())
-                                        .next()
-                                        .unwrap_or(0),
-                                ) + 1
-                            } else {
-                                1
-                            }
-                        }
-                        RequestError::BadServerSalt => 1,
-                    };
+            error!(%err, ?func);
 
-                    tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
+            let secs = match err {
+                RequestError::RpcError(error) if error.error_code == 420 => {
+                    u64::from(
+                        error
+                            .error_message
+                            .split(|c: char| !c.is_ascii_digit())
+                            .flat_map(|value| value.parse::<u32>())
+                            .next()
+                            .unwrap_or(1),
+                    ) + 1
                 }
-            }
-        };
+                RequestError::RpcError(error) => return Err(RequestError::RpcError(error).into()),
+                RequestError::BadServerSalt => 2,
+            };
 
-        Ok(obj)
+            tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;
+        }
     }
 }

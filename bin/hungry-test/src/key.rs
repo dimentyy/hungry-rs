@@ -7,6 +7,10 @@ use crypto_bigint::{Odd, U2048};
 
 use crate::Plain;
 
+/// The E component of public RSA key.
+const E: u64 = 65537;
+
+/// The N component of public RSA key.
 const N: &str = "253428894488404155649716895907134732068988477590847790525820265945460224638539\
     4058588521595116849196570822264939918060381807420062046377613542488463216251240316379308392\
     1641631564740959529419359595852941166848940585952337613333022396096584117954892216031229237\
@@ -15,6 +19,7 @@ const N: &str = "253428894488404155649716895907134732068988477590847790525820265
     1460719351439969059949569615302809050721500330239005077889855323917509948255722081644689442\
     127297605422579707142646660768825302832201908302295573257427896031830742328565032949";
 
+/// Key generation is not fun. Try exploring other things!
 async fn generate_auth_key(
     plain: &mut Plain,
     buffer: &mut unbite::DynBuf,
@@ -22,7 +27,7 @@ async fn generate_auth_key(
     info!("generating new `AuthKey`");
 
     let n = Odd::new(U2048::from_str_radix_vartime(N, 10)?).unwrap();
-    let e = Odd::new(U2048::from_word(65537)).unwrap();
+    let e = Odd::new(U2048::from_u64(E)).unwrap();
 
     let server_public_key = hungry::crypto::RsaKey::new(n, e); // fingerprint: -5595554452916591101
 
@@ -78,6 +83,7 @@ async fn generate_auth_key(
     Ok(set_client_dh_params.dh_gen_ok(&dh_gen_ok)?)
 }
 
+/// Use AuthKey from a file, if it exists, or generate a new one.
 pub async fn get_auth_key(
     plain: &mut Plain,
     buffer: &mut unbite::DynBuf,
@@ -103,7 +109,7 @@ pub async fn get_auth_key(
             server_salt,
         } = generate_auth_key(plain, buffer).await?;
 
-        info!("writing the `AuthKey` to `{filename}`");
+        info!(filename, "writing `AuthKey` to the file");
 
         file.set_len(0).await?;
         file.write_all(auth_key.data()).await?;
@@ -111,9 +117,14 @@ pub async fn get_auth_key(
         return Ok((auth_key, server_salt));
     }
 
-    info!("using the `AuthKey` from `{filename}`");
+    info!(filename, "using the `AuthKey` from the file`");
 
-    let auth_key = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()).unwrap();
+    let Some(auth_key) = hungry::mtproto::AuthKey::new(buf.try_into().unwrap()) else {
+        anyhow::bail!("auth key zero");
+    };
 
-    Ok((auth_key, getrandom::u64()?.cast_signed()))
+    // We could store the future salt, but it would be too messy for an example.
+    let server_salt = getrandom::u64()?.cast_signed();
+
+    Ok((auth_key, server_salt))
 }

@@ -13,6 +13,15 @@ session management, input peer cache, or any high-level convenient API methods.
 The user shall adapt the library for their own specific use-case, rather than
 their projects, with `HUNGRY-RS` providing a stable base for Telegram clients.
 
+## <ins>Working</ins> example
+
+See the actually working [`hungry-test`](/bin/hungry-test) binary right now.
+
+It contains just a few files with comments to get an
+understanding of how the library is actually working!
+
+This is just a simple echo-bot with a `/stats` command.
+
 ## Unbite
 
 See the [crate](/lib/unbite), currently in this repository. This is a
@@ -40,9 +49,6 @@ Work in progress.
 
 + [ ] Stabilization
 + [ ] Active testing
-
-## Binaries
-* [`hungry-test`](/bin/hungry-test) — binary for testing the libraries
 
 ## Libraries
 * [`hungry`](/lib/hungry) — client, connection and protocol logic
