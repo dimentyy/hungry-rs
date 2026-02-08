@@ -10,6 +10,13 @@ pub struct ServerSeqNos {
     missed: Vec<SeqNo>,
 }
 
+impl Default for ServerSeqNos {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServerSeqNos {
     #[inline]
     pub const fn new() -> Self {

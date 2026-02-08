@@ -135,7 +135,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
     }
 
     pub(super) fn container_msgs(&mut self, container_msg: Msg, msgs: Vec<Msg>) {
-        for msg in msgs.iter() {
+        for msg in &msgs {
             if let Some(request) = self
                 .requests
                 .iter_mut()

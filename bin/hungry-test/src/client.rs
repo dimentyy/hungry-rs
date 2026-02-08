@@ -69,7 +69,7 @@ impl Client {
                 Err(err) => err,
             };
 
-            error!(%err, ?func);
+            error!(%err);
 
             let secs = match err {
                 RequestError::RpcError(error) if error.error_code == 420 => {

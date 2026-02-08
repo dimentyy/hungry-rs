@@ -31,8 +31,6 @@ pub fn process_updates(client: &Client, updates: enums::Updates) {
 fn process_update(client: &Client, update: enums::Update) {
     use enums::Update::*;
 
-    info!(?update);
-
     match update {
         UpdateNewMessage(update) => match update.message {
             enums::Message::Message(message) => {
@@ -65,8 +63,6 @@ async fn process_message(client: Client, message: types::Message) -> anyhow::Res
     };
 
     let func = Arc::new(send_message(input_peer.into(), message));
-
-    let client = client.clone();
 
     let _obj = client.invoke(func).await?;
 

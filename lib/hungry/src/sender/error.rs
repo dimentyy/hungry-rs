@@ -73,7 +73,7 @@ impl fmt::Display for SenderError {
             Msg(err) => err.fmt(f),
             Padding(err) => err.fmt(f),
             Deserialization(err) => err.fmt(f),
-            Ungzip(err) => todo!(),
+            Ungzip(err) => err.fmt(f),
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),
@@ -98,7 +98,7 @@ impl std::error::Error for SenderError {
             Msg(err) => err,
             Padding(err) => err,
             Deserialization(err) => err,
-            Ungzip(_) => todo!(),
+            Ungzip(err) => err,
 
             DoubleGzipPacked => todo!(),
             DoubleMsgContainer => todo!(),

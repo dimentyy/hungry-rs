@@ -1,5 +1,5 @@
 use std::mem::MaybeUninit;
-use std::slice;
+use std::{fmt, slice};
 
 use crate::{mtproto, tl};
 
@@ -9,6 +9,25 @@ pub enum UngzipError {
     StatusOk,
     StatusBufError,
 }
+
+impl fmt::Display for UngzipError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use UngzipError::*;
+
+        f.write_str("ungzip error: ")?;
+
+        match self {
+            Inflate(err) => {
+                f.write_str("inflate error: ")?;
+                f.write_str(err.as_str())
+            }
+            StatusOk => f.write_str("status: Ok"),
+            StatusBufError => f.write_str("status: BufError"),
+        }
+    }
+}
+
+impl std::error::Error for UngzipError {}
 
 pub fn ungzip<'a>(
     input: &[u8],
@@ -20,7 +39,7 @@ pub fn ungzip<'a>(
 
     let flush = zlib_rs::InflateFlush::Finish;
 
-    // SAFETY: returned slice is up to safe `inflate.total_out()` index.
+    // SAFETY: returned slice is up to the `inflate.total_out()` index.
     let output = unsafe { slice::from_raw_parts_mut(output.as_mut_ptr().cast(), output.len()) };
 
     let status = inflate.decompress(input, output, flush).map_err(Inflate)?;
