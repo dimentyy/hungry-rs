@@ -6,6 +6,13 @@ pub struct Raw<const N: usize> {
     pub(crate) inner: Inner,
 }
 
+impl<const N: usize> From<Buf<N>> for Raw<N> {
+    #[inline]
+    fn from(value: Buf<N>) -> Self {
+        value.into_raw()
+    }
+}
+
 impl<const N: usize> Raw<N> {
     crate::common_impl!(
         self: self;
@@ -24,6 +31,11 @@ impl<const N: usize> Raw<N> {
     #[inline]
     pub fn into_buf(self) -> Buf<N> {
         Buf::from_raw(self)
+    }
+
+    #[inline]
+    pub fn from_buf(buf: Buf<N>) -> Self {
+        buf.into_raw()
     }
 
     #[inline]

@@ -9,6 +9,13 @@ pub struct DynBuf {
     pub(crate) len: usize,
 }
 
+impl From<DynRaw> for DynBuf {
+    #[inline]
+    fn from(value: DynRaw) -> Self {
+        value.into_buf()
+    }
+}
+
 impl DynBuf {
     crate::common_impl!(
         self: self;
@@ -22,6 +29,16 @@ impl DynBuf {
         let raw = DynRaw::new(capacity);
 
         Self { raw, len: 0 }
+    }
+
+    #[inline]
+    pub fn from_raw(raw: DynRaw) -> Self {
+        Self { raw, len: 0 }
+    }
+
+    #[inline]
+    pub fn into_raw(self) -> DynRaw {
+        self.raw
     }
 
     #[inline]

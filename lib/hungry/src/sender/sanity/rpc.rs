@@ -52,7 +52,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
 
         if let Some(out) = out {
-            self.return_temporary_buffer(out);
+            self.return_temporary_buffer(out.into_raw());
         }
 
         Ok(())

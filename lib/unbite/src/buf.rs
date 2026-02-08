@@ -38,6 +38,11 @@ impl<const N: usize> Buf<N> {
     }
 
     #[inline]
+    pub fn into_raw(self) -> Raw<N> {
+        self.raw
+    }
+
+    #[inline]
     pub fn split_raw<const L: usize, const R: usize>(self) -> (Raw<L>, Raw<R>) {
         self.raw.split()
     }

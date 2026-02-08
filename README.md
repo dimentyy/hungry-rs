@@ -4,6 +4,8 @@ Telegram [MTProto] API client in Rust, with **RELIABILITY** as the top priority.
 
 Ideas for this project were massively inspired by ★ [gramme.rs] libraries.
 
+![LINES OF CODE](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.codetabs.com%2Fv1%2Floc%2F%3Fgithub%3Ddimentyy%2Fhungry-rs&query=%24%5B0%5D.linesOfCode&style=for-the-badge&label=LINES%20OF%20CODE&color=%23ff6600)
+
 ## Overview
 
 This project is **NOT** a framework — it's a library, meaning there is **NO**

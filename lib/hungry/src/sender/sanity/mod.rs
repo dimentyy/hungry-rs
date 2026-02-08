@@ -111,12 +111,12 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         Container::new(unbite::DynBuf::new(len + 64 * 1024))
     }
 
-    fn get_temporary_buffer(&mut self, capacity: usize) -> unbite::DynBuf {
+    fn get_temporary_buffer(&mut self, capacity: usize) -> unbite::DynRaw {
         // TODO.
-        unbite::DynBuf::new(capacity)
+        unbite::DynRaw::new(capacity)
     }
 
-    fn return_temporary_buffer(&mut self, buffer: unbite::DynBuf) {
+    fn return_temporary_buffer(&mut self, buffer: unbite::DynRaw) {
         // TODO.
         drop(buffer);
     }
@@ -211,7 +211,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
 
         let gzip_isize = u32::from_le_bytes(bytes[bytes.len() - 4..].try_into().unwrap()) as usize;
 
-        let buffer = out.insert(self.get_temporary_buffer(gzip_isize));
+        let buffer = out.insert(self.get_temporary_buffer(gzip_isize).into_buf());
 
         buffer
             .try_init_with(|output| Ok(&*ungzip(bytes, output)?))
@@ -270,7 +270,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                     self.handle_single(buf_msg, system_time, updates, handle)?;
 
                     if let Some(out) = out {
-                        self.return_temporary_buffer(out);
+                        self.return_temporary_buffer(out.into_raw());
                     }
                 }
 
@@ -287,7 +287,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
         }
 
         if let Some(out) = out {
-            self.return_temporary_buffer(out);
+            self.return_temporary_buffer(out.into_raw());
         }
 
         Ok(())

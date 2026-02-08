@@ -1,12 +1,19 @@
 use std::hint::assert_unchecked;
 
-use crate::Raw;
 use crate::inner::Inner;
+use crate::{DynBuf, Raw};
 
 #[must_use]
 pub struct DynRaw {
     pub(crate) inner: Inner,
     pub(crate) capacity: usize,
+}
+
+impl From<DynBuf> for DynRaw {
+    #[inline]
+    fn from(value: DynBuf) -> Self {
+        value.into_raw()
+    }
 }
 
 impl DynRaw {
@@ -21,6 +28,16 @@ impl DynRaw {
         let inner = Inner::new_embedded(capacity);
 
         Self { inner, capacity }
+    }
+
+    #[inline]
+    pub fn into_buf(self) -> DynBuf {
+        DynBuf::from_raw(self)
+    }
+
+    #[inline]
+    pub fn from_buf(buf: DynBuf) -> DynRaw {
+        buf.into_raw()
     }
 
     #[inline]

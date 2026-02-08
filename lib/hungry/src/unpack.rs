@@ -28,7 +28,7 @@ pub fn ungzip<'a>(
     match status {
         zlib_rs::Status::Ok => return Err(StatusOk),
         zlib_rs::Status::BufError => return Err(StatusBufError),
-        zlib_rs::Status::StreamEnd => {},
+        zlib_rs::Status::StreamEnd => {}
     }
 
     Ok(&mut output[..inflate.total_out() as usize])
