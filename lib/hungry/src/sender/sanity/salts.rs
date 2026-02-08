@@ -74,7 +74,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                     }
 
                     if let Some(req) = self.requests.swap_remove_front(index_msg_id) {
-                        handle.bad_server_salt(msg_id, req.extra);
+                        handle.bad_server_salt(req.extra);
                     }
                 }
             }
@@ -102,7 +102,7 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
                             .position(|x| x.msg.seq_no == msg.seq_no)
                         {
                             let request = self.requests.swap_remove_front(index).unwrap();
-                            handle.bad_server_salt(msg_id, request.extra);
+                            handle.bad_server_salt(request.extra);
                         }
                     }
                 }

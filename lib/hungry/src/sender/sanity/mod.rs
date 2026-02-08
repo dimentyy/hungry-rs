@@ -31,17 +31,11 @@ const MAX_GET_FUTURE_SALTS_NUM: i32 = 64;
 pub trait Handle {
     type Extra;
 
-    fn rpc_result(
-        &mut self,
-        msg_id: MsgId,
-        extra: Self::Extra,
-        typ: u32,
-        buf: &mut tl::de::Buf<'_>,
-    );
+    fn rpc_result(&mut self, extra: Self::Extra, typ: u32, buf: &mut tl::de::Buf<'_>);
 
-    fn rpc_result_error(&mut self, msg_id: MsgId, extra: Self::Extra, error: types::RpcError);
+    fn rpc_result_error(&mut self, extra: Self::Extra, error: types::RpcError);
 
-    fn bad_server_salt(&mut self, msg_id: MsgId, extra: Self::Extra);
+    fn bad_server_salt(&mut self, extra: Self::Extra);
 }
 
 // FIXME: this struct manages too many things right now.
@@ -200,9 +194,11 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             types::BadMsgNotification::CONSTRUCTOR_ID => self.bad_msg_notification(buf.de()?)?,
             types::BadServerSalt::CONSTRUCTOR_ID => self.bad_server_salt(buf.de()?, handle)?,
 
-            types::NewSessionCreated::CONSTRUCTOR_ID => self.new_session_created(buf.de()?)?,
             types::FutureSalts::CONSTRUCTOR_ID => self.handle_future_salts(buf.de()?)?,
+
             types::Pong::CONSTRUCTOR_ID => self.pong(buf.de()?)?,
+
+            types::NewSessionCreated::CONSTRUCTOR_ID => self.new_session_created(buf.de()?)?,
 
             UpdatesTooLong::CONSTRUCTOR_ID => updates.push(UpdatesTooLong {}.into()),
 

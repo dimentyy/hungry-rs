@@ -44,7 +44,7 @@ type Item = (
 #[derive(Debug)]
 pub enum RpcError {
     RpcError(tl::mtproto::types::RpcError),
-    BadServerSalt(hungry::mtproto::MsgId),
+    BadServerSalt,
 }
 
 impl fmt::Display for RpcError {
@@ -59,10 +59,7 @@ impl fmt::Display for RpcError {
                 f,
                 "rpc_error#2144ca19 {{ error_code: {error_code}, error_message: {error_message} }}"
             ),
-            RpcError::BadServerSalt(msg_id) => write!(
-                f,
-                "bad_server_salt#edab447b {{ bad_msg_id: {msg_id:#018x}, .. }}"
-            ),
+            RpcError::BadServerSalt => write!(f, "bad_server_salt#edab447b"),
         }
     }
 }
@@ -74,28 +71,17 @@ struct Handle {}
 impl hungry::sender::Handle for Handle {
     type Extra = oneshot::Sender<Result<tl::Object, RpcError>>;
 
-    fn rpc_result(
-        &mut self,
-        msg_id: hungry::mtproto::MsgId,
-        extra: Self::Extra,
-        typ: u32,
-        buf: &mut tl::de::Buf<'_>,
-    ) {
+    fn rpc_result(&mut self, extra: Self::Extra, typ: u32, buf: &mut tl::de::Buf<'_>) {
         let obj = tl::Object::deserialize(typ, buf).unwrap();
         extra.send(Ok(obj)).unwrap();
     }
 
-    fn rpc_result_error(
-        &mut self,
-        msg_id: hungry::mtproto::MsgId,
-        extra: Self::Extra,
-        error: tl::mtproto::types::RpcError,
-    ) {
+    fn rpc_result_error(&mut self, extra: Self::Extra, error: tl::mtproto::types::RpcError) {
         extra.send(Err(RpcError::RpcError(error))).unwrap();
     }
 
-    fn bad_server_salt(&mut self, msg_id: hungry::mtproto::MsgId, extra: Self::Extra) {
-        extra.send(Err(RpcError::BadServerSalt(msg_id))).unwrap();
+    fn bad_server_salt(&mut self, extra: Self::Extra) {
+        extra.send(Err(RpcError::BadServerSalt)).unwrap();
     }
 }
 
@@ -285,12 +271,12 @@ async fn invoke<X: tl::ser::SerializeUnchecked + fmt::Debug + Send + Sync + 'sta
                                     .flat_map(|value| value.parse::<u32>())
                                     .next()
                                     .unwrap(),
-                            )
+                            ) + 1
                         } else {
                             1
                         }
                     }
-                    RpcError::BadServerSalt(_) => 1,
+                    RpcError::BadServerSalt => 1,
                 };
 
                 tokio::time::sleep(tokio::time::Duration::from_secs(secs)).await;

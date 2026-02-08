@@ -15,7 +15,7 @@ impl MsgContainer {
     const HEADER_LEN: usize = 4 + 4; // CONSTRUCTOR_ID + BareVec
 
     /// MTProto container can have at most 1024 messages.
-    pub const MESSAGES_AT_MOST: u32 = 60;
+    pub const MESSAGES_AT_MOST: u32 = 1024;
 
     /// # Panics
     ///

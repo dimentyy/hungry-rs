@@ -66,10 +66,10 @@ impl<T: Transport, H: Handle> Sanity<T, H> {
             types::RpcError::CONSTRUCTOR_ID => {
                 let error = buf.de()?;
 
-                handle.rpc_result_error(req_msg_id, req.extra, error);
+                handle.rpc_result_error(req.extra, error);
             }
             _ => {
-                handle.rpc_result(req_msg_id, req.extra, typ, &mut buf);
+                handle.rpc_result(req.extra, typ, &mut buf);
             }
         }
 
